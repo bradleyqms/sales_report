@@ -12,6 +12,8 @@ import glob
 import logging
 from pathlib import Path
 from datetime import datetime
+import asyncio
+from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 
 logging.basicConfig(level=logging.INFO)
 
@@ -27,6 +29,13 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 # Global state
+PRE_RUN_OUTLINE = """Pipeline outline:
+1. Pull latest SharePoint tables
+2. Clean & harmonize SKUs
+3. Generate combined management reports
+4. Export CSV, Excel, HTML, PDF bundles
+"""
+
 report_status = {
     "running": False,
     "output": "",
@@ -105,6 +114,35 @@ async def run_report(background_tasks: BackgroundTasks):
 
     background_tasks.add_task(execute_report)
     return {"message": "Report generation started"}
+
+
+@app.get("/stream-logs")
+async def stream_logs():
+    async def event_generator():
+        last_len = 0
+        completed = False
+        yield ServerSentEvent(data=PRE_RUN_OUTLINE, event="outline")
+
+        while True:
+            current_output = report_status["output"]
+
+            if report_status["running"]:
+                if len(current_output) > last_len:
+                    chunk = current_output[last_len:]
+                    last_len = len(current_output)
+                    cleaned = chunk.rstrip('\n')
+                    if cleaned:
+                        yield ServerSentEvent(data=cleaned, event="log")
+                completed = False
+            else:
+                if current_output and not completed:
+                    yield ServerSentEvent(data="Run complete. Summary refreshed below.", event="complete")
+                    completed = True
+                last_len = len(current_output)
+
+            await asyncio.sleep(0.4)
+
+    return EventSourceResponse(event_generator())
 
 @app.get("/status")
 async def get_status():

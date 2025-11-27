@@ -172,6 +172,26 @@ main {
     transform: none;
 }
 
+.run-note {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: #cbd5e0;
+    font-size: 13px;
+    max-width: 240px;
+}
+
+.run-note-title {
+    font-size: 11px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #94a3b8;
+}
+
+.run-note-body {
+    font-weight: 500;
+}
+
 .loading-indicator {
     display: flex;
     align-items: center;
@@ -223,12 +243,60 @@ main {
     color: #4a5568;
 }
 
+.pipeline-connector {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 13px;
+    color: #94a3b8;
+    margin-bottom: 16px;
+}
+
+.connector-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #94a3b8, transparent);
+}
+
 /* Metrics card */
 .metrics-card h3 {
     font-size: 16px;
     font-weight: 600;
     color: #fff;
-    margin-bottom: 20px;
+}
+
+.metrics-card {
+    position: relative;
+}
+
+.metrics-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+}
+
+.metrics-card h3 {
+    margin: 0;
+}
+
+.summary-state {
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    font-size: 11px;
+    border: 1px solid #10b981;
+    padding: 4px 12px;
+    border-radius: 999px;
+    color: #10b981;
+}
+
+.metrics-card--fresh {
+    border-color: rgba(16, 185, 129, 0.6);
+    box-shadow: 0 0 30px rgba(16, 185, 129, 0.35);
+}
+
+.metrics-card--fresh .total-sales-box {
+    border: 1px solid rgba(16, 185, 129, 0.4);
 }
 
 .total-sales-box {

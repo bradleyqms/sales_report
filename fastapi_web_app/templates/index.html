@@ -49,10 +49,19 @@
                     <button id="runButton" onclick="runReport()" class="primary-button">
                         Start analysis
                     </button>
+                    <div class="run-note">
+                        <span class="run-note-title">Typical duration:</span>
+                        <span class="run-note-body">4-6 minutes; SharePoint I/O + local CPU.</span>
+                    </div>
                     <div id="loading" class="loading-indicator" style="display: none;">
                         <div class="spinner"></div>
                         <span>Processing...</span>
                     </div>
+                </div>
+
+                <div class="pipeline-connector">
+                    <span>Action → Streaming → Insight</span>
+                    <div class="connector-line"></div>
                 </div>
 
                 <div class="terminal-window">
@@ -62,8 +71,11 @@
                 </div>
             </div>
 
-            <div class="card metrics-card">
-                <h3>Summary Metrics</h3>
+            <div class="card metrics-card" id="metricsCard">
+                <div class="metrics-card-header">
+                    <h3>Summary Metrics</h3>
+                    <span id="summaryState" class="summary-state">Awaiting a fresh run</span>
+                </div>
                 <div class="total-sales-box">
                     <div class="total-label">TOTAL SALES</div>
                     <div class="total-value" id="totalSalesValue">0 kEUR</div>
@@ -71,7 +83,7 @@
                 <div id="metricsContainer" class="metrics-grid">
                     <!-- Metrics will be populated by JavaScript, ordered largest to smallest -->
                 </div>
-                <div id="metricsTimestamp" class="metrics-timestamp">Last updated: Never</div>
+                <div id="metricsTimestamp" class="metrics-timestamp">Refreshed: Never</div>
             </div>
 
             <div class="card recent-runs-card">
