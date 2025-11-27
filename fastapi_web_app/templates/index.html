@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Report Generator</title>
+    <link rel="stylesheet" href="/static/styles.css?v=2">
+</head>
+<body>
+    <div class="app-container">
+        <header class="top-bar">
+            <div class="brand-section">
+                <div class="logo-text">
+                    <span class="brand-name">QMS</span>
+                    <span class="brand-sub">MEDICOSMETICS</span>
+                </div>
+                <div class="divider"></div>
+                <div class="module-info">
+                    <span class="module-name">Reporting Hub</span>
+                    <span class="beta-badge">BETA</span>
+                    <div class="sub-module">Sales Report module</div>
+                </div>
+            </div>
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span class="status-text">Ready to run</span>
+            </div>
+        </header>
+
+        <main>
+            <div class="card main-card">
+                <div class="card-header">
+                    <h2>Ready to run the Sales Report?</h2>
+                    <p>The run fetches the latest SharePoint files, processes them, and streams the logs below. Scroll down to read the full report.</p>
+                </div>
+                
+                <div class="action-area">
+                    <button id="runButton" onclick="runReport()" class="primary-button">
+                        Start analysis
+                    </button>
+                    <div id="loading" class="loading-indicator" style="display: none;">
+                        <div class="spinner"></div>
+                        <span>Processing...</span>
+                    </div>
+                </div>
+
+                <div class="terminal-window">
+                    <div class="terminal-content">
+                        <textarea id="output" readonly class="terminal-output" placeholder="> Click &quot;Start analysis&quot; to begin."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card metrics-card">
+                <h3>Summary Metrics</h3>
+                <div class="total-sales-box">
+                    <div class="total-label">TOTAL SALES</div>
+                    <div class="total-value" id="totalSalesValue">0 kEUR</div>
+                </div>
+                <div id="metricsContainer" class="metrics-grid">
+                    <!-- Metrics will be populated by JavaScript, ordered largest to smallest -->
+                </div>
+                <div id="metricsTimestamp" class="metrics-timestamp">Last updated: Never</div>
+            </div>
+
+            <div class="card recent-runs-card">
+                <h3>Recent runs / Exports</h3>
+                <div class="downloads-grid">
+                    <div class="download-item">
+                        <a id="csvLink" href="#" class="download-link disabled">
+                            <span class="icon">📄</span> CSV Report
+                        </a>
+                    </div>
+                    <div class="download-item">
+                        <a id="txtLink" href="#" class="download-link disabled">
+                            <span class="icon">📝</span> Text Report
+                        </a>
+                    </div>
+                    <div class="download-item">
+                        <a id="htmlLink" href="#" class="download-link disabled">
+                            <span class="icon">🌐</span> HTML Report
+                        </a>
+                    </div>
+                    <div class="download-item">
+                        <a id="xlsxLink" href="#" class="download-link disabled">
+                            <span class="icon">📊</span> Excel Report
+                        </a>
+                    </div>
+                    <div class="download-item">
+                        <a id="pdfLink" href="#" class="download-link disabled">
+                            <span class="icon">📑</span> PDF Report
+                        </a>
+                    </div>
+                    <div class="download-item">
+                        <a id="zipLink" href="#" class="download-link disabled">
+                            <span class="icon">📦</span> All Files (ZIP)
+                        </a>
+                    </div>
+                </div>
+                <div id="lastRun" class="last-run-info">
+                    Last run: <span id="lastRunTime">Never</span>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let statusInterval;
+
+        async function runReport() {
+            const runButton = document.getElementById('runButton');
+            const loading = document.getElementById('loading');
+
+            runButton.disabled = true;
+            loading.style.display = 'flex';
+
+            try {
+                const response = await fetch('/run-report', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (response.ok) {
+                    // Start polling for status
+                    statusInterval = setInterval(updateStatus, 1000);
+                } else {
+                    alert('Failed to start report generation');
+                    runButton.disabled = false;
+                    loading.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error starting report generation');
+                runButton.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        async function updateStatus() {
+            try {
+                const response = await fetch('/status');
+                const status = await response.json();
+
+                document.getElementById('output').value = status.output;
+
+                // Update last run time
+                if (status.last_run) {
+                    const timestamp = status.last_run;
+                    const formatted = timestamp.slice(0,4) + '-' + timestamp.slice(4,6) + '-' + timestamp.slice(6,8) + ' ' + 
+                                    timestamp.slice(9,11) + ':' + timestamp.slice(11,13) + ':' + timestamp.slice(13,15);
+                    document.getElementById('lastRunTime').textContent = formatted;
+                }
+
+                // Fetch and update metrics from CSV
+                try {
+                    const metricsResponse = await fetch('/metrics');
+                    const metricsData = await metricsResponse.json();
+                    if (metricsData.total_sales > 0) {
+                        updateMetricsCardDisplay(metricsData);
+                    }
+                } catch (e) {
+                    console.log('Metrics not yet available');
+                }
+
+                // Update download links
+                updateDownloadLink('csvLink', status.csv_url);
+                updateDownloadLink('txtLink', status.txt_url);
+                updateDownloadLink('htmlLink', status.html_url);
+                updateDownloadLink('xlsxLink', status.xlsx_url);
+                updateDownloadLink('pdfLink', status.pdf_url);
+                updateDownloadLink('zipLink', status.zip_url);
+
+                if (!status.running) {
+                    // Report finished
+                    clearInterval(statusInterval);
+                    document.getElementById('runButton').disabled = false;
+                    document.getElementById('loading').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error updating status:', error);
+            }
+        }
+
+        function updateMetricsCardDisplay(metricsData) {
+            // Update the total sales box
+            const totalSalesValue = document.getElementById('totalSalesValue');
+            if (totalSalesValue) {
+                totalSalesValue.textContent = metricsData.total_sales.toFixed(0) + ' kEUR';
+            }
+
+            // Update timestamp
+            const timestamp = document.getElementById('metricsTimestamp');
+            if (timestamp) {
+                const now = new Date();
+                const timeStr = now.getHours().toString().padStart(2, '0') + ':' + 
+                               now.getMinutes().toString().padStart(2, '0') + ':' + 
+                               now.getSeconds().toString().padStart(2, '0');
+                timestamp.textContent = 'Last updated: ' + timeStr;
+            }
+        }
+
+        function updateDownloadLink(elementId, url) {
+            const link = document.getElementById(elementId);
+            if (url) {
+                link.href = url;
+                link.classList.remove('disabled');
+            } else {
+                link.href = '#';
+                link.classList.add('disabled');
+            }
+        }
+
+        // Initial status update
+        updateStatus();
+    </script>
+</body>
+</html>

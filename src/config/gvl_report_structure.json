@@ -1,0 +1,60 @@
+{
+  "sections": [
+    {
+      "title": "Germany",
+      "show_total": true,
+      "items": [
+        {"label": "Kerstin", "filter_value": "Kerstin"},
+        {"label": "Marina", "filter_value": "Marina"},
+        {"label": "Sibylle", "filter_value": "Sibylle"},
+        {"label": "Aracelli", "filter_value": "Aracelli"},
+        {"label": "Retail", "filter_value": "Retail"},
+        {"label": "Other DE", "filter_value": "Other DE"}
+      ]
+    },
+    {
+      "title": "Benelux",
+      "show_total": true,
+      "items": [
+        {"label": "Marjelein", "filter_value": "Marjelein"},
+        {"label": "Gabrielle", "filter_value": "Gabrielle"},
+        {"label": "Other NL", "filter_value": "Other NL"}
+      ]
+    },
+    {
+      "title": "Switzerland",
+      "show_total": true,
+      "items": [
+        {"label": "Christiane", "filter_value": "Christiane"},
+        {"label": "FR Swiss", "filter_value": "FR Swiss"},
+        {"label": "Other CH", "filter_value": "Other CH"}
+      ]
+    },
+    {
+      "title": "Spain",
+      "show_total": false,
+      "items": [
+        {"label": "Spain", "filter_value": "Spain"}
+      ]
+    },
+    {
+      "title": "France",
+      "show_total": false,
+      "items": [
+        {"label": "France", "filter_value": "France"}
+      ]
+    },
+    {
+      "title": "Italy",
+      "show_total": false,
+      "items": [
+        {"label": "Italy", "filter_value": "Italy"}
+      ]
+    },
+    {
+      "title": "Total Core Markets",
+      "is_total": true,
+      "components": ["Germany", "Benelux", "Switzerland", "Spain", "France", "Italy"]
+    }
+  ]
+}

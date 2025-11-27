@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data files (exclude large data/output files)
+data/outputs/*.csv
+data/outputs/*.xlsx
+data/outputs/*.html
+data/outputs/*.pdf
+data/outputs/*.txt
+data/outputs/*.zip
+
+# Static files (generated reports)
+fastapi_web_app/static/*.csv
+fastapi_web_app/static/*.html
+fastapi_web_app/static/*.pdf
+fastapi_web_app/static/*.txt
+fastapi_web_app/static/*.xlsx
+fastapi_web_app/static/*.zip
+
+# Keep the styles.css
+!fastapi_web_app/static/styles.css
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+.cache/

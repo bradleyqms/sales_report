@@ -1,0 +1,110 @@
+{
+    "sections": [
+        {
+            "title": "Core Markets",
+            "company_group": "Company 1",
+            "market_group": "Core Markets",
+            "type": "region",
+            "items": [
+                {"label": "Germany", "filter_value": "Germany"},
+                {"label": "Benelux", "filter_value": "Benelux"},
+                {"label": "Switzerland", "filter_value": "Switzerland"},
+                {"label": "Spain", "filter_value": "Spain"},
+                {"label": "France", "filter_value": "France"},
+                {"label": "Italy", "filter_value": "Italy"},
+                {"label": "Other Core Markets", "filter_value": "Other Core Markets", "is_fallback": true}
+            ]
+        },
+        {
+            "title": "UK",
+            "company_group": "Company 1",
+            "market_group": "UK",
+            "type": "channel",
+            "items": [
+                {"label": "Spa", "filter_value": "Spa", "budget_region_map": "Spa"},
+                {"label": "Retail", "filter_value": "Retail", "budget_region_map": "Retail"},
+                {"label": "Other UK", "is_fallback": true}
+            ]
+        },
+        {
+            "title": "USA",
+            "company_group": "Company 1",
+            "market_group": "USA",
+            "type": "channel",
+            "items": [
+                {"label": "Spa", "filter_value": "Spa", "budget_region_map": "Spa"},
+                {"label": "Retail", "filter_value": "Retail", "budget_region_map": "Retail"},
+                {"label": "Other USA", "is_fallback": true}
+            ]
+        },
+        {
+            "title": "Export",
+            "company_group": "Company 1",
+            "market_group": "Export",
+            "type": "region",
+            "items": [
+                {"label": "Distributor - Austria", "filter_value": "Distributor - Austria"},
+                {"label": "Distributor - South Africa", "filter_value": "Distributor - South Africa"},
+                {"label": "Distributor - Russia", "filter_value": "Distributor - Russia"},
+                {"label": "Distributor - Other EU", "filter_value": "Distributor - Other EU"},
+                {"label": "Distributor - Other ROW", "filter_value": "Distributor - Other ROW"},
+                {"label": "Distributor - New", "filter_value": "Distributor - New"},
+                {"label": "Export - Direct business", "filter_value": "Export - Direct business"},
+                {"label": "Other Export", "is_fallback": true}
+            ]
+        },
+        {
+            "title": "Company 1 Sales",
+            "is_total": true,
+            "components": ["Core Markets", "UK", "USA", "Export"]
+        },
+        {
+            "title": "Company 2 Sales",
+            "company_group": "Company 2",
+            "type": "region",
+            "items": [
+                {"label": "Distributor - China", "filter_value": "Distributor - China"},
+                {"label": "Distributor - Middle East", "filter_value": "Distributor - Middle East"},
+                {"label": "Distributor - APAC", "filter_value": "Distributor - APAC"},
+                {"label": "Other Company 2", "is_fallback": true}
+            ],
+            "show_total": true
+        },
+        {
+            "title": "Company 3 Sales",
+            "company_group": "Company 3",
+            "type": "channel",
+            "items": [
+                {
+                    "label": "eCommerce EU (incl. UK)", 
+                    "filter_value": "eCommerce EU (incl. UK)",
+                    "budget_region_map": "eCommerce (excl. USA)"
+                },
+                {
+                    "label": "Amazon", 
+                    "filter_value": "Amazon",
+                    "budget_region_map": "Amazon"
+                },
+                {
+                    "label": "eCommerce USA", 
+                    "filter_value": "eCommerce USA",
+                    "budget_region_map": "Own eCommerce"
+                },
+                {
+                    "label": "Global etailers", 
+                    "filter_value": "Global etailers",
+                    "budget_region_map": "Global eTailers"
+                }
+            ],
+            "show_total": true
+        },
+        {
+            "title": "Unmapped / Other",
+            "is_unmapped": true
+        },
+        {
+            "title": "Total Sales",
+            "is_grand_total": true
+        }
+    ]
+}

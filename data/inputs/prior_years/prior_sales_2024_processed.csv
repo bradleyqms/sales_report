@@ -1,0 +1,265 @@
+Year,Month,Market_Group,Region,Channel_Level,Subchannel / Partner,Sales Employee / Account,Company_Group,Currency,Metric,Value_kEUR,Value_EUR,Date
+2024,1,Core Markets,Benelux,Unspecified,,,Company 1,EUR,Sales PY,115.89,115894.47,2024-01-01
+2024,2,Core Markets,Benelux,Unspecified,,,Company 1,EUR,Sales PY,138.01,138007.48,2024-02-01
+2024,3,Core Markets,Benelux,Unspecified,,,Company 1,EUR,Sales PY,174.97,174974.23,2024-03-01
+2024,4,Core Markets,Benelux,Unspecified,,,Company 1,EUR,Sales PY,129.01,129010.97,2024-04-01
+2024,5,Core Markets,Benelux,Unspecified,,,Company 1,EUR,Sales PY,107.53,107534.22,2024-05-01
+2024,6,Core Markets,Benelux,Unspecified,,,Company 1,EUR,Sales PY,178.22,178222.6,2024-06-01
+2024,7,Core Markets,Benelux,Unspecified,,,Company 1,EUR,Sales PY,103.88,103882.62,2024-07-01
+2024,8,Core Markets,Benelux,Unspecified,,,Company 1,EUR,Sales PY,163.09,163085.5,2024-08-01
+2024,9,Core Markets,Benelux,Unspecified,,,Company 1,EUR,Sales PY,199.45,199450.01,2024-09-01
+2024,10,Core Markets,Benelux,Unspecified,,,Company 1,EUR,Sales PY,168.66,168657.7,2024-10-01
+2024,11,Core Markets,Benelux,Unspecified,,,Company 1,EUR,Sales PY,181.62,181622.35,2024-11-01
+2024,12,Core Markets,Benelux,Unspecified,,,Company 1,EUR,Sales PY,150.81,150812.13,2024-12-01
+2024,1,Core Markets,France,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-01-01
+2024,2,Core Markets,France,Unspecified,,,Company 1,EUR,Sales PY,6.73,6726.59,2024-02-01
+2024,3,Core Markets,France,Unspecified,,,Company 1,EUR,Sales PY,2.6,2602.54,2024-03-01
+2024,4,Core Markets,France,Unspecified,,,Company 1,EUR,Sales PY,0.4,398.53,2024-04-01
+2024,5,Core Markets,France,Unspecified,,,Company 1,EUR,Sales PY,8.15,8145.19,2024-05-01
+2024,6,Core Markets,France,Unspecified,,,Company 1,EUR,Sales PY,0.92,917.93,2024-06-01
+2024,7,Core Markets,France,Unspecified,,,Company 1,EUR,Sales PY,5.08,5084.53,2024-07-01
+2024,8,Core Markets,France,Unspecified,,,Company 1,EUR,Sales PY,4.3,4297.77,2024-08-01
+2024,9,Core Markets,France,Unspecified,,,Company 1,EUR,Sales PY,0.64,640.15,2024-09-01
+2024,10,Core Markets,France,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-10-01
+2024,11,Core Markets,France,Unspecified,,,Company 1,EUR,Sales PY,5.47,5473.89,2024-11-01
+2024,12,Core Markets,France,Unspecified,,,Company 1,EUR,Sales PY,2.29,2294.66,2024-12-01
+2024,1,Core Markets,Germany,Unspecified,,,Company 1,EUR,Sales PY,362.9,362902.45,2024-01-01
+2024,2,Core Markets,Germany,Unspecified,,,Company 1,EUR,Sales PY,338.33,338328.35,2024-02-01
+2024,3,Core Markets,Germany,Unspecified,,,Company 1,EUR,Sales PY,369.44,369439.93,2024-03-01
+2024,4,Core Markets,Germany,Unspecified,,,Company 1,EUR,Sales PY,381.04,381039.32,2024-04-01
+2024,5,Core Markets,Germany,Unspecified,,,Company 1,EUR,Sales PY,264.21,264205.51,2024-05-01
+2024,6,Core Markets,Germany,Unspecified,,,Company 1,EUR,Sales PY,345.65,345650.81,2024-06-01
+2024,7,Core Markets,Germany,Unspecified,,,Company 1,EUR,Sales PY,339.17,339173.36,2024-07-01
+2024,8,Core Markets,Germany,Unspecified,,,Company 1,EUR,Sales PY,270.71,270713.12,2024-08-01
+2024,9,Core Markets,Germany,Unspecified,,,Company 1,EUR,Sales PY,505.87,505869.83,2024-09-01
+2024,10,Core Markets,Germany,Unspecified,,,Company 1,EUR,Sales PY,425.03,425030.92,2024-10-01
+2024,11,Core Markets,Germany,Unspecified,,,Company 1,EUR,Sales PY,403.49,403491.63,2024-11-01
+2024,12,Core Markets,Germany,Unspecified,,,Company 1,EUR,Sales PY,321.42,321421.45,2024-12-01
+2024,1,Core Markets,Italy,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-01-01
+2024,2,Core Markets,Italy,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-02-01
+2024,3,Core Markets,Italy,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-03-01
+2024,4,Core Markets,Italy,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-04-01
+2024,5,Core Markets,Italy,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-05-01
+2024,6,Core Markets,Italy,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-06-01
+2024,7,Core Markets,Italy,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-07-01
+2024,8,Core Markets,Italy,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-08-01
+2024,9,Core Markets,Italy,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-09-01
+2024,10,Core Markets,Italy,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-10-01
+2024,11,Core Markets,Italy,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-11-01
+2024,12,Core Markets,Italy,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-12-01
+2024,1,Core Markets,Spain,Unspecified,,,Company 1,EUR,Sales PY,14.53,14530.63,2024-01-01
+2024,2,Core Markets,Spain,Unspecified,,,Company 1,EUR,Sales PY,-0.23,-232.36,2024-02-01
+2024,3,Core Markets,Spain,Unspecified,,,Company 1,EUR,Sales PY,5.36,5359.4,2024-03-01
+2024,4,Core Markets,Spain,Unspecified,,,Company 1,EUR,Sales PY,9.44,9437.45,2024-04-01
+2024,5,Core Markets,Spain,Unspecified,,,Company 1,EUR,Sales PY,6.38,6379.12,2024-05-01
+2024,6,Core Markets,Spain,Unspecified,,,Company 1,EUR,Sales PY,10.2,10199.52,2024-06-01
+2024,7,Core Markets,Spain,Unspecified,,,Company 1,EUR,Sales PY,3.86,3863.0,2024-07-01
+2024,8,Core Markets,Spain,Unspecified,,,Company 1,EUR,Sales PY,4.36,4361.72,2024-08-01
+2024,9,Core Markets,Spain,Unspecified,,,Company 1,EUR,Sales PY,13.38,13375.05,2024-09-01
+2024,10,Core Markets,Spain,Unspecified,,,Company 1,EUR,Sales PY,3.31,3308.21,2024-10-01
+2024,11,Core Markets,Spain,Unspecified,,,Company 1,EUR,Sales PY,6.3,6304.74,2024-11-01
+2024,12,Core Markets,Spain,Unspecified,,,Company 1,EUR,Sales PY,10.8,10796.36,2024-12-01
+2024,1,Core Markets,Switzerland,Unspecified,,,Company 1,EUR,Sales PY,51.16,51162.86241,2024-01-01
+2024,2,Core Markets,Switzerland,Unspecified,,,Company 1,EUR,Sales PY,54.55,54554.64,2024-02-01
+2024,3,Core Markets,Switzerland,Unspecified,,,Company 1,EUR,Sales PY,71.4,71396.514,2024-03-01
+2024,4,Core Markets,Switzerland,Unspecified,,,Company 1,EUR,Sales PY,56.9,56898.91106,2024-04-01
+2024,5,Core Markets,Switzerland,Unspecified,,,Company 1,EUR,Sales PY,32.89,32890.91407,2024-05-01
+2024,6,Core Markets,Switzerland,Unspecified,,,Company 1,EUR,Sales PY,62.4,62402.88573,2024-06-01
+2024,7,Core Markets,Switzerland,Unspecified,,,Company 1,EUR,Sales PY,56.76,56764.76341,2024-07-01
+2024,8,Core Markets,Switzerland,Unspecified,,,Company 1,EUR,Sales PY,42.82,42815.1726,2024-08-01
+2024,9,Core Markets,Switzerland,Unspecified,,,Company 1,EUR,Sales PY,99.75,99752.2801,2024-09-01
+2024,10,Core Markets,Switzerland,Unspecified,,,Company 1,EUR,Sales PY,58.38,58381.9071,2024-10-01
+2024,11,Core Markets,Switzerland,Unspecified,,,Company 1,EUR,Sales PY,77.98,77983.3441,2024-11-01
+2024,12,Core Markets,Switzerland,Unspecified,,,Company 1,EUR,Sales PY,58.3,58296.8124,2024-12-01
+2024,1,Export,Distributor - Austria,Unspecified,,,Company 1,EUR,Sales PY,48.26,48261.03,2024-01-01
+2024,2,Export,Distributor - Austria,Unspecified,,,Company 1,EUR,Sales PY,16.7,16695.93,2024-02-01
+2024,3,Export,Distributor - Austria,Unspecified,,,Company 1,EUR,Sales PY,41.19,41192.57,2024-03-01
+2024,4,Export,Distributor - Austria,Unspecified,,,Company 1,EUR,Sales PY,24.94,24943.65,2024-04-01
+2024,5,Export,Distributor - Austria,Unspecified,,,Company 1,EUR,Sales PY,13.8,13802.62,2024-05-01
+2024,6,Export,Distributor - Austria,Unspecified,,,Company 1,EUR,Sales PY,54.86,54855.43,2024-06-01
+2024,7,Export,Distributor - Austria,Unspecified,,,Company 1,EUR,Sales PY,19.68,19675.46,2024-07-01
+2024,8,Export,Distributor - Austria,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-08-01
+2024,9,Export,Distributor - Austria,Unspecified,,,Company 1,EUR,Sales PY,73.42,73419.69,2024-09-01
+2024,10,Export,Distributor - Austria,Unspecified,,,Company 1,EUR,Sales PY,56.1,56095.62,2024-10-01
+2024,11,Export,Distributor - Austria,Unspecified,,,Company 1,EUR,Sales PY,16.83,16832.06,2024-11-01
+2024,12,Export,Distributor - Austria,Unspecified,,,Company 1,EUR,Sales PY,34.23,34227.07,2024-12-01
+2024,1,Export,Distributor - New,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-01-01
+2024,2,Export,Distributor - New,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-02-01
+2024,3,Export,Distributor - New,Unspecified,,,Company 1,EUR,Sales PY,10.05,10054.75,2024-03-01
+2024,4,Export,Distributor - New,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-04-01
+2024,5,Export,Distributor - New,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-05-01
+2024,6,Export,Distributor - New,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-06-01
+2024,7,Export,Distributor - New,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-07-01
+2024,8,Export,Distributor - New,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-08-01
+2024,9,Export,Distributor - New,Unspecified,,,Company 1,EUR,Sales PY,4.38,4379.2,2024-09-01
+2024,10,Export,Distributor - New,Unspecified,,,Company 1,EUR,Sales PY,0.7,700.0,2024-10-01
+2024,11,Export,Distributor - New,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-11-01
+2024,12,Export,Distributor - New,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-12-01
+2024,1,Export,Distributor - Other EU,Unspecified,,,Company 1,EUR,Sales PY,12.21,12209.3,2024-01-01
+2024,2,Export,Distributor - Other EU,Unspecified,,,Company 1,EUR,Sales PY,26.38,26376.96,2024-02-01
+2024,3,Export,Distributor - Other EU,Unspecified,,,Company 1,EUR,Sales PY,22.58,22583.75,2024-03-01
+2024,4,Export,Distributor - Other EU,Unspecified,,,Company 1,EUR,Sales PY,17.61,17608.53,2024-04-01
+2024,5,Export,Distributor - Other EU,Unspecified,,,Company 1,EUR,Sales PY,34.83,34833.6,2024-05-01
+2024,6,Export,Distributor - Other EU,Unspecified,,,Company 1,EUR,Sales PY,4.89,4890.15,2024-06-01
+2024,7,Export,Distributor - Other EU,Unspecified,,,Company 1,EUR,Sales PY,22.22,22216.75,2024-07-01
+2024,8,Export,Distributor - Other EU,Unspecified,,,Company 1,EUR,Sales PY,28.64,28639.78,2024-08-01
+2024,9,Export,Distributor - Other EU,Unspecified,,,Company 1,EUR,Sales PY,15.26,15263.47,2024-09-01
+2024,10,Export,Distributor - Other EU,Unspecified,,,Company 1,EUR,Sales PY,18.45,18452.22,2024-10-01
+2024,11,Export,Distributor - Other EU,Unspecified,,,Company 1,EUR,Sales PY,34.19,34185.38,2024-11-01
+2024,12,Export,Distributor - Other EU,Unspecified,,,Company 1,EUR,Sales PY,7.85,7848.97,2024-12-01
+2024,1,Export,Distributor - Other ROW,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-01-01
+2024,2,Export,Distributor - Other ROW,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-02-01
+2024,3,Export,Distributor - Other ROW,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-03-01
+2024,4,Export,Distributor - Other ROW,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-04-01
+2024,5,Export,Distributor - Other ROW,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-05-01
+2024,6,Export,Distributor - Other ROW,Unspecified,,,Company 1,EUR,Sales PY,6.97,6974.07,2024-06-01
+2024,7,Export,Distributor - Other ROW,Unspecified,,,Company 1,EUR,Sales PY,1.14,1136.06,2024-07-01
+2024,8,Export,Distributor - Other ROW,Unspecified,,,Company 1,EUR,Sales PY,4.35,4352.72,2024-08-01
+2024,9,Export,Distributor - Other ROW,Unspecified,,,Company 1,EUR,Sales PY,0.42,423.53,2024-09-01
+2024,10,Export,Distributor - Other ROW,Unspecified,,,Company 1,EUR,Sales PY,14.87,14865.6,2024-10-01
+2024,11,Export,Distributor - Other ROW,Unspecified,,,Company 1,EUR,Sales PY,0.81,813.17,2024-11-01
+2024,12,Export,Distributor - Other ROW,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-12-01
+2024,1,Export,Distributor - Russia,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-01-01
+2024,2,Export,Distributor - Russia,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-02-01
+2024,3,Export,Distributor - Russia,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-03-01
+2024,4,Export,Distributor - Russia,Unspecified,,,Company 1,EUR,Sales PY,85.0,85000.0,2024-04-01
+2024,5,Export,Distributor - Russia,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-05-01
+2024,6,Export,Distributor - Russia,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-06-01
+2024,7,Export,Distributor - Russia,Unspecified,,,Company 1,EUR,Sales PY,121.74,121740.45,2024-07-01
+2024,8,Export,Distributor - Russia,Unspecified,,,Company 1,EUR,Sales PY,0.72,715.5,2024-08-01
+2024,9,Export,Distributor - Russia,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-09-01
+2024,10,Export,Distributor - Russia,Unspecified,,,Company 1,EUR,Sales PY,89.83,89826.29,2024-10-01
+2024,11,Export,Distributor - Russia,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-11-01
+2024,12,Export,Distributor - Russia,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-12-01
+2024,1,Export,Distributor - South Africa,Unspecified,,,Company 1,EUR,Sales PY,63.37,63371.95,2024-01-01
+2024,2,Export,Distributor - South Africa,Unspecified,,,Company 1,EUR,Sales PY,67.19,67185.63,2024-02-01
+2024,3,Export,Distributor - South Africa,Unspecified,,,Company 1,EUR,Sales PY,66.98,66978.91,2024-03-01
+2024,4,Export,Distributor - South Africa,Unspecified,,,Company 1,EUR,Sales PY,-0.68,-676.2,2024-04-01
+2024,5,Export,Distributor - South Africa,Unspecified,,,Company 1,EUR,Sales PY,67.24,67244.22,2024-05-01
+2024,6,Export,Distributor - South Africa,Unspecified,,,Company 1,EUR,Sales PY,47.66,47664.67,2024-06-01
+2024,7,Export,Distributor - South Africa,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-07-01
+2024,8,Export,Distributor - South Africa,Unspecified,,,Company 1,EUR,Sales PY,59.48,59477.23,2024-08-01
+2024,9,Export,Distributor - South Africa,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-09-01
+2024,10,Export,Distributor - South Africa,Unspecified,,,Company 1,EUR,Sales PY,61.01,61013.52,2024-10-01
+2024,11,Export,Distributor - South Africa,Unspecified,,,Company 1,EUR,Sales PY,55.17,55165.41,2024-11-01
+2024,12,Export,Distributor - South Africa,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-12-01
+2024,1,USA,Retail,Unspecified,,,Company 1,EUR,Sales PY,2.96,2962.2522,2024-01-01
+2024,2,USA,Retail,Unspecified,,,Company 1,EUR,Sales PY,6.13,6127.5,2024-02-01
+2024,3,USA,Retail,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-03-01
+2024,4,USA,Retail,Unspecified,,,Company 1,EUR,Sales PY,6.78,6780.40314,2024-04-01
+2024,5,USA,Retail,Unspecified,,,Company 1,EUR,Sales PY,2.91,2906.6856,2024-05-01
+2024,6,USA,Retail,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-06-01
+2024,7,USA,Retail,Unspecified,,,Company 1,EUR,Sales PY,16.94,16941.0177,2024-07-01
+2024,8,USA,Retail,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-08-01
+2024,9,USA,Retail,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-09-01
+2024,10,USA,Retail,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-10-01
+2024,11,USA,Retail,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-11-01
+2024,12,USA,Retail,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-12-01
+2024,1,UK,Retail,Unspecified,,,Company 1,EUR,Sales PY,9.28,9281.938666,2024-01-01
+2024,2,UK,Retail,Unspecified,,,Company 1,EUR,Sales PY,14.54,14535.8226,2024-02-01
+2024,3,UK,Retail,Unspecified,,,Company 1,EUR,Sales PY,19.35,19349.1792,2024-03-01
+2024,4,UK,Retail,Unspecified,,,Company 1,EUR,Sales PY,17.01,17011.20157,2024-04-01
+2024,5,UK,Retail,Unspecified,,,Company 1,EUR,Sales PY,7.65,7648.27406,2024-05-01
+2024,6,UK,Retail,Unspecified,,,Company 1,EUR,Sales PY,4.92,4915.33911,2024-06-01
+2024,7,UK,Retail,Unspecified,,,Company 1,EUR,Sales PY,6.49,6490.58821,2024-07-01
+2024,8,UK,Retail,Unspecified,,,Company 1,EUR,Sales PY,15.19,15187.4775,2024-08-01
+2024,9,UK,Retail,Unspecified,,,Company 1,EUR,Sales PY,19.72,19716.2188,2024-09-01
+2024,10,UK,Retail,Unspecified,,,Company 1,EUR,Sales PY,19.48,19475.0504,2024-10-01
+2024,11,UK,Retail,Unspecified,,,Company 1,EUR,Sales PY,27.06,27061.116,2024-11-01
+2024,12,UK,Retail,Unspecified,,,Company 1,EUR,Sales PY,12.81,12808.5,2024-12-01
+2024,1,USA,Spa,Unspecified,,,Company 1,EUR,Sales PY,31.73,31732.84523,2024-01-01
+2024,2,USA,Spa,Unspecified,,,Company 1,EUR,Sales PY,54.03,54026.7945,2024-02-01
+2024,3,USA,Spa,Unspecified,,,Company 1,EUR,Sales PY,58.52,58519.8385,2024-03-01
+2024,4,USA,Spa,Unspecified,,,Company 1,EUR,Sales PY,57.59,57586.83587,2024-04-01
+2024,5,USA,Spa,Unspecified,,,Company 1,EUR,Sales PY,39.78,39776.91175,2024-05-01
+2024,6,USA,Spa,Unspecified,,,Company 1,EUR,Sales PY,47.07,47070.01882,2024-06-01
+2024,7,USA,Spa,Unspecified,,,Company 1,EUR,Sales PY,39.13,39125.80431,2024-07-01
+2024,8,USA,Spa,Unspecified,,,Company 1,EUR,Sales PY,68.82,68824.6204,2024-08-01
+2024,9,USA,Spa,Unspecified,,,Company 1,EUR,Sales PY,100.4,100400.94,2024-09-01
+2024,10,USA,Spa,Unspecified,,,Company 1,EUR,Sales PY,79.2,79196.8563,2024-10-01
+2024,11,USA,Spa,Unspecified,,,Company 1,EUR,Sales PY,83.77,83774.857,2024-11-01
+2024,12,USA,Spa,Unspecified,,,Company 1,EUR,Sales PY,63.61,63612.6624,2024-12-01
+2024,1,UK,Spa,Unspecified,,,Company 1,EUR,Sales PY,0.32,316.1862,2024-01-01
+2024,2,UK,Spa,Unspecified,,,Company 1,EUR,Sales PY,6.62,6617.8125,2024-02-01
+2024,3,UK,Spa,Unspecified,,,Company 1,EUR,Sales PY,8.41,8405.982,2024-03-01
+2024,4,UK,Spa,Unspecified,,,Company 1,EUR,Sales PY,0.46,462.5141272,2024-04-01
+2024,5,UK,Spa,Unspecified,,,Company 1,EUR,Sales PY,6.7,6704.485282,2024-05-01
+2024,6,UK,Spa,Unspecified,,,Company 1,EUR,Sales PY,6.36,6356.474639,2024-06-01
+2024,7,UK,Spa,Unspecified,,,Company 1,EUR,Sales PY,7.26,7264.74671,2024-07-01
+2024,8,UK,Spa,Unspecified,,,Company 1,EUR,Sales PY,18.37,18369.0,2024-08-01
+2024,9,UK,Spa,Unspecified,,,Company 1,EUR,Sales PY,14.32,14322.545,2024-09-01
+2024,10,UK,Spa,Unspecified,,,Company 1,EUR,Sales PY,24.91,24913.694,2024-10-01
+2024,11,UK,Spa,Unspecified,,,Company 1,EUR,Sales PY,11.52,11521.308,2024-11-01
+2024,12,UK,Spa,Unspecified,,,Company 1,EUR,Sales PY,14.85,14847.108,2024-12-01
+2024,1,Export,Distributor - China,Unspecified,,,Company 2,EUR,Sales PY,0.0,0.0,2024-01-01
+2024,2,Export,Distributor - China,Unspecified,,,Company 2,EUR,Sales PY,0.0,0.0,2024-02-01
+2024,3,Export,Distributor - China,Unspecified,,,Company 2,EUR,Sales PY,0.0,0.0,2024-03-01
+2024,4,Export,Distributor - China,Unspecified,,,Company 2,EUR,Sales PY,100.56,100555.38,2024-04-01
+2024,5,Export,Distributor - China,Unspecified,,,Company 2,EUR,Sales PY,0.0,0.0,2024-05-01
+2024,6,Export,Distributor - China,Unspecified,,,Company 2,EUR,Sales PY,0.0,0.0,2024-06-01
+2024,7,Export,Distributor - China,Unspecified,,,Company 2,EUR,Sales PY,0.0,0.0,2024-07-01
+2024,8,Export,Distributor - China,Unspecified,,,Company 2,EUR,Sales PY,0.0,0.0,2024-08-01
+2024,9,Export,Distributor - China,Unspecified,,,Company 2,EUR,Sales PY,0.0,0.0,2024-09-01
+2024,10,Export,Distributor - China,Unspecified,,,Company 2,EUR,Sales PY,126.65,126648.37,2024-10-01
+2024,11,Export,Distributor - China,Unspecified,,,Company 2,EUR,Sales PY,0.0,0.0,2024-11-01
+2024,12,Export,Distributor - China,Unspecified,,,Company 2,EUR,Sales PY,0.0,0.0,2024-12-01
+2024,1,UK,Global eTailers,Unspecified,,,Company 3,EUR,Sales PY,-2.18,-2181.192935,2024-01-01
+2024,2,UK,Global eTailers,Unspecified,,,Company 3,EUR,Sales PY,0.83,827.4123,2024-02-01
+2024,3,UK,Global eTailers,Unspecified,,,Company 3,EUR,Sales PY,0.0,0.0,2024-03-01
+2024,4,UK,Global eTailers,Unspecified,,,Company 3,EUR,Sales PY,0.0,0.0,2024-04-01
+2024,5,UK,Global eTailers,Unspecified,,,Company 3,EUR,Sales PY,0.0,0.0,2024-05-01
+2024,6,UK,Global eTailers,Unspecified,,,Company 3,EUR,Sales PY,2.83,2834.487245,2024-06-01
+2024,7,UK,Global eTailers,Unspecified,,,Company 3,EUR,Sales PY,6.21,6208.996061,2024-07-01
+2024,8,UK,Global eTailers,Unspecified,,,Company 3,EUR,Sales PY,0.0,0.0,2024-08-01
+2024,9,UK,Global eTailers,Unspecified,,,Company 3,EUR,Sales PY,2.87,2868.9576,2024-09-01
+2024,10,UK,Global eTailers,Unspecified,,,Company 3,EUR,Sales PY,5.16,5162.6652,2024-10-01
+2024,11,UK,Global eTailers,Unspecified,,,Company 3,EUR,Sales PY,0.95,945.0,2024-11-01
+2024,12,UK,Global eTailers,Unspecified,,,Company 3,EUR,Sales PY,0.0,0.0,2024-12-01
+2024,1,USA,Amazon,Unspecified,,,Company 3,EUR,Sales PY,,,2024-01-01
+2024,2,USA,Amazon,Unspecified,,,Company 3,EUR,Sales PY,,,2024-02-01
+2024,3,USA,Amazon,Unspecified,,,Company 3,EUR,Sales PY,,,2024-03-01
+2024,4,USA,Amazon,Unspecified,,,Company 3,EUR,Sales PY,,,2024-04-01
+2024,5,USA,Amazon,Unspecified,,,Company 3,EUR,Sales PY,,,2024-05-01
+2024,6,USA,Amazon,Unspecified,,,Company 3,EUR,Sales PY,,,2024-06-01
+2024,7,USA,Amazon,Unspecified,,,Company 3,EUR,Sales PY,,,2024-07-01
+2024,8,USA,Amazon,Unspecified,,,Company 3,EUR,Sales PY,,,2024-08-01
+2024,9,USA,Amazon,Unspecified,,,Company 3,EUR,Sales PY,,,2024-09-01
+2024,10,USA,Amazon,Unspecified,,,Company 3,EUR,Sales PY,,,2024-10-01
+2024,11,USA,Amazon,Unspecified,,,Company 3,EUR,Sales PY,15.3216,15321.6,2024-11-01
+2024,12,USA,Amazon,Unspecified,,,Company 3,EUR,Sales PY,5.184,5184.0,2024-12-01
+2024,1,USA,Own eCommerce,Unspecified,,,Company 3,EUR,Sales PY,15.80043176,15800.43176,2024-01-01
+2024,2,USA,Own eCommerce,Unspecified,,,Company 3,EUR,Sales PY,17.537,17537.0,2024-02-01
+2024,3,USA,Own eCommerce,Unspecified,,,Company 3,EUR,Sales PY,22.26705,22267.05,2024-03-01
+2024,4,USA,Own eCommerce,Unspecified,,,Company 3,EUR,Sales PY,21.03341051,21033.41051,2024-04-01
+2024,5,USA,Own eCommerce,Unspecified,,,Company 3,EUR,Sales PY,21.19691157,21196.91158,2024-05-01
+2024,6,USA,Own eCommerce,Unspecified,,,Company 3,EUR,Sales PY,17.70194821,17701.94821,2024-06-01
+2024,7,USA,Own eCommerce,Unspecified,,,Company 3,EUR,Sales PY,18.27543723,18275.43723,2024-07-01
+2024,8,USA,Own eCommerce,Unspecified,,,Company 3,EUR,Sales PY,17.9559068,17955.9068,2024-08-01
+2024,9,USA,Own eCommerce,Unspecified,,,Company 3,EUR,Sales PY,23.9057895,23905.7895,2024-09-01
+2024,10,USA,Own eCommerce,Unspecified,,,Company 3,EUR,Sales PY,32.2585287,32258.5287,2024-10-01
+2024,11,USA,Own eCommerce,Unspecified,,,Company 3,EUR,Sales PY,52.878045,52878.045,2024-11-01
+2024,12,USA,Own eCommerce,Unspecified,,,Company 3,EUR,Sales PY,45.4764768,45476.4768,2024-12-01
+2024,1,eCommerce,eCommerce (excl. USA),Unspecified,,,Company 3,EUR,Sales PY,33.60012671,33600.12671,2024-01-01
+2024,2,eCommerce,eCommerce (excl. USA),Unspecified,,,Company 3,EUR,Sales PY,29.8336301,29833.6301,2024-02-01
+2024,3,eCommerce,eCommerce (excl. USA),Unspecified,,,Company 3,EUR,Sales PY,25.7937719,25793.7719,2024-03-01
+2024,4,eCommerce,eCommerce (excl. USA),Unspecified,,,Company 3,EUR,Sales PY,37.6414566,37641.4566,2024-04-01
+2024,5,eCommerce,eCommerce (excl. USA),Unspecified,,,Company 3,EUR,Sales PY,26.63468242,26634.68242,2024-05-01
+2024,6,eCommerce,eCommerce (excl. USA),Unspecified,,,Company 3,EUR,Sales PY,22.72833616,22728.33616,2024-06-01
+2024,7,eCommerce,eCommerce (excl. USA),Unspecified,,,Company 3,EUR,Sales PY,29.33502235,29335.02235,2024-07-01
+2024,8,eCommerce,eCommerce (excl. USA),Unspecified,,,Company 3,EUR,Sales PY,26.0959717,26095.9717,2024-08-01
+2024,9,eCommerce,eCommerce (excl. USA),Unspecified,,,Company 3,EUR,Sales PY,34.3001618,34300.1618,2024-09-01
+2024,10,eCommerce,eCommerce (excl. USA),Unspecified,,,Company 3,EUR,Sales PY,35.9983868,35998.3868,2024-10-01
+2024,11,eCommerce,eCommerce (excl. USA),Unspecified,,,Company 3,EUR,Sales PY,49.750664,49750.664,2024-11-01
+2024,12,eCommerce,eCommerce (excl. USA),Unspecified,,,Company 3,EUR,Sales PY,43.138472,43138.472,2024-12-01
+2024,1,Export,Export - Direct business,Unspecified,,,Company 1,EUR,Sales PY,9.22321,9223.21,2024-01-01
+2024,2,Export,Export - Direct business,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-02-01
+2024,3,Export,Export - Direct business,Unspecified,,,Company 1,EUR,Sales PY,3.21751,3217.51,2024-03-01
+2024,4,Export,Export - Direct business,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-04-01
+2024,5,Export,Export - Direct business,Unspecified,,,Company 1,EUR,Sales PY,15.23867,15238.67,2024-05-01
+2024,6,Export,Export - Direct business,Unspecified,,,Company 1,EUR,Sales PY,5.03765,5037.65,2024-06-01
+2024,7,Export,Export - Direct business,Unspecified,,,Company 1,EUR,Sales PY,8.21576,8215.76,2024-07-01
+2024,8,Export,Export - Direct business,Unspecified,,,Company 1,EUR,Sales PY,6.33367,6333.67,2024-08-01
+2024,9,Export,Export - Direct business,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-09-01
+2024,10,Export,Export - Direct business,Unspecified,,,Company 1,EUR,Sales PY,0.0,0.0,2024-10-01
+2024,11,Export,Export - Direct business,Unspecified,,,Company 1,EUR,Sales PY,7.32455,7324.55,2024-11-01
+2024,12,Export,Export - Direct business,Unspecified,,,Company 1,EUR,Sales PY,0.13741,137.41,2024-12-01

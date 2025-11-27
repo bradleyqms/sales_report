@@ -1,0 +1,39 @@
+{
+  "sections": [
+    {
+      "title": "Northeast",
+      "items": [
+        {"label": "Northeast", "filter_value": "Northeast"}
+      ]
+    },
+    {
+      "title": "Central", 
+      "items": [
+        {"label": "Central", "filter_value": "Central"}
+      ]
+    },
+    {
+      "title": "Southeast",
+      "items": [
+        {"label": "Southeast", "filter_value": "Southeast"}
+      ]
+    },
+    {
+      "title": "West",
+      "items": [
+        {"label": "West", "filter_value": "West"}
+      ]
+    },
+    {
+      "title": "Other",
+      "items": [
+        {"label": "Other", "filter_value": "Other"}
+      ]
+    },
+    {
+      "title": "USA Spa",
+      "is_total": true,
+      "components": ["Northeast", "Central", "Southeast", "West", "Other"]
+    }
+  ]
+}
