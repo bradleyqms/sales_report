@@ -220,10 +220,12 @@ def main():
     print()
     
     try:
+        # GVL report needs individual salesperson budgets, not aggregated
+        gvl_budget_path = str(project_root / 'data/inputs/budget/budget_GVL_2025.csv')
         gvl_gen = GVLReportGenerator(
             str(project_root / 'src/config/gvl_report_structure.json'),
             mapped_path,
-            budget_path,
+            gvl_budget_path,
             prior_path
         )
         gvl_df = gvl_gen.calculate_report()
