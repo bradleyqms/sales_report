@@ -7,6 +7,17 @@
     <link rel="stylesheet" href="/static/styles.css?v=2">
 </head>
 <body>
+    <!-- Splash Screen -->
+    <div id="splash-screen">
+        <div class="splash-content">
+            <div class="splash-logo">
+                <span class="brand-name">QMS</span>
+                <span class="brand-sub">MEDICOSMETICS</span>
+            </div>
+            <div class="splash-loader"></div>
+        </div>
+    </div>
+
     <div class="app-container">
         <header class="top-bar">
             <div class="brand-section">
@@ -105,6 +116,14 @@
     </div>
 
     <script>
+        // Splash Screen Logic
+        window.addEventListener('load', function() {
+            const splash = document.getElementById('splash-screen');
+            setTimeout(() => {
+                splash.classList.add('hidden');
+            }, 2000); // Show splash for at least 2 seconds
+        });
+
         let statusInterval;
 
         async function runReport() {
