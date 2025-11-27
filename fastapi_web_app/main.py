@@ -15,13 +15,16 @@ from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
 
+# Get the directory where main.py is located
+BASE_DIR = Path(__file__).resolve().parent
+
 app = FastAPI(title="Sales Report Generator")
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Mount static files using absolute path
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
-# Templates
-templates = Jinja2Templates(directory="templates")
+# Templates using absolute path
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 # Global state
 report_status = {
