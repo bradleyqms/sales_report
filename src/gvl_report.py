@@ -83,6 +83,13 @@ class GVLReportGenerator:
         target_prior_date = f"{self.prior_year}-{self.current_month:02d}"
         self.prior_month = self.prior_df[self.prior_df['Date'].astype(str).str.startswith(target_prior_date)].copy()
         
+    def _get_budget_value(self, salesperson):
+        """Get budget value for a salesperson for the current month."""
+        if salesperson in self.budget_month['Sales_Employee_Cleaned'].values:
+            budget_row = self.budget_month[self.budget_month['Sales_Employee_Cleaned'] == salesperson]
+            return budget_row['Value_kEUR'].iloc[0] if not budget_row.empty else 0
+        return 0
+        
     def calculate_report(self):
         report_data = []
         section_totals = {}
@@ -146,7 +153,7 @@ class GVLReportGenerator:
                         s_mask = (self.df['Sales_Employee_Cleaned'] == filter_val)
                         val_sales = self.df[s_mask]['kEUR'].sum()
                         # budget and prior commented out
-                        val_budget = 0
+                        val_budget = self._get_budget_value(filter_val)
                         val_prior = 0
                         
                         rows.append({
@@ -167,7 +174,7 @@ class GVLReportGenerator:
                 if s_employee:
                     sales_mask = (self.df['Sales_Employee_Cleaned'] == s_employee)
                     sec_sales = self.df[sales_mask]['kEUR'].sum()
-                    sec_budget = 0
+                    sec_budget = self._get_budget_value(s_employee)
                     sec_prior = 0
                     
                     rows.append({
@@ -530,7 +537,7 @@ if __name__ == "__main__":
                         if key == 'mapping':
                             local_paths[key] = str(project_root / 'data/inputs/mappings/entity_mappings.csv')
                         elif key == 'budget':
-                            local_paths[key] = str(project_root / 'data/inputs/budget/budget_2025_processed.csv')
+                            local_paths[key] = str(project_root / 'data/inputs/budget/budget_GVL_2025.csv')
                         elif key == 'prior':
                             local_paths[key] = str(project_root / 'data/inputs/prior_years/prior_sales_2024_processed.csv')
             finally:
