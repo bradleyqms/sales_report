@@ -155,6 +155,7 @@ def main():
             
             budget_path = local_paths['budget']
             prior_path = local_paths['prior']
+            gvl_prior_path = str(project_root / 'data/inputs/prior_years/prior_sales_2024_gvl.csv')
             
         except Exception as e:
             logging.error(f"Error during data preparation: {e}")
@@ -168,6 +169,7 @@ def main():
         mapped_path = str(project_root / 'data/outputs/qry_unified_mapped_2025.csv')
         budget_path = str(project_root / 'data/inputs/budget/budget_2025_processed.csv')
         prior_path = str(project_root / 'data/inputs/prior_years/prior_sales_2024_processed.csv')
+        gvl_prior_path = str(project_root / 'data/inputs/prior_years/prior_sales_2024_gvl.csv')
         
         if not os.path.exists(mapped_path):
             logging.error(f"Mapped data file not found: {mapped_path}")
@@ -226,7 +228,7 @@ def main():
             str(project_root / 'src/config/gvl_report_structure.json'),
             mapped_path,
             gvl_budget_path,
-            prior_path
+            gvl_prior_path
         )
         gvl_df = gvl_gen.calculate_report()
         gvl_gen.render_report(gvl_df)
@@ -270,10 +272,22 @@ def main():
     print("-" * 80)
     print()
     
-    # Clear static folder before saving
+    # Clean up only prior combined report files from static
     static_dir = project_root / 'fastapi_web_app' / 'static'
-    shutil.rmtree(str(static_dir), ignore_errors=True)
     static_dir.mkdir(parents=True, exist_ok=True)
+    for pattern in [
+        'combined_management_report_*.csv',
+        'combined_management_report_*.html',
+        'combined_management_report_*.pdf',
+        'combined_management_report_*.txt',
+        'combined_management_report_*.xlsx',
+        'combined_reports_*.zip'
+    ]:
+        for old_file in static_dir.glob(pattern):
+            try:
+                old_file.unlink()
+            except OSError:
+                logging.warning(f"Unable to remove {old_file}")
     
     # Create separator rows with consistent schema and proper types
     separator_receivables = pd.DataFrame([{

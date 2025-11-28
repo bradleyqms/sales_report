@@ -134,14 +134,8 @@ class USASpaReportGenerator:
                     'is_grand_total': False
                 })
                 
-                # Add to grand total
-                grand_total['actual'] += t_actual
-                grand_total['budget'] += t_budget
-                grand_total['prior'] += t_prior
-                grand_total['diff_budget'] += t_diff_budget
-                grand_total['pct_budget'] = (grand_total['actual'] / grand_total['budget'] * 100) - 100 if grand_total['budget'] != 0 else 0
-                grand_total['diff_prior'] += t_diff_prior
-                grand_total['pct_prior'] = (grand_total['actual'] / grand_total['prior'] * 100) - 100 if grand_total['prior'] != 0 else 0
+                # Note: do NOT add company-level totals to the grand total here.
+                # Grand total will instead be accumulated from base sections (items/regions)
                 continue
 
             # Regular Section
@@ -246,6 +240,14 @@ class USASpaReportGenerator:
                 'diff_prior': sec_diff_prior,
                 'pct_prior': sec_pct_prior
             }
+            # Accumulate grand total from base sections only (exclude company-level 'is_total' sections)
+            grand_total['actual'] += sec_actual
+            grand_total['budget'] += sec_budget
+            grand_total['prior'] += sec_prior
+            grand_total['diff_budget'] += sec_diff_budget
+            grand_total['pct_budget'] = (grand_total['actual'] / grand_total['budget'] * 100) - 100 if grand_total['budget'] != 0 else 0
+            grand_total['diff_prior'] += sec_diff_prior
+            grand_total['pct_prior'] = (grand_total['actual'] / grand_total['prior'] * 100) - 100 if grand_total['prior'] != 0 else 0
             
             # Add spacer with consistent schema
             report_data.append({

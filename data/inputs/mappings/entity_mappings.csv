@@ -1,48 +1,48 @@
 Entity,Market_Group,Region,Channel_Level,Company_Group,Sales_Employee,Customer_Code,Customer_Name,Sales_Employee_Cleaned
-Descomed,UK,UK,Global etailers,Company 3,,10048.0,Luisa Via Roma Spa; Italy,
-Descomed,UK,UK,Retail ,Company 1,,51101.0,Liberty Retail Ltd,
-Descomed,UK,UK,Retail ,Company 1,,51172.0,Harrods (UK) Ltd.,
-Descomed,UK,UK,Global etailers,Company 3,,51175.0,The Hut.com Ltd; Poland,
-Descomed,UK,UK,Global etailers,Company 3,,51176.0,The Hut.com Ltd; GB,
-Descomed,UK,UK,Retail ,Company 1,,51176.0,THG Beauty Limited,
-Descomed,UK,UK,Global etailers,Company 3,,51177.0,Net-A-Porter; London GB,
-Descomed,UK,UK,Global etailers,Company 3,,51178.0,Net-A-Porter; USA,
-Descomed,UK,UK,Global etailers,Company 3,,51179.0,Net-A-Porter; Hong Kong,
-Descomed,UK,UK,Global etailers,Company 3,,51180.0,Net-A-Porter; Italy,
-Descomed,UK,UK,Retail ,Company 1,,51183.0,"John Bell & Croyden, London",
-Descomed,UK,UK,Spa ,Company 1,,51184.0,The Connaught Hotel,
-Descomed,UK,UK,Spa ,Company 1,,51184.0,The Connaught Hotel,
-Descomed,UK,UK,Spa ,Company 1,,51185.0,Four Seasons Trinity,
-Descomed,UK,UK,Spa ,Company 1,,51185.0,Four Seasons Hotel London,
-Descomed,UK,UK,Spa ,Company 1,,51186.0,hope street hotel; Liverpool,
-Descomed,UK,UK,Spa ,Company 1,,51187.0,Julia Knight; Sale,
-Descomed,UK,UK,Retail ,Company 1,,51187.0,Julia Knight; Sale,
-Descomed,UK,UK,Spa ,Company 1,,51189.0,RTL Limited; The Grove Hotel,
-Descomed,UK,UK,Spa ,Company 1,,51191.0,Louise Godsil; Tranquil Escape,
-Descomed,UK,UK,Spa ,Company 1,,51192.0,Rachel Staggs Ltd.,
-Descomed,UK,UK,Spa ,Company 1,,51193.0,Mweya PVT Ltd; Dubai,
-Descomed,UK,UK,Spa ,Company 1,,51194.0,Artfarm Limited; The Fife Arms Braemar,
-Descomed,UK,Interco,Interco,,Interco,51202.0,"DESCOMED GB, London ( PR + Other )",
-Descomed,UK,UK,Retail ,Company 1,,51206.0,"DESCOMED GB, London (Personal BlueGem)",
-Descomed,UK,Interco,Interco,,Interco,51206.0,"DESCOMED GB, London (Personal BlueGem)",
-Descomed,UK,Interco,Interco,,Interco,51207.0,,
-Descomed,UK,UK,Retail ,Company 1,,51210.0,Katarzyna Walkowiak; MA Liberty,
-Descomed,UK,Interco,Interco,,Interco,51210.0,Katarzyna Walkowiak; MA Liberty,
-Descomed,UK,UK,Spa ,Company 1,,53000.0,IzzyJ Aesthetics,
-Descomed,UK,UK,Spa ,Company 1,,53008.0,Saintly Skin;Frederika Van Hagan,
-Descomed,UK,UK,Spa ,Company 1,,53011.0,Liliana Fernandes,
-Descomed,UK,UK,Retail ,Company 1,,53012.0,Virginie Alvarez,
-Descomed,UK,UK,Spa ,Company 1,,53014.0,Oblique house of aesthetics; London,
-Descomed,UK,UK,Spa ,Company 1,,53015.0,Hilton Bankside; Ken Tui Management Ltd.; London,
-Descomed,UK,UK,Spa ,Company 1,,53015.0,Ken Tui Management Ltd.; London,
-Descomed,UK,UK,Spa ,Company 1,,53016.0,Royal London House; Ken Tui Managem. Ltd,
-Descomed,UK,UK,Spa ,Company 1,,53017.0,Piccadilly Town House; Ken Tui Managem. Ltd,
-Descomed,UK,UK,Spa ,Company 1,,53018.0,"The Goodwood Hotel, Chichester",
-Descomed,UK,UK,Spa ,Company 1,,53019.0,M Alexander London,
-Descomed,UK,UK,Spa ,Company 1,,53020.0,Guendalina The Skin Sculpter LTD,
-Descomed,UK,UK,Spa ,Company 1,,53021.0,Ayadi Ltd.,
-Descomed,UK,UK,eCommerce (excl. USA),Company 3,,59100.0,Shopify UK,
-Descomed,UK,UK,eCommerce (excl. USA),Company 3,,59200.0,Shopify ROW,
+Descomed,UK,UK,Global etailers,Company 3,,10048,Luisa Via Roma Spa; Italy,
+Descomed,UK,UK,Retail ,Company 1,,51101,Liberty Retail Ltd,
+Descomed,UK,UK,Retail ,Company 1,,51172,Harrods (UK) Ltd.,
+Descomed,UK,UK,Global etailers,Company 3,,51175,The Hut.com Ltd; Poland,
+Descomed,UK,UK,Global etailers,Company 3,,51176,The Hut.com Ltd; GB,
+Descomed,UK,UK,Retail ,Company 1,,51176,THG Beauty Limited,
+Descomed,UK,UK,Global etailers,Company 3,,51177,Net-A-Porter; London GB,
+Descomed,UK,UK,Global etailers,Company 3,,51178,Net-A-Porter; USA,
+Descomed,UK,UK,Global etailers,Company 3,,51179,Net-A-Porter; Hong Kong,
+Descomed,UK,UK,Global etailers,Company 3,,51180,Net-A-Porter; Italy,
+Descomed,UK,UK,Retail ,Company 1,,51183,"John Bell & Croyden, London",
+Descomed,UK,UK,Spa ,Company 1,,51184,The Connaught Hotel,
+Descomed,UK,UK,Spa ,Company 1,,51184,The Connaught Hotel,
+Descomed,UK,UK,Spa ,Company 1,,51185,Four Seasons Trinity,
+Descomed,UK,UK,Spa ,Company 1,,51185,Four Seasons Hotel London,
+Descomed,UK,UK,Spa ,Company 1,,51186,hope street hotel; Liverpool,
+Descomed,UK,UK,Spa ,Company 1,,51187,Julia Knight; Sale,
+Descomed,UK,UK,Retail ,Company 1,,51187,Julia Knight; Sale,
+Descomed,UK,UK,Spa ,Company 1,,51189,RTL Limited; The Grove Hotel,
+Descomed,UK,UK,Spa ,Company 1,,51191,Louise Godsil; Tranquil Escape,
+Descomed,UK,UK,Spa ,Company 1,,51192,Rachel Staggs Ltd.,
+Descomed,UK,UK,Spa ,Company 1,,51193,Mweya PVT Ltd; Dubai,
+Descomed,UK,UK,Spa ,Company 1,,51194,Artfarm Limited; The Fife Arms Braemar,
+Descomed,UK,Interco,Interco,,Interco,51202,"DESCOMED GB, London ( PR + Other )",Interco
+Descomed,UK,UK,Retail ,Company 1,,51206,"DESCOMED GB, London (Personal BlueGem)",
+Descomed,UK,Interco,Interco,,Interco,51206,"DESCOMED GB, London (Personal BlueGem)",Interco
+Descomed,UK,Interco,Interco,,Interco,51207,,Interco
+Descomed,UK,UK,Retail ,Company 1,,51210,Katarzyna Walkowiak; MA Liberty,
+Descomed,UK,Interco,Interco,,Interco,51210,Katarzyna Walkowiak; MA Liberty,Interco
+Descomed,UK,UK,Spa ,Company 1,,53000,IzzyJ Aesthetics,
+Descomed,UK,UK,Spa ,Company 1,,53008,Saintly Skin;Frederika Van Hagan,
+Descomed,UK,UK,Spa ,Company 1,,53011,Liliana Fernandes,
+Descomed,UK,UK,Retail ,Company 1,,53012,Virginie Alvarez,
+Descomed,UK,UK,Spa ,Company 1,,53014,Oblique house of aesthetics; London,
+Descomed,UK,UK,Spa ,Company 1,,53015,Hilton Bankside; Ken Tui Management Ltd.; London,
+Descomed,UK,UK,Spa ,Company 1,,53015,Ken Tui Management Ltd.; London,
+Descomed,UK,UK,Spa ,Company 1,,53016,Royal London House; Ken Tui Managem. Ltd,
+Descomed,UK,UK,Spa ,Company 1,,53017,Piccadilly Town House; Ken Tui Managem. Ltd,
+Descomed,UK,UK,Spa ,Company 1,,53018,"The Goodwood Hotel, Chichester",
+Descomed,UK,UK,Spa ,Company 1,,53019,M Alexander London,
+Descomed,UK,UK,Spa ,Company 1,,53020,Guendalina The Skin Sculpter LTD,
+Descomed,UK,UK,Spa ,Company 1,,53021,Ayadi Ltd.,
+Descomed,UK,UK,eCommerce (excl. USA),Company 3,,59100,Shopify UK,
+Descomed,UK,UK,eCommerce (excl. USA),Company 3,,59200,Shopify ROW,
 AG,Core Markets,Switzerland,,Company 1,Ch. Rose,,,Christiane
 AG,Core Markets,Switzerland,,Company 1,Y. Januario,,,Yannick
 AG,Core Markets,Switzerland,,Company 1,G. Monopoli,,,Christiane
@@ -53,90 +53,90 @@ AG,Core Markets,Switzerland,,Company 1,G. Monopoli Neukd,,,Christiane
 AG,Core Markets,Switzerland,,Company 1,Innendienst CH,,,Other CH
 AG,Core Markets,Switzerland,,Company 1,S. Loresco,,,Other CH
 AG,Core Markets,Switzerland,,Company 1,E. Grigoreva,,,FR Swiss
-Inc.,USA,West,Spa,Company 1,,25000.0,West Coast Lifestyles Inc.; CA,Amy
-Inc.,USA,Northeast,Spa,Company 1,,25001.0,Four Seasons Hotel Philadelphia; ; El Paso,Bridget
-Inc.,USA,Southeast,Spa,Company 1,,25002.0,Porto Vita/Villa Grande Club; Fl,Lisa
-Inc.,USA,Southeast,Spa,Company 1,,25003.0,The resort at Longboat Key CLub; Florida,Lisa
-Inc.,USA,West,Spa,Company 1,,25004.0,Teton Mountain Lodge,Amy
-Inc.,USA,Interco,Interco,,Interco,25005.0,"Karen Reddy-Medeiros, Canada",Interco
-Inc.,USA,Interco,Interco,,Interco,25006.0,INNOVATIVE PR; Kamie O´Connor,Interco
-Inc.,USA,Interco,Interco,,Interco,25007.0,"Melissa Blamey, White Plains",Interco
-Inc.,USA,Southeast,Spa,Company 1,,25008.0,"Stars Skincare Med Spa, Florida",Lisa
-Inc.,USA,West,Spa,Company 1,,25009.0,Glo Rejuvenation; Oregon,Amy
-Inc.,USA,Southeast,Spa,Company 1,,25010.0,"Four Seasons Hotel, Fort Lauderdale; FL",Lisa
-Inc.,USA,West,Spa,Company 1,,25011.0,D&G Global Inc.; Claire Gobler; CA,Amy
-Inc.,USA,West,Spa,Company 1,,25012.0,"Rosewood Sense Spa, CA",Amy
-Inc.,USA,Northeast,Spa,Company 1,,25013.0,Gurney ´s Inn Resort & Spa LLC; NY,Bridget
-Inc.,USA,West,Spa,Company 1,,25015.0,Gateway Canyon Resort & Spa; CO,Amy
-Inc.,USA,Southeast,Spa,Company 1,,25016.0,"Williams Island POA, Inc.Florida",Lisa
-Inc.,USA,Southeast,Spa,Company 1,,25018.0,Iridescent LLC; Big-Bang; Miiami; Paula,Lisa
-Inc.,USA,Southeast,Spa,Company 1,,25019.0,Banyan Cay Res.; W Palm Beach; Melissa,Lisa
-Inc.,USA,Southeast,Spa,Company 1,,25020.0,Faena Hotel Miami Beach; FL,Lisa
-Inc.,USA,West,Spa,Company 1,,25021.0,TALISKER CLUB; Holly Arndt,Amy
-Inc.,USA,West,Spa,Company 1,,25022.0,Beating Hearts; Dallas; Lori Feste,Amy
-Inc.,USA,West,Spa,Company 1,,25023.0,HLP Hotels LLC DBA Lost Pines; Texas,Amy
-Inc.,USA,Southeast,Spa,Company 1,,25024.0,"Mt. Bailey Holdings, LLC; Four Seasons Hotel Atlanta",Lisa
-Inc.,USA,Southeast,Spa,Company 1,,25025.0,"ARCH Amenity Group, Florida",Lisa
-Inc.,USA,Southeast,Spa,Company 1,,25026.0,JW Marriott Miami Turnberry,Lisa
-Inc.,USA,West,Spa,Company 1,,25027.0,San Manuel Entert.; Yaamava Resort; Highland,Amy
-Inc.,USA,Northeast,Spa,Company 1,,25028.0,Jenny Y Yu; MD FACS PLLC,Bridget
-Inc.,USA,Southeast,Spa,Company 1,,25029.0,Ana Molinari Inc.; FL,Lisa
-Inc.,USA,Retail,Retail,Company 1,,25030.0,Saks.com LLC; NY (Web orders),
-Inc.,USA,West,Spa,Company 1,,25032.0,Four Seasons Hotel Las Vegas,Amy
-Inc.,USA,Northeast,Spa,Company 1,,25033.0,Body Works Day Spa; Stewart Manor,Bridget
-Inc.,USA,West,Spa,Company 1,,25034.0,"Live Love Spa; Tustin, CA",Amy
-Inc.,USA,Other,Spa,Company 1,,25035.0,Rosewood Little Dix Bay; Helen Lugo,Melissa
-Inc.,USA,West,Spa,Company 1,,25036.0,MacArthur Place; LÁuberge de Sonoma LLC; CA,Amy
-Inc.,USA,Northeast,Spa,Company 1,,25037.0,Equinox Holdings Inc; Boston,Bridget
-Inc.,USA,West,Spa,Company 1,,25038.0,"Lemon & Honey Day Spa; Orange, CA",Amy
-Inc.,USA,Central,Spa,Company 1,,25039.0,Four Seasons Hotel Austin; DTRS Austin LLC,Amy
-Inc.,USA,Southeast,Spa,Company 1,,25040.0,AMG Investments LLC; Fl,Lisa
-Inc.,USA,Northeast,Spa,Company 1,,25041.0,Agata Sokolowska; IL,Bridget
-Inc.,USA,Southeast,Spa,Company 1,,25042.0,Eau Palm Beach Resort & Spa; Fl,Lisa
-Inc.,USA,Southeast,Spa,Company 1,,25043.0,"Jupiter Island Holdings, Inc.; Fl",Lisa
-Inc.,USA,Central,Spa,Company 1,,25044.0,The Elms Hotel & Spa; Missouri,Bridget
-Inc.,USA,Northeast,Spa,Company 1,,25045.0,dba Haven Spa,Bridget
-Inc.,USA,West,Spa,Company 1,,25046.0,"Beverly Wilshire,Four Seasons Hotel, CA",Amy
-Inc.,USA,Southeast,Spa,Company 1,,25047.0,"Four Seasons Resort Orlando,FL",Lisa
-Inc.,USA,Northeast,Spa,Company 1,,25049.0,Four Seasons Baltimore; MD,Bridget
-Inc.,USA,Central,Spa,Company 1,,25050.0,"Mokara Hotel & Spa, Omni Hotels Management Corp.",Amy
-Inc.,USA,Retail,Retail,Company 1,,25051.0,Rennai Royalmount; Canada,
-Inc.,USA,West,Spa,Company 1,,25052.0,Rosewood Miramar Beach; CA,Amy
-Inc.,USA,West,Spa,Company 1,,25053.0,"Bonnie Frances Skin;Phoenix, AZ",Amy
-Inc.,USA,Southeast,Spa,Company 1,,25054.0,Four Seasons Hotel Nashville; TN,Lisa
-Inc.,USA,Southeast,Spa,Company 1,,25055.0,USREC Banyan Cay Resort LLC,Lisa
-Inc.,USA,Central,Spa,Company 1,,25056.0,AMI LLC Bergamos Retreat,Amy
-Inc.,USA,Central,Spa,Company 1,,25057.0,Waldorf Astoria Spa Chicago,Melissa
-Inc.,USA,West,Spa,Company 1,,25058.0,"Five Point Five, Inc.",Amy
-Inc.,USA,West,Spa,Company 1,,25059.0,Red Rock Tivoli Aestetics,Melissa
-Inc.,USA,Southeast,Spa,Company 1,,25060.0,Nashville Hospitality/DBA Westin,Lisa
-Inc.,USA,Northeast,Spa,Company 1,,25061.0,Equinox Holdings Inc; Washington DC,
-Inc.,USA,Northeast,Spa,Company 1,,25062.0,Equinox Holdings Inc; SPA Retail Washington DC,
-Inc.,USA,Southeast,Spa,Company 1,,25063.0,Equinox Holdings Inc; Miami,
-Inc.,USA,West,Spa,Company 1,,25064.0,Embracing the Dance of Healing,
-Inc.,USA,West,Spa,Company 1,,25065.0,"Cupid Lift Inc., West Hollywood",
-Inc.,USA,West,Spa,Company 1,,25066.0,ARIA Resort & Casino; Las Vegas,
-Inc.,USA,West,Spa,Company 1,,25067.0,"The Ritz-Carlton, Half Moon Bay LLC",
-Inc.,USA,Central,Spa,Company 1,,25068.0,321 Skin Glow LLC,
-Inc.,USA,Southeast,Spa,Company 1,,25069.0,Simply Bliss SkinCare LLC,
-Inc.,USA,Northeast,Spa,Company 1,,25070.0,Renaissance Hotel Partners LLC,
-Inc.,USA,Central,Spa,Company 1,,25071.0,Nerdium LLC; Texas,
-Inc.,USA,West,Spa,Company 1,,25072.0,Balboa Bay Club Ventures LLC,
-Inc.,USA,Central,Spa,Company 1,,25073.0,Mario Tricoci Hair Salons & Day Spas,
-Inc.,USA,Central,Spa,Company 1,,25074.0,"Houstonian Campus, LLC",
-Inc.,USA,,eCommerce USA,Company 3,,40000.0,Shopify,
-Inc.,USA,,Spa,Company 1,,25075.0,Wyndham Grand Rio Mar Hotel,Other
-Inc.,USA,Interco,Interco,,Interco,25900.0,Amy Chasko,Interco
-Inc.,USA,Interco,Interco,,Interco,25902.0,Bridget Lonergan,Interco
-Inc.,USA,Interco,Interco,,Interco,25903.0,Lisa Perez,Interco
-Inc.,USA,Interco,Interco,,Interco,25905.0,Emily Kasprowicz,Interco
-Inc.,USA,Interco,Interco,,Interco,30687.0,Asia Cilek; home address,Interco
-Inc.,USA,Interco,Interco,,Interco,30731.0,Lisamarie DeLucia; Account Executive,Interco
-Inc.,USA,Interco,Interco,,Interco,30732.0,Monica Mosconi; Trainer,Interco
-Inc.,USA,USA,Own eCommerce,Company 3,,40000.0,eCommerce USA,Own eCommerce
-Inc.,USA,USA,Amazon,Company 3,,41000.0,Amazon,Amazon
-Inc.,USA,Central,Spa,Company 1,,25068.0,321 Skin Glow LLC,
-Inc.,USA,Northeast,Spa,Company 1,,25041.0,Agata Sokolowska; IL,
+Inc.,USA,West,Spa,Company 1,,25000,West Coast Lifestyles Inc.; CA,Amy
+Inc.,USA,Northeast,Spa,Company 1,,25001,Four Seasons Hotel Philadelphia; ; El Paso,Bridget
+Inc.,USA,Southeast,Spa,Company 1,,25002,Porto Vita/Villa Grande Club; Fl,Lisa
+Inc.,USA,Southeast,Spa,Company 1,,25003,The resort at Longboat Key CLub; Florida,Lisa
+Inc.,USA,West,Spa,Company 1,,25004,Teton Mountain Lodge,Amy
+Inc.,USA,Interco,Interco,,Interco,25005,"Karen Reddy-Medeiros, Canada",Interco
+Inc.,USA,Interco,Interco,,Interco,25006,INNOVATIVE PR; Kamie O´Connor,Interco
+Inc.,USA,Interco,Interco,,Interco,25007,"Melissa Blamey, White Plains",Interco
+Inc.,USA,Southeast,Spa,Company 1,,25008,"Stars Skincare Med Spa, Florida",Lisa
+Inc.,USA,West,Spa,Company 1,,25009,Glo Rejuvenation; Oregon,Amy
+Inc.,USA,Southeast,Spa,Company 1,,25010,"Four Seasons Hotel, Fort Lauderdale; FL",Lisa
+Inc.,USA,West,Spa,Company 1,,25011,D&G Global Inc.; Claire Gobler; CA,Amy
+Inc.,USA,West,Spa,Company 1,,25012,"Rosewood Sense Spa, CA",Amy
+Inc.,USA,Northeast,Spa,Company 1,,25013,Gurney ´s Inn Resort & Spa LLC; NY,Bridget
+Inc.,USA,West,Spa,Company 1,,25015,Gateway Canyon Resort & Spa; CO,Amy
+Inc.,USA,Southeast,Spa,Company 1,,25016,"Williams Island POA, Inc.Florida",Lisa
+Inc.,USA,Southeast,Spa,Company 1,,25018,Iridescent LLC; Big-Bang; Miiami; Paula,Lisa
+Inc.,USA,Southeast,Spa,Company 1,,25019,Banyan Cay Res.; W Palm Beach; Melissa,Lisa
+Inc.,USA,Southeast,Spa,Company 1,,25020,Faena Hotel Miami Beach; FL,Lisa
+Inc.,USA,West,Spa,Company 1,,25021,TALISKER CLUB; Holly Arndt,Amy
+Inc.,USA,West,Spa,Company 1,,25022,Beating Hearts; Dallas; Lori Feste,Amy
+Inc.,USA,West,Spa,Company 1,,25023,HLP Hotels LLC DBA Lost Pines; Texas,Amy
+Inc.,USA,Southeast,Spa,Company 1,,25024,"Mt. Bailey Holdings, LLC; Four Seasons Hotel Atlanta",Lisa
+Inc.,USA,Southeast,Spa,Company 1,,25025,"ARCH Amenity Group, Florida",Lisa
+Inc.,USA,Southeast,Spa,Company 1,,25026,JW Marriott Miami Turnberry,Lisa
+Inc.,USA,West,Spa,Company 1,,25027,San Manuel Entert.; Yaamava Resort; Highland,Amy
+Inc.,USA,Northeast,Spa,Company 1,,25028,Jenny Y Yu; MD FACS PLLC,Bridget
+Inc.,USA,Southeast,Spa,Company 1,,25029,Ana Molinari Inc.; FL,Lisa
+Inc.,USA,Retail,Retail,Company 1,,25030,Saks.com LLC; NY (Web orders),
+Inc.,USA,West,Spa,Company 1,,25032,Four Seasons Hotel Las Vegas,Amy
+Inc.,USA,Northeast,Spa,Company 1,,25033,Body Works Day Spa; Stewart Manor,Bridget
+Inc.,USA,West,Spa,Company 1,,25034,"Live Love Spa; Tustin, CA",Amy
+Inc.,USA,Other,Spa,Company 1,,25035,Rosewood Little Dix Bay; Helen Lugo,Melissa
+Inc.,USA,West,Spa,Company 1,,25036,MacArthur Place; LÁuberge de Sonoma LLC; CA,Amy
+Inc.,USA,Northeast,Spa,Company 1,,25037,Equinox Holdings Inc; Boston,Bridget
+Inc.,USA,West,Spa,Company 1,,25038,"Lemon & Honey Day Spa; Orange, CA",Amy
+Inc.,USA,Central,Spa,Company 1,,25039,Four Seasons Hotel Austin; DTRS Austin LLC,Amy
+Inc.,USA,Southeast,Spa,Company 1,,25040,AMG Investments LLC; Fl,Lisa
+Inc.,USA,Northeast,Spa,Company 1,,25041,Agata Sokolowska; IL,Bridget
+Inc.,USA,Southeast,Spa,Company 1,,25042,Eau Palm Beach Resort & Spa; Fl,Lisa
+Inc.,USA,Southeast,Spa,Company 1,,25043,"Jupiter Island Holdings, Inc.; Fl",Lisa
+Inc.,USA,Central,Spa,Company 1,,25044,The Elms Hotel & Spa; Missouri,Bridget
+Inc.,USA,Northeast,Spa,Company 1,,25045,dba Haven Spa,Bridget
+Inc.,USA,West,Spa,Company 1,,25046,"Beverly Wilshire,Four Seasons Hotel, CA",Amy
+Inc.,USA,Southeast,Spa,Company 1,,25047,"Four Seasons Resort Orlando,FL",Lisa
+Inc.,USA,Northeast,Spa,Company 1,,25049,Four Seasons Baltimore; MD,Bridget
+Inc.,USA,Central,Spa,Company 1,,25050,"Mokara Hotel & Spa, Omni Hotels Management Corp.",Amy
+Inc.,USA,Retail,Retail,Company 1,,25051,Rennai Royalmount; Canada,Other
+Inc.,USA,West,Spa,Company 1,,25052,Rosewood Miramar Beach; CA,Amy
+Inc.,USA,West,Spa,Company 1,,25053,"Bonnie Frances Skin;Phoenix, AZ",Amy
+Inc.,USA,Southeast,Spa,Company 1,,25054,Four Seasons Hotel Nashville; TN,Lisa
+Inc.,USA,Southeast,Spa,Company 1,,25055,USREC Banyan Cay Resort LLC,Lisa
+Inc.,USA,Central,Spa,Company 1,,25056,AMI LLC Bergamos Retreat,Amy
+Inc.,USA,Central,Spa,Company 1,,25057,Waldorf Astoria Spa Chicago,Melissa
+Inc.,USA,West,Spa,Company 1,,25058,"Five Point Five, Inc.",Amy
+Inc.,USA,West,Spa,Company 1,,25059,Red Rock Tivoli Aestetics,Melissa
+Inc.,USA,Southeast,Spa,Company 1,,25060,Nashville Hospitality/DBA Westin,Lisa
+Inc.,USA,Northeast,Spa,Company 1,,25061,Equinox Holdings Inc; Washington DC,Bridget
+Inc.,USA,Northeast,Spa,Company 1,,25062,Equinox Holdings Inc; SPA Retail Washington DC,Bridget
+Inc.,USA,Southeast,Spa,Company 1,,25063,Equinox Holdings Inc; Miami,Lisa
+Inc.,USA,West,Spa,Company 1,,25064,Embracing the Dance of Healing,Amy
+Inc.,USA,West,Spa,Company 1,,25065,"Cupid Lift Inc., West Hollywood",Amy
+Inc.,USA,West,Spa,Company 1,,25066,ARIA Resort & Casino; Las Vegas,Amy
+Inc.,USA,West,Spa,Company 1,,25067,"The Ritz-Carlton, Half Moon Bay LLC",Amy
+Inc.,USA,Central,Spa,Company 1,,25068,321 Skin Glow LLC,
+Inc.,USA,Southeast,Spa,Company 1,,25069,Simply Bliss SkinCare LLC,Lisa
+Inc.,USA,Northeast,Spa,Company 1,,25070,Renaissance Hotel Partners LLC,
+Inc.,USA,Central,Spa,Company 1,,25071,Nerdium LLC; Texas,
+Inc.,USA,West,Spa,Company 1,,25072,Balboa Bay Club Ventures LLC,
+Inc.,USA,Central,Spa,Company 1,,25073,Mario Tricoci Hair Salons & Day Spas,
+Inc.,USA,Central,Spa,Company 1,,25074,"Houstonian Campus, LLC",
+Inc.,USA,USA,eCommerce USA,Company 3,,40000,Shopify,
+Inc.,USA,Southeast,Spa,Company 1,,25075,Wyndham Grand Rio Mar Hotel,Lisa
+Inc.,USA,Interco,Interco,,Interco,25900,Amy Chasko,Interco
+Inc.,USA,Interco,Interco,,Interco,25902,Bridget Lonergan,Interco
+Inc.,USA,Interco,Interco,,Interco,25903,Lisa Perez,Interco
+Inc.,USA,Interco,Interco,,Interco,25905,Emily Kasprowicz,Interco
+Inc.,USA,Interco,Interco,,Interco,30687,Asia Cilek; home address,Interco
+Inc.,USA,Interco,Interco,,Interco,30731,Lisamarie DeLucia; Account Executive,Interco
+Inc.,USA,Interco,Interco,,Interco,30732,Monica Mosconi; Trainer,Interco
+Inc.,USA,USA,Own eCommerce,Company 3,,40000,eCommerce USA,Own eCommerce
+Inc.,USA,USA,Amazon,Company 3,,41000,Amazon,Amazon
+Inc.,USA,Central,Spa,Company 1,,25068,321 Skin Glow LLC,
+Inc.,USA,Northeast,Spa,Company 1,,25041,Agata Sokolowska; IL,
 Export,Export,Distributor - South Africa,,Company 1,,,FUTURETHIS CONSULTANCY (PTY) LTD.,
 Export,Export,Distributor - Other EU,,Company 1,,,All time beauty; Estland,
 Export,Export,Distributor - New,,Company 1,,,T.A. Cosmetics P.C.; Greece,
@@ -176,7 +176,7 @@ GmbH,Core Markets,Germany,,Company 1,A. Gutierrez Neukd,,,Aracelli
 GmbH,Core Markets,Germany,,Company 1,Bayern,,,Aracelli
 GmbH,Core Markets,Germany,,Company 1,N. Bolz,,,Bayern - Other
 GmbH,Core Markets,Other NL,,Company 1,C. da Costa Campos,,,Benelux - Other
-GmbH,Core Markets,Germany,,Company 1,C. da Costa Campos Neukd,,,Benelux - Other
+GmbH,Core Markets,Other NL,,Company 1,C. da Costa Campos Neukd,,,Benelux - Other
 GmbH,Core Markets,Germany,,Company 1,Claire Morgan,,,Claire
 GmbH,Core Markets,eCommerce (excl. USA),eCommerce EU (incl. UK),Company 3,e-commerce,,,eCommerce (excl. USA)
 GmbH,Core Markets,Interco,Interco,,Export,,,Export
@@ -227,6 +227,6 @@ GmbH,Core Markets,Germany,,Company 1,Rainer Anskinewitsch,,,Retail
 GmbH,Core Markets,Germany,,Company 1,Steve Byrom-Chadd,,,Retail
 GmbH,Core Markets,Germany,,Company 1,S. Wöhrle,,,Sibylle
 GmbH,Core Markets,Germany,,Company 1,S. Wöhrle Neukd,,,Sibylle
-GmbH,Core Markets,Germany,,Company 1,M. G. Fernández,,,Spain
+GmbH,Core Markets,Spain,,Company 1,M. G. Fernández,,,Spain
 GmbH,Core Markets,Spain,,Company 1,M. G. Fernández Neukd,,,Spain
-Descomed,UK,UK,Interco,,Interco,51158.0,Liberty PR,
+Descomed,UK,UK,Interco,,Interco,51158,Liberty PR,Interco

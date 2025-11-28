@@ -51,11 +51,49 @@ def apply_mappings(sales_df, mapping_df):
         sales_df.loc[sales_df['Company Entity'].isin(['GmbH', 'AG']), 'temp_customer'] = pd.NA
         sales_df = sales_df.merge(map_cust, left_on='temp_customer', right_on='Customer_Name', how='left', suffixes=('', '_cust'))
         
-        # Log unmapped customers
+        # Attempt to resolve unmapped customers using Sales Employee exact matches
+        # (accept only perfect/equivalent-to-1.0 matches)
+        if 'Sales Employee Name' in sales_df.columns:
+            # Build lookup maps from the mapping rows
+            cust_lookup = {}
+            emp_lookup = {}
+            for _, r in map_cust.iterrows():
+                cname = str(r.get('Customer_Name', '')).strip()
+                if cname:
+                    cust_lookup[cname] = r
+            # If an employee mapping (map_emp) exists, use it to build emp_lookup
+            if 'map_emp' in locals():
+                for _, r2 in map_emp.iterrows():
+                    se_val = r2.get('Sales_Employee')
+                    if pd.notna(se_val):
+                        emp_lookup[str(se_val).strip()] = r2
+
+            # For rows still without Market_Group, try exact match against Sales Employee Name
+            mask_unmapped = (~sales_df['Company Entity'].isin(['GmbH', 'AG'])) & (sales_df['Market_Group'].isna())
+            for idx in sales_df[mask_unmapped].index:
+                se_name = str(sales_df.at[idx, 'Sales Employee Name']).strip() if 'Sales Employee Name' in sales_df.columns else ''
+                cust_key = str(sales_df.at[idx, 'temp_customer']).strip() if 'temp_customer' in sales_df.columns else ''
+                row = None
+                # Prefer exact customer-name lookup
+                if cust_key and cust_key in cust_lookup:
+                    row = cust_lookup[cust_key]
+                # Next, try to match Sales Employee name against mapping rows (exact match only)
+                elif se_name and se_name in emp_lookup:
+                    row = emp_lookup[se_name]
+                # Also allow customer name matching against employee-mapped rows
+                elif cust_key and cust_key in emp_lookup:
+                    row = emp_lookup[cust_key]
+
+                if row is not None:
+                    for col in ['Market_Group', 'Region', 'Channel_Level', 'Company_Group', 'Sales_Employee_Cleaned']:
+                        if col in row and pd.notna(row[col]):
+                            sales_df.at[idx, col] = row[col]
+
+        # Log unmapped customers after attempting Sales Employee matches
         unmapped_cust = sales_df[~sales_df['Company Entity'].isin(['GmbH', 'AG']) & sales_df['Market_Group'].isna()]
         if not unmapped_cust.empty:
             logging.warning(f"Found {len(unmapped_cust)} unmapped customer records (non-GmbH/AG)")
-        
+
         sales_df.drop('temp_customer', axis=1, inplace=True)
 
     # Combine the mappings: for common columns, prefer emp if available, else cust
