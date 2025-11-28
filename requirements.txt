@@ -13,3 +13,4 @@ reportlab==4.0.7
 msal==1.25.0
 requests==2.31.0
 gunicorn==21.2.0
+sse-starlette==1.8.2
