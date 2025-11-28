@@ -270,10 +270,22 @@ def main():
     print("-" * 80)
     print()
     
-    # Clear static folder before saving
+    # Clean up only prior combined report files from static
     static_dir = project_root / 'fastapi_web_app' / 'static'
-    shutil.rmtree(str(static_dir), ignore_errors=True)
     static_dir.mkdir(parents=True, exist_ok=True)
+    for pattern in [
+        'combined_management_report_*.csv',
+        'combined_management_report_*.html',
+        'combined_management_report_*.pdf',
+        'combined_management_report_*.txt',
+        'combined_management_report_*.xlsx',
+        'combined_reports_*.zip'
+    ]:
+        for old_file in static_dir.glob(pattern):
+            try:
+                old_file.unlink()
+            except OSError:
+                logging.warning(f"Unable to remove {old_file}")
     
     # Create separator rows with consistent schema and proper types
     separator_receivables = pd.DataFrame([{

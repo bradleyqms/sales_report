@@ -48,10 +48,6 @@ data/outputs/*.pdf
 data/outputs/*.txt
 data/outputs/*.zip
 
-
-# Keep the styles.css
-!fastapi_web_app/static/styles.css
-
 # Logs
 *.log
 
@@ -59,3 +55,9 @@ data/outputs/*.zip
 *.tmp
 *.bak
 .cache/
+fastapi_web_app/static/combined_management_report_*.csv
+fastapi_web_app/static/combined_management_report_*.html
+fastapi_web_app/static/combined_management_report_*.pdf
+fastapi_web_app/static/combined_management_report_*.txt
+fastapi_web_app/static/combined_management_report_*.xlsx
+fastapi_web_app/static/combined_reports_*.zip

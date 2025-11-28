@@ -87,11 +87,27 @@ class ManagementReportGenerator:
         
         for section in self.config['sections']:
             if section.get('is_grand_total'):
+                # Before outputting grand total, subtract any company-level totals
+                # so that grand total reflects base items only.
+                deduction_sales = 0
+                deduction_budget = 0
+                deduction_prior = 0
+                for key,vals in section_totals.items():
+                    # Match titles like 'Company 1 Sales', 'Company 2 Sales', etc.
+                    if isinstance(key, str) and key.startswith('Company ') and key.endswith(' Sales'):
+                        deduction_sales += vals.get('sales', 0)
+                        deduction_budget += vals.get('budget', 0)
+                        deduction_prior += vals.get('prior', 0)
+
+                adj_sales = grand_total['Sales'] - deduction_sales
+                adj_budget = grand_total['Budget'] - deduction_budget
+                adj_prior = grand_total['Prior'] - deduction_prior
+
                 report_data.append({
                     'label': section['title'],
-                    'sales': grand_total['Sales'],
-                    'budget': grand_total['Budget'],
-                    'prior': grand_total['Prior'],
+                    'sales': adj_sales,
+                    'budget': adj_budget,
+                    'prior': adj_prior,
                     'is_total': True,
                     'is_grand_total': True,
                     'is_spacer': False

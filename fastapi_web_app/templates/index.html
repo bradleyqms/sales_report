@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sales Report Generator</title>
+    <link rel="icon" href="/static/images/qms-favicon.ico">
     <link rel="stylesheet" href="/static/styles.css?v=2">
 </head>
 <body>
@@ -11,8 +12,7 @@
     <div id="splash-screen">
         <div class="splash-content">
             <div class="splash-logo">
-                <span class="brand-name">QMS</span>
-                <span class="brand-sub">MEDICOSMETICS</span>
+                <img class="splash-logo-img" src="/static/images/qms-logo.png" alt="QMS Medicosmetics" />
             </div>
             <div class="splash-loader"></div>
         </div>
@@ -21,10 +21,7 @@
     <div class="app-container">
         <header class="top-bar">
             <div class="brand-section">
-                <div class="logo-text">
-                    <span class="brand-name">QMS</span>
-                    <span class="brand-sub">MEDICOSMETICS</span>
-                </div>
+                <img class="brand-logo" src="/static/images/qms-logo.png" alt="QMS Medicosmetics" />
                 <div class="divider"></div>
                 <div class="module-info">
                     <span class="module-name">Reporting Hub</span>
@@ -49,10 +46,6 @@
                     <button id="runButton" onclick="runReport()" class="primary-button">
                         Start analysis
                     </button>
-                    <div class="run-note">
-                        <span class="run-note-title">Typical duration:</span>
-                        <span class="run-note-body">4-6 minutes; SharePoint I/O + local CPU.</span>
-                    </div>
                     <div id="loading" class="loading-indicator" style="display: none;">
                         <div class="spinner"></div>
                         <span>Processing...</span>
@@ -74,7 +67,7 @@
             <div class="card metrics-card" id="metricsCard">
                 <div class="metrics-card-header">
                     <h3>Summary Metrics</h3>
-                    <span id="summaryState" class="summary-state">Awaiting a fresh run</span>
+                    <span id="summaryState" class="summary-state">Awaiting fresh run</span>
                 </div>
                 <div class="total-sales-box">
                     <div class="total-label">TOTAL SALES</div>
@@ -124,127 +117,366 @@
                     Last run: <span id="lastRunTime">Never</span>
                 </div>
             </div>
+
+            <!-- Tables Container -->
+            <div id="tablesContainer"></div>
         </main>
     </div>
 
     <script>
-        // Splash Screen Logic
-        window.addEventListener('load', function() {
-            const splash = document.getElementById('splash-screen');
-            setTimeout(() => {
-                splash.classList.add('hidden');
-            }, 2000); // Show splash for at least 2 seconds
-        });
+        const statusIndicator = document.querySelector('.status-indicator');
+        const statusTextElement = statusIndicator?.querySelector('.status-text');
+        const statusDot = statusIndicator?.querySelector('.status-dot');
+        const summaryState = document.getElementById('summaryState');
+        const metricsCard = document.getElementById('metricsCard');
+        const metricsTimestamp = document.getElementById('metricsTimestamp');
+        const lastRunTime = document.getElementById('lastRunTime');
+        const runButton = document.getElementById('runButton');
+        const loadingIndicator = document.getElementById('loading');
+        const outputEl = document.getElementById('output');
+        const splashScreen = document.getElementById('splash-screen');
+        
+        let eventSource = null;
+        let lastKnownRun = null;
+        let isInitialLoad = true;
 
-        let statusInterval;
+        const statusLabels = {
+            idle: 'Idle and ready',
+            running: 'Running analysis',
+            results: 'Results ready'
+        };
 
-        async function runReport() {
-            const runButton = document.getElementById('runButton');
-            const loading = document.getElementById('loading');
-
-            runButton.disabled = true;
-            loading.style.display = 'flex';
-
-            try {
-                const response = await fetch('/run-report', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                });
-
-                if (response.ok) {
-                    // Start polling for status
-                    statusInterval = setInterval(updateStatus, 1000);
-                } else {
-                    alert('Failed to start report generation');
-                    runButton.disabled = false;
-                    loading.style.display = 'none';
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Error starting report generation');
-                runButton.disabled = false;
-                loading.style.display = 'none';
-            }
+        function setStatusRole(role) {
+            if (!statusIndicator || !statusTextElement) return;
+            statusIndicator.dataset.role = role;
+            statusTextElement.textContent = statusLabels[role] || statusLabels.idle;
         }
 
-        async function updateStatus() {
+        function updateSummaryState(hasFreshData) {
+            if (!summaryState || !metricsCard) return;
+            summaryState.textContent = hasFreshData ? 'Results ready' : 'Awaiting fresh run';
+            metricsCard.classList.toggle('metrics-card--fresh', hasFreshData);
+        }
+
+        function formatTimestamp(timestamp) {
+            if (!timestamp) return 'Never';
+            const year = timestamp.slice(0, 4);
+            const month = timestamp.slice(4, 6);
+            const day = timestamp.slice(6, 8);
+            const hour = timestamp.slice(9, 11);
+            const minute = timestamp.slice(11, 13);
+            const second = timestamp.slice(13, 15);
+            return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+        }
+
+        async function fetchMetrics() {
             try {
-                const response = await fetch('/status');
-                const status = await response.json();
-
-                document.getElementById('output').value = status.output;
-
-                // Update last run time
-                if (status.last_run) {
-                    const timestamp = status.last_run;
-                    const formatted = timestamp.slice(0,4) + '-' + timestamp.slice(4,6) + '-' + timestamp.slice(6,8) + ' ' + 
-                                    timestamp.slice(9,11) + ':' + timestamp.slice(11,13) + ':' + timestamp.slice(13,15);
-                    document.getElementById('lastRunTime').textContent = formatted;
-                }
-
-                // Fetch and update metrics from CSV
-                try {
-                    const metricsResponse = await fetch('/metrics');
-                    const metricsData = await metricsResponse.json();
-                    if (metricsData.total_sales > 0) {
-                        updateMetricsCardDisplay(metricsData);
-                    }
-                } catch (e) {
-                    console.log('Metrics not yet available');
-                }
-
-                // Update download links
-                updateDownloadLink('csvLink', status.csv_url);
-                updateDownloadLink('txtLink', status.txt_url);
-                updateDownloadLink('htmlLink', status.html_url);
-                updateDownloadLink('xlsxLink', status.xlsx_url);
-                updateDownloadLink('pdfLink', status.pdf_url);
-                updateDownloadLink('zipLink', status.zip_url);
-
-                if (!status.running) {
-                    // Report finished
-                    clearInterval(statusInterval);
-                    document.getElementById('runButton').disabled = false;
-                    document.getElementById('loading').style.display = 'none';
-                }
+                const metricsResponse = await fetch('/metrics');
+                if (!metricsResponse.ok) throw new Error('Metrics unavailable');
+                return await metricsResponse.json();
             } catch (error) {
-                console.error('Error updating status:', error);
+                console.warn('Metrics not yet available', error);
+                return { total_sales: 0 };
             }
         }
 
         function updateMetricsCardDisplay(metricsData) {
-            // Update the total sales box
             const totalSalesValue = document.getElementById('totalSalesValue');
-            if (totalSalesValue) {
+            if (totalSalesValue && metricsData?.total_sales != null) {
                 totalSalesValue.textContent = metricsData.total_sales.toFixed(0) + ' kEUR';
             }
-
-            // Update timestamp
-            const timestamp = document.getElementById('metricsTimestamp');
-            if (timestamp) {
-                const now = new Date();
-                const timeStr = now.getHours().toString().padStart(2, '0') + ':' + 
-                               now.getMinutes().toString().padStart(2, '0') + ':' + 
-                               now.getSeconds().toString().padStart(2, '0');
-                timestamp.textContent = 'Last updated: ' + timeStr;
-            }
         }
 
-        function updateDownloadLink(elementId, url) {
-            const link = document.getElementById(elementId);
-            if (url) {
-                link.href = url;
-                link.classList.remove('disabled');
+        const tableCard = document.getElementById('tableCard');
+        const reportTable = document.getElementById('reportTable');
+        const tablesContainer = document.getElementById('tablesContainer');
+
+        function updateDownloadLinks(status) {
+            const links = {
+                'csvLink': status.csv_url,
+                'txtLink': status.txt_url,
+                'htmlLink': status.html_url,
+                'xlsxLink': status.xlsx_url,
+                'pdfLink': status.pdf_url,
+                'zipLink': status.zip_url
+            };
+
+            for (const [id, url] of Object.entries(links)) {
+                const link = document.getElementById(id);
+                if (link) {
+                    if (url) {
+                        link.href = url;
+                        link.classList.remove('disabled');
+                    } else {
+                        link.href = '#';
+                        link.classList.add('disabled');
+                    }
+                }
+            }
+            
+            // Load table data if CSV is available
+            if (status.csv_url) {
+                loadTableData(status.csv_url);
             } else {
-                link.href = '#';
-                link.classList.add('disabled');
+                if (tablesContainer) tablesContainer.innerHTML = '';
             }
         }
 
-        // Initial status update
-        updateStatus();
+        function parseCSV(text) {
+            const rows = [];
+            let currentRow = [];
+            let currentField = '';
+            let insideQuotes = false;
+            
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                const nextChar = text[i + 1];
+                
+                if (char === '"') {
+                    if (insideQuotes && nextChar === '"') {
+                        currentField += '"';
+                        i++;
+                    } else {
+                        insideQuotes = !insideQuotes;
+                    }
+                } else if (char === ',' && !insideQuotes) {
+                    currentRow.push(currentField);
+                    currentField = '';
+                } else if ((char === '\n' || char === '\r') && !insideQuotes) {
+                    if (char === '\r' && nextChar === '\n') i++;
+                    if (currentRow.length > 0 || currentField) {
+                        currentRow.push(currentField);
+                        rows.push(currentRow);
+                    }
+                    currentRow = [];
+                    currentField = '';
+                } else {
+                    currentField += char;
+                }
+            }
+            if (currentField || currentRow.length > 0) {
+                currentRow.push(currentField);
+                rows.push(currentRow);
+            }
+            return rows;
+        }
+
+        function createTableCard(title, headers, rows) {
+            const card = document.createElement('div');
+            card.className = 'card table-card';
+            card.style.marginBottom = '24px';
+
+            const headerDiv = document.createElement('div');
+            headerDiv.className = 'card-header';
+            const h2 = document.createElement('h2');
+            h2.textContent = title;
+            headerDiv.appendChild(h2);
+            card.appendChild(headerDiv);
+
+            const responsiveDiv = document.createElement('div');
+            responsiveDiv.className = 'table-responsive';
+            
+            const table = document.createElement('table');
+            table.className = 'data-table';
+            
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            headers.forEach(text => {
+                const th = document.createElement('th');
+                th.textContent = text.trim();
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            rows.forEach(row => {
+                if (row.length < 2) return;
+                const tr = document.createElement('tr');
+                row.forEach(cell => {
+                    const td = document.createElement('td');
+                    td.textContent = cell.trim();
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            
+            responsiveDiv.appendChild(table);
+            card.appendChild(responsiveDiv);
+            
+            return card;
+        }
+
+        async function loadTableData(csvUrl) {
+            try {
+                const response = await fetch(csvUrl);
+                if (!response.ok) return;
+                const text = await response.text();
+                
+                const allRows = parseCSV(text);
+                if (allRows.length === 0) return;
+
+                const headerRow = allRows[0];
+                const dataRows = allRows.slice(1);
+                
+                const sections = [
+                    { title: 'Management Report', rows: [] },
+                    { title: 'Core Markets', rows: [] },
+                    { title: 'USA Breakdown', rows: [] }
+                ];
+
+                let currentSectionIndex = 0;
+
+                for (const row of dataRows) {
+                    if (row.length === 0) continue;
+                    
+                    sections[currentSectionIndex].rows.push(row);
+
+                    if (row[0] === 'Total Sales') {
+                        currentSectionIndex = 1;
+                    } else if (row[0] === 'Total Core Markets') {
+                        currentSectionIndex = 2;
+                    }
+                }
+
+                tablesContainer.innerHTML = '';
+                
+                sections.forEach(section => {
+                    if (section.rows.length > 0) {
+                        const card = createTableCard(section.title, headerRow, section.rows);
+                        tablesContainer.appendChild(card);
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error loading table data:', error);
+            }
+        }
+
+        function endRun() {
+            runButton.disabled = false;
+            loadingIndicator.style.display = 'none';
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+        }
+
+        function startStreaming() {
+            if (eventSource) eventSource.close();
+            
+            // Reset UI for running state
+            runButton.disabled = true;
+            loadingIndicator.style.display = 'flex';
+            setStatusRole('running');
+            updateSummaryState(false);
+
+            eventSource = new EventSource('/stream-logs');
+
+            eventSource.addEventListener('outline', (e) => {
+                if (outputEl) outputEl.value = e.data + '\n\n';
+            });
+
+            eventSource.addEventListener('log', (e) => {
+                if (outputEl) {
+                    outputEl.value += e.data;
+                    outputEl.scrollTop = outputEl.scrollHeight;
+                }
+            });
+
+            eventSource.addEventListener('complete', async (e) => {
+                if (outputEl) outputEl.value += '\n\n' + e.data;
+                await refreshStatus(); // Fetch final results
+            });
+
+            eventSource.onerror = (e) => {
+                console.error('SSE Error:', e);
+                // If connection fails, we might want to check status to see if run finished or failed
+                // For now, we'll rely on the user refreshing or the 'complete' event if it reconnects
+            };
+        }
+
+        async function runReport() {
+            try {
+                const response = await fetch('/run-report', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (!response.ok) throw new Error('Failed to start report generation');
+                
+                if (outputEl) outputEl.value = '';
+                startStreaming();
+            } catch (error) {
+                console.error('Error starting report generation:', error);
+                alert('Unable to start the report. Please try again.');
+                endRun();
+                setStatusRole('idle');
+            }
+        }
+
+        async function refreshStatus() {
+            try {
+                const response = await fetch('/status');
+                if (!response.ok) throw new Error('Status fetch failed');
+                const status = await response.json();
+
+                // Update Output if not streaming (e.g. initial load)
+                if (!eventSource && outputEl && status.output) {
+                    outputEl.value = status.output;
+                }
+
+                // Update Timestamps
+                if (status.last_run) {
+                    const formatted = formatTimestamp(status.last_run);
+                    if (lastRunTime) lastRunTime.textContent = formatted;
+                    if (metricsTimestamp) metricsTimestamp.textContent = 'Refreshed: ' + formatted;
+                }
+
+                // Update Metrics
+                let hasFreshData = false;
+                if (status.last_run) {
+                    hasFreshData = status.last_run !== lastKnownRun;
+                    // Always fetch metrics if we have a last run, to be safe
+                    const metricsData = await fetchMetrics();
+                    updateMetricsCardDisplay(metricsData);
+                    if (hasFreshData) lastKnownRun = status.last_run;
+                }
+
+                // Update Links
+                updateDownloadLinks(status);
+
+                // Update Role/State
+                if (status.running) {
+                    if (!eventSource) startStreaming();
+                } else {
+                    endRun();
+                    if (status.last_run) {
+                        setStatusRole('results');
+                        updateSummaryState(true);
+                    } else {
+                        setStatusRole('idle');
+                        updateSummaryState(false);
+                    }
+                }
+
+            } catch (error) {
+                console.error('Error refreshing status:', error);
+            } finally {
+                if (isInitialLoad) {
+                    isInitialLoad = false;
+                    if (splashScreen) {
+                        setTimeout(() => {
+                            splashScreen.classList.add('hidden');
+                        }, 800);
+                    }
+                }
+            }
+        }
+
+        // Initial load
+        refreshStatus();
     </script>
 </body>
 </html>

@@ -71,6 +71,11 @@
             "show_total": true
         },
         {
+            "title": "Company 2 Sales",
+            "is_total": true,
+            "components": ["Company 2 Sales"]
+        },
+        {
             "title": "Company 3 Sales",
             "company_group": "Company 3",
             "type": "channel",
@@ -97,6 +102,11 @@
                 }
             ],
             "show_total": true
+        },
+        {
+            "title": "Company 3 Sales",
+            "is_total": true,
+            "components": ["Company 3 Sales"]
         },
         {
             "title": "Unmapped / Other",
