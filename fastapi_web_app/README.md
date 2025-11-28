@@ -6,7 +6,7 @@ A simple web application built with FastAPI, Uvicorn, HTML, and CSS for generati
 
 1. Install dependencies:
    ```bash
-   pip install -r requirements.txt
+   pip install -r ../requirements.txt
    ```
 
 2. Run the application:
