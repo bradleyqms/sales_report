@@ -80,14 +80,22 @@ class GVLReportGenerator:
         self.budget_month = self.budget_df[self.budget_df['Date'].dt.month == self.current_month].copy()
         
         # Filter Prior for Same Month Last Year
-        target_prior_date = f"{self.prior_year}-{self.current_month:02d}"
-        self.prior_month = self.prior_df[self.prior_df['Date'].astype(str).str.startswith(target_prior_date)].copy()
+        # Prior Date is DD/MM/YYYY
+        self.prior_df['Date'] = pd.to_datetime(self.prior_df['Date'], format='%d/%m/%Y')
+        self.prior_month = self.prior_df[(self.prior_df['Date'].dt.year == self.prior_year) & (self.prior_df['Date'].dt.month == self.current_month)].copy()
         
     def _get_budget_value(self, salesperson):
         """Get budget value for a salesperson for the current month."""
         if salesperson in self.budget_month['Sales_Employee_Cleaned'].values:
             budget_row = self.budget_month[self.budget_month['Sales_Employee_Cleaned'] == salesperson]
             return budget_row['Value_kEUR'].iloc[0] if not budget_row.empty else 0
+        return 0
+        
+    def _get_prior_value(self, salesperson):
+        """Get prior year value for a salesperson for the same month."""
+        if salesperson in self.prior_month['Sales_Employee_Cleaned'].values:
+            prior_row = self.prior_month[self.prior_month['Sales_Employee_Cleaned'] == salesperson]
+            return prior_row['Value_kEUR'].iloc[0] if not prior_row.empty else 0
         return 0
         
     def calculate_report(self):
@@ -154,7 +162,7 @@ class GVLReportGenerator:
                         val_sales = self.df[s_mask]['kEUR'].sum()
                         # budget and prior commented out
                         val_budget = self._get_budget_value(filter_val)
-                        val_prior = 0
+                        val_prior = self._get_prior_value(filter_val)
                         
                         rows.append({
                             'label': label,

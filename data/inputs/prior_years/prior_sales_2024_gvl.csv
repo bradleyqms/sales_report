@@ -1,0 +1,157 @@
+﻿Year,Month,Date,Market_Group,Region,Channel_Level,Subchannel / Partner,Sales Employee / Account,Company_Group,Currency,Metric,Value_kEUR,Value_EUR
+2024,1,01/01/2024,Core Markets,Germany,,,Kerstin,Company 1,EUR,Sales PY, 65 ,64539
+2024,2,01/02/2024,Core Markets,Germany,,,Kerstin,Company 1,EUR,Sales PY, 66 ,66308
+2024,3,01/03/2024,Core Markets,Germany,,,Kerstin,Company 1,EUR,Sales PY, 66 ,66216
+2024,4,01/04/2024,Core Markets,Germany,,,Kerstin,Company 1,EUR,Sales PY, 80 ,80113
+2024,5,01/05/2024,Core Markets,Germany,,,Kerstin,Company 1,EUR,Sales PY, 47 ,46899
+2024,6,01/06/2024,Core Markets,Germany,,,Kerstin,Company 1,EUR,Sales PY, 52 ,51915
+2024,7,01/07/2024,Core Markets,Germany,,,Kerstin,Company 1,EUR,Sales PY, 52 ,51659
+2024,8,01/08/2024,Core Markets,Germany,,,Kerstin,Company 1,EUR,Sales PY, 50 ,49678
+2024,9,01/09/2024,Core Markets,Germany,,,Kerstin,Company 1,EUR,Sales PY, 98 ,97806
+2024,10,01/10/2024,Core Markets,Germany,,,Kerstin,Company 1,EUR,Sales PY, 67 ,66742
+2024,11,01/11/2024,Core Markets,Germany,,,Kerstin,Company 1,EUR,Sales PY, 79 ,79170
+2024,12,01/12/2024,Core Markets,Germany,,,Kerstin,Company 1,EUR,Sales PY, 58 ,57938
+2024,1,01/01/2024,Core Markets,Germany,,,Marina,Company 1,EUR,Sales PY, 60 ,59746
+2024,2,01/02/2024,Core Markets,Germany,,,Marina,Company 1,EUR,Sales PY, 65 ,65276
+2024,3,01/03/2024,Core Markets,Germany,,,Marina,Company 1,EUR,Sales PY, 53 ,52750
+2024,4,01/04/2024,Core Markets,Germany,,,Marina,Company 1,EUR,Sales PY, 82 ,82126
+2024,5,01/05/2024,Core Markets,Germany,,,Marina,Company 1,EUR,Sales PY, 40 ,39981
+2024,6,01/06/2024,Core Markets,Germany,,,Marina,Company 1,EUR,Sales PY, 75 ,75027
+2024,7,01/07/2024,Core Markets,Germany,,,Marina,Company 1,EUR,Sales PY, 42 ,41901
+2024,8,01/08/2024,Core Markets,Germany,,,Marina,Company 1,EUR,Sales PY, 51 ,50764
+2024,9,01/09/2024,Core Markets,Germany,,,Marina,Company 1,EUR,Sales PY, 103 ,103439
+2024,10,01/10/2024,Core Markets,Germany,,,Marina,Company 1,EUR,Sales PY, 75 ,74682
+2024,11,01/11/2024,Core Markets,Germany,,,Marina,Company 1,EUR,Sales PY, 73 ,73277
+2024,12,01/12/2024,Core Markets,Germany,,,Marina,Company 1,EUR,Sales PY, 55 ,54852
+2024,1,01/01/2024,Core Markets,Germany,,,Sibylle,Company 1,EUR,Sales PY, 177 ,177220
+2024,2,01/02/2024,Core Markets,Germany,,,Sibylle,Company 1,EUR,Sales PY, 155 ,154627
+2024,3,01/03/2024,Core Markets,Germany,,,Sibylle,Company 1,EUR,Sales PY, 151 ,151114
+2024,4,01/04/2024,Core Markets,Germany,,,Sibylle,Company 1,EUR,Sales PY, 150 ,149568
+2024,5,01/05/2024,Core Markets,Germany,,,Sibylle,Company 1,EUR,Sales PY, 118 ,117905
+2024,6,01/06/2024,Core Markets,Germany,,,Sibylle,Company 1,EUR,Sales PY, 134 ,133591
+2024,7,01/07/2024,Core Markets,Germany,,,Sibylle,Company 1,EUR,Sales PY, 172 ,172175
+2024,8,01/08/2024,Core Markets,Germany,,,Sibylle,Company 1,EUR,Sales PY, 106 ,105968
+2024,9,01/09/2024,Core Markets,Germany,,,Sibylle,Company 1,EUR,Sales PY, 175 ,174592
+2024,10,01/10/2024,Core Markets,Germany,,,Sibylle,Company 1,EUR,Sales PY, 173 ,172846
+2024,11,01/11/2024,Core Markets,Germany,,,Sibylle,Company 1,EUR,Sales PY, 154 ,153673
+2024,12,01/12/2024,Core Markets,Germany,,,Sibylle,Company 1,EUR,Sales PY, 116 ,115816
+2024,1,01/01/2024,Core Markets,Germany,,,Aracelli,Company 1,EUR,Sales PY, 33 ,33145
+2024,2,01/02/2024,Core Markets,Germany,,,Aracelli,Company 1,EUR,Sales PY, 43 ,42793
+2024,3,01/03/2024,Core Markets,Germany,,,Aracelli,Company 1,EUR,Sales PY, 53 ,53422
+2024,4,01/04/2024,Core Markets,Germany,,,Aracelli,Company 1,EUR,Sales PY, 41 ,40502
+2024,5,01/05/2024,Core Markets,Germany,,,Aracelli,Company 1,EUR,Sales PY, 45 ,45135
+2024,6,01/06/2024,Core Markets,Germany,,,Aracelli,Company 1,EUR,Sales PY, 61 ,60877
+2024,7,01/07/2024,Core Markets,Germany,,,Aracelli,Company 1,EUR,Sales PY, 49 ,49188
+2024,8,01/08/2024,Core Markets,Germany,,,Aracelli,Company 1,EUR,Sales PY, 42 ,42290
+2024,9,01/09/2024,Core Markets,Germany,,,Aracelli,Company 1,EUR,Sales PY, 93 ,92950
+2024,10,01/10/2024,Core Markets,Germany,,,Aracelli,Company 1,EUR,Sales PY, 66 ,65719
+2024,11,01/11/2024,Core Markets,Germany,,,Aracelli,Company 1,EUR,Sales PY, 61 ,60549
+2024,12,01/12/2024,Core Markets,Germany,,,Aracelli,Company 1,EUR,Sales PY, 60 ,60092
+2024,1,01/01/2024,Core Markets,Germany,,,Retail,Company 1,EUR,Sales PY, 22 ,22450
+2024,2,01/02/2024,Core Markets,Germany,,,Retail,Company 1,EUR,Sales PY, 3 ,2853
+2024,3,01/03/2024,Core Markets,Germany,,,Retail,Company 1,EUR,Sales PY, 8 ,7880
+2024,4,01/04/2024,Core Markets,Germany,,,Retail,Company 1,EUR,Sales PY, 18 ,18038
+2024,5,01/05/2024,Core Markets,Germany,,,Retail,Company 1,EUR,Sales PY, 1 ,1176
+2024,6,01/06/2024,Core Markets,Germany,,,Retail,Company 1,EUR,Sales PY, 16 ,16202
+2024,7,01/07/2024,Core Markets,Germany,,,Retail,Company 1,EUR,Sales PY, 16 ,16265
+2024,8,01/08/2024,Core Markets,Germany,,,Retail,Company 1,EUR,Sales PY, 16 ,15895
+2024,9,01/09/2024,Core Markets,Germany,,,Retail,Company 1,EUR,Sales PY, 25 ,25303
+2024,10,01/10/2024,Core Markets,Germany,,,Retail,Company 1,EUR,Sales PY, 10 ,9957
+2024,11,01/11/2024,Core Markets,Germany,,,Retail,Company 1,EUR,Sales PY, 27 ,26877
+2024,12,01/12/2024,Core Markets,Germany,,,Retail,Company 1,EUR,Sales PY, 16 ,15567
+2024,1,01/01/2024,Core Markets,Germany,,,Other DE,Company 1,EUR,Sales PY, 6 ,5802
+2024,2,01/02/2024,Core Markets,Germany,,,Other DE,Company 1,EUR,Sales PY, 6 ,6471
+2024,3,01/03/2024,Core Markets,Germany,,,Other DE,Company 1,EUR,Sales PY, 38 ,38058
+2024,4,01/04/2024,Core Markets,Germany,,,Other DE,Company 1,EUR,Sales PY, 11 ,10692
+2024,5,01/05/2024,Core Markets,Germany,,,Other DE,Company 1,EUR,Sales PY, 13 ,13108
+2024,6,01/06/2024,Core Markets,Germany,,,Other DE,Company 1,EUR,Sales PY, 8 ,8039
+2024,7,01/07/2024,Core Markets,Germany,,,Other DE,Company 1,EUR,Sales PY, 8 ,7986
+2024,8,01/08/2024,Core Markets,Germany,,,Other DE,Company 1,EUR,Sales PY, 6 ,6118
+2024,9,01/09/2024,Core Markets,Germany,,,Other DE,Company 1,EUR,Sales PY, 12 ,11779
+2024,10,01/10/2024,Core Markets,Germany,,,Other DE,Company 1,EUR,Sales PY, 8 ,8048
+2024,11,01/11/2024,Core Markets,Germany,,,Other DE,Company 1,EUR,Sales PY, 10 ,9944
+2024,12,01/12/2024,Core Markets,Germany,,,Other DE,Company 1,EUR,Sales PY, 17 ,17156
+2024,1,01/01/2024,Core Markets,Benelux,,,Gabrielle,Company 1,EUR,Sales PY, 54 ,53534
+2024,2,01/02/2024,Core Markets,Benelux,,,Gabrielle,Company 1,EUR,Sales PY, 70 ,69583
+2024,3,01/03/2024,Core Markets,Benelux,,,Gabrielle,Company 1,EUR,Sales PY, 101 ,100886
+2024,4,01/04/2024,Core Markets,Benelux,,,Gabrielle,Company 1,EUR,Sales PY, 52 ,51789
+2024,5,01/05/2024,Core Markets,Benelux,,,Gabrielle,Company 1,EUR,Sales PY, 53 ,53396
+2024,6,01/06/2024,Core Markets,Benelux,,,Gabrielle,Company 1,EUR,Sales PY, 89 ,89446
+2024,7,01/07/2024,Core Markets,Benelux,,,Gabrielle,Company 1,EUR,Sales PY, 45 ,44850
+2024,8,01/08/2024,Core Markets,Benelux,,,Gabrielle,Company 1,EUR,Sales PY, 89 ,88882
+2024,9,01/09/2024,Core Markets,Benelux,,,Gabrielle,Company 1,EUR,Sales PY, 95 ,94743
+2024,10,01/10/2024,Core Markets,Benelux,,,Gabrielle,Company 1,EUR,Sales PY, 71 ,71213
+2024,11,01/11/2024,Core Markets,Benelux,,,Gabrielle,Company 1,EUR,Sales PY, 87 ,87046
+2024,12,01/12/2024,Core Markets,Benelux,,,Gabrielle,Company 1,EUR,Sales PY, 85 ,85499
+2024,1,01/01/2024,Core Markets,Benelux,,,Marjelein,Company 1,EUR,Sales PY, 62 ,62361
+2024,2,01/02/2024,Core Markets,Benelux,,,Marjelein,Company 1,EUR,Sales PY, 68 ,68425
+2024,3,01/03/2024,Core Markets,Benelux,,,Marjelein,Company 1,EUR,Sales PY, 74 ,74088
+2024,4,01/04/2024,Core Markets,Benelux,,,Marjelein,Company 1,EUR,Sales PY, 77 ,77222
+2024,5,01/05/2024,Core Markets,Benelux,,,Marjelein,Company 1,EUR,Sales PY, 54 ,54138
+2024,6,01/06/2024,Core Markets,Benelux,,,Marjelein,Company 1,EUR,Sales PY, 89 ,88776
+2024,7,01/07/2024,Core Markets,Benelux,,,Marjelein,Company 1,EUR,Sales PY, 59 ,59033
+2024,8,01/08/2024,Core Markets,Benelux,,,Marjelein,Company 1,EUR,Sales PY, 74 ,74204
+2024,9,01/09/2024,Core Markets,Benelux,,,Marjelein,Company 1,EUR,Sales PY, 105 ,104707
+2024,10,01/10/2024,Core Markets,Benelux,,,Marjelein,Company 1,EUR,Sales PY, 93 ,92663
+2024,11,01/11/2024,Core Markets,Benelux,,,Marjelein,Company 1,EUR,Sales PY, 95 ,94576
+2024,12,01/12/2024,Core Markets,Benelux,,,Marjelein,Company 1,EUR,Sales PY, 65 ,65313
+2024,1,01/01/2024,Core Markets,Switzerland,,,Christiane,Company 1,EUR,Sales PY,48,48236
+2024,2,01/02/2024,Core Markets,Switzerland,,,Christiane,Company 1,EUR,Sales PY,49,49343
+2024,3,01/03/2024,Core Markets,Switzerland,,,Christiane,Company 1,EUR,Sales PY,68,68338
+2024,4,01/04/2024,Core Markets,Switzerland,,,Christiane,Company 1,EUR,Sales PY,52,52475
+2024,5,01/05/2024,Core Markets,Switzerland,,,Christiane,Company 1,EUR,Sales PY,28,27769
+2024,6,01/06/2024,Core Markets,Switzerland,,,Christiane,Company 1,EUR,Sales PY,53,52724
+2024,7,01/07/2024,Core Markets,Switzerland,,,Christiane,Company 1,EUR,Sales PY,53,52918
+2024,8,01/08/2024,Core Markets,Switzerland,,,Christiane,Company 1,EUR,Sales PY,41,41409
+2024,9,01/09/2024,Core Markets,Switzerland,,,Christiane,Company 1,EUR,Sales PY,89,89456
+2024,10,01/10/2024,Core Markets,Switzerland,,,Christiane,Company 1,EUR,Sales PY,48,47903
+2024,11,01/11/2024,Core Markets,Switzerland,,,Christiane,Company 1,EUR,Sales PY,74,74464
+2024,12,01/12/2024,Core Markets,Switzerland,,,Christiane,Company 1,EUR,Sales PY,55,54841
+2024,1,01/01/2024,Core Markets,Switzerland,,,FR Swiss,Company 1,EUR,Sales PY,3,2927
+2024,2,01/02/2024,Core Markets,Switzerland,,,FR Swiss,Company 1,EUR,Sales PY,0,0
+2024,3,01/03/2024,Core Markets,Switzerland,,,FR Swiss,Company 1,EUR,Sales PY,2,2094
+2024,4,01/04/2024,Core Markets,Switzerland,,,FR Swiss,Company 1,EUR,Sales PY,2,1745
+2024,5,01/05/2024,Core Markets,Switzerland,,,FR Swiss,Company 1,EUR,Sales PY,0,446
+2024,6,01/06/2024,Core Markets,Switzerland,,,FR Swiss,Company 1,EUR,Sales PY,3,3499
+2024,7,01/07/2024,Core Markets,Switzerland,,,FR Swiss,Company 1,EUR,Sales PY,0,0
+2024,8,01/08/2024,Core Markets,Switzerland,,,FR Swiss,Company 1,EUR,Sales PY,1,611
+2024,9,01/09/2024,Core Markets,Switzerland,,,FR Swiss,Company 1,EUR,Sales PY,3,3024
+2024,10,01/10/2024,Core Markets,Switzerland,,,FR Swiss,Company 1,EUR,Sales PY,0,0
+2024,11,01/11/2024,Core Markets,Switzerland,,,FR Swiss,Company 1,EUR,Sales PY,0,0
+2024,12,01/12/2024,Core Markets,Switzerland,,,FR Swiss,Company 1,EUR,Sales PY,1,1415
+2024,1,01/01/2024,Core Markets,Switzerland,,,Other CH,Company 1,EUR,Sales PY,0,0
+2024,2,01/02/2024,Core Markets,Switzerland,,,Other CH,Company 1,EUR,Sales PY,5,5186
+2024,3,01/03/2024,Core Markets,Switzerland,,,Other CH,Company 1,EUR,Sales PY,1,965
+2024,4,01/04/2024,Core Markets,Switzerland,,,Other CH,Company 1,EUR,Sales PY,3,2679
+2024,5,01/05/2024,Core Markets,Switzerland,,,Other CH,Company 1,EUR,Sales PY,5,4676
+2024,6,01/06/2024,Core Markets,Switzerland,,,Other CH,Company 1,EUR,Sales PY,6,6180
+2024,7,01/07/2024,Core Markets,Switzerland,,,Other CH,Company 1,EUR,Sales PY,4,3847
+2024,8,01/08/2024,Core Markets,Switzerland,,,Other CH,Company 1,EUR,Sales PY,1,795
+2024,9,01/09/2024,Core Markets,Switzerland,,,Other CH,Company 1,EUR,Sales PY,7,7272
+2024,10,01/10/2024,Core Markets,Switzerland,,,Other CH,Company 1,EUR,Sales PY,7,6876
+2024,11,01/11/2024,Core Markets,Switzerland,,,Other CH,Company 1,EUR,Sales PY,4,3519
+2024,12,01/12/2024,Core Markets,Switzerland,,,Other CH,Company 1,EUR,Sales PY,2,2041
+2024,1,01/01/2024,Core Markets,Spain,,,Spain,Company 1,EUR,Sales PY,14.53063,14531
+2024,2,01/02/2024,Core Markets,Switzerland,,,Spain,Company 1,EUR,Sales PY,-0.23236,-232
+2024,3,01/03/2024,Core Markets,Switzerland,,,Spain,Company 1,EUR,Sales PY,5.3594,5359
+2024,4,01/04/2024,Core Markets,Switzerland,,,Spain,Company 1,EUR,Sales PY,9.43745,9437
+2024,5,01/05/2024,Core Markets,Switzerland,,,Spain,Company 1,EUR,Sales PY,6,6000
+2024,6,01/06/2024,Core Markets,Switzerland,,,Spain,Company 1,EUR,Sales PY,10.19952,10200
+2024,7,01/07/2024,Core Markets,Switzerland,,,Spain,Company 1,EUR,Sales PY,4,4000
+2024,8,01/08/2024,Core Markets,Switzerland,,,Spain,Company 1,EUR,Sales PY,4.36172,4362
+2024,9,01/09/2024,Core Markets,Switzerland,,,Spain,Company 1,EUR,Sales PY,13.37505,13375
+2024,10,01/10/2024,Core Markets,Switzerland,,,Spain,Company 1,EUR,Sales PY,3.30821,3308
+2024,11,01/11/2024,Core Markets,Switzerland,,,Spain,Company 1,EUR,Sales PY,6.30474,6305
+2024,12,01/12/2024,Core Markets,Switzerland,,,Spain,Company 1,EUR,Sales PY,11,11000
+2024,1,01/01/2024,Core Markets,France,,,France,Company 1,EUR,Sales PY,0,0
+2024,2,01/02/2024,Core Markets,France,,,France,Company 1,EUR,Sales PY,6.72659,6727
+2024,3,01/03/2024,Core Markets,France,,,France,Company 1,EUR,Sales PY,2.60254,2603
+2024,4,01/04/2024,Core Markets,France,,,France,Company 1,EUR,Sales PY,0.39853,399
+2024,5,01/05/2024,Core Markets,France,,,France,Company 1,EUR,Sales PY,8,8000
+2024,6,01/06/2024,Core Markets,France,,,France,Company 1,EUR,Sales PY,0.91793,918
+2024,7,01/07/2024,Core Markets,France,,,France,Company 1,EUR,Sales PY,5,5000
+2024,8,01/08/2024,Core Markets,France,,,France,Company 1,EUR,Sales PY,4.29777,4298
+2024,9,01/09/2024,Core Markets,France,,,France,Company 1,EUR,Sales PY,0.64015,640
+2024,10,01/10/2024,Core Markets,France,,,France,Company 1,EUR,Sales PY,0,0
+2024,11,01/11/2024,Core Markets,France,,,France,Company 1,EUR,Sales PY,5.47389,5474
+2024,12,01/12/2024,Core Markets,France,,,France,Company 1,EUR,Sales PY,2,2000
