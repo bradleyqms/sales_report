@@ -428,7 +428,7 @@ class ManagementReportGenerator:
             csv_df = csv_df[~csv_df['is_spacer']]
         csv_df['% vs Bud'] = csv_df.apply(lambda row: f"{(row['sales'] / row['budget'] * 100):.1f}%" if row['budget'] and row['budget'] != 0 else "-", axis=1)
         csv_df[col_curr] = csv_df['sales'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
-        csv_df['Budget'] = csv_df.apply(lambda row: f"{int(round(row['budget']/1000))}" if row.get('budget_needs_division', True) and abs(row['budget']) >= 500 else (f"{int(round(row['budget']))}" if not row.get('budget_needs_division', True) and abs(row['budget']) >= 0.5 else ("-" if row['budget'] == 0 else "0")), axis=1)
+        csv_df['Budget'] = csv_df['budget'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
         csv_df['Prior'] = csv_df['prior'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
         csv_df = csv_df.rename(columns={'label': 'kEUR'})
         csv_df = csv_df[['kEUR', col_curr, 'Budget', 'Prior', '% vs Bud']]
