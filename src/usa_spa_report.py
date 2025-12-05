@@ -305,7 +305,8 @@ class USASpaReportGenerator:
                         elif filter_val in self.prior_region_keur.index and self.prior_region_keur.get(filter_val, 0) != 0:
                             val_prior = float(self.prior_region_keur.get(filter_val, 0))
                         
-                        val_diff_budget = val_actual - val_budget
+                        # Calculate differences using displayed values (budget/1000 for consistency)
+                        val_diff_budget = val_actual - (val_budget / 1000)
                         val_pct_budget = (val_actual / val_budget * 100) - 100 if val_budget != 0 else 0
                         val_diff_prior = val_actual - val_prior
                         val_pct_prior = (val_actual / val_prior * 100) - 100 if val_prior != 0 else 0
@@ -342,7 +343,8 @@ class USASpaReportGenerator:
                     sec_budget = float(self.budget_region_kusd.get(region, 0)) if region in self.budget_region_kusd.index and self.budget_region_kusd.get(region, 0) != 0 else float(self.budget_region_keur.get(region, 0)) if region in self.budget_region_keur.index else 0
                     sec_prior = float(self.prior_region_kusd.get(region, 0)) if region in self.prior_region_kusd.index and self.prior_region_kusd.get(region, 0) != 0 else float(self.prior_region_keur.get(region, 0)) if region in self.prior_region_keur.index else 0
                 
-                    sec_diff_budget = sec_actual - sec_budget
+                    # Calculate differences using displayed values (budget/1000 for consistency)
+                    sec_diff_budget = sec_actual - (sec_budget / 1000)
                     sec_pct_budget = (sec_actual / sec_budget * 100) - 100 if sec_budget != 0 else 0
                     sec_diff_prior = sec_actual - sec_prior
                     sec_pct_prior = (sec_actual / sec_prior * 100) - 100 if sec_prior != 0 else 0
