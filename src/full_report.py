@@ -249,6 +249,9 @@ def main():
         # Rename columns to match other reports (actual -> sales)
         usa_spa_df = usa_spa_df.rename(columns={'actual': 'sales'})
         
+        # Divide USA Spa budget values by 1000 to match display format
+        usa_spa_df['budget'] = usa_spa_df['budget'] / 1000
+        
     except Exception as e:
         logging.error(f"Error generating USA Spa report: {e}")
         print(f"[ERROR] Failed to generate USA Spa report: {e}")
