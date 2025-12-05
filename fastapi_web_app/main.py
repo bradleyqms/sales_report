@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, Form, BackgroundTasks, HTTPException
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import subprocess
@@ -10,6 +10,7 @@ import shutil
 import csv
 import glob
 import logging
+import json
 from pathlib import Path
 from datetime import datetime
 import asyncio
@@ -100,12 +101,58 @@ def extract_metrics_from_csv():
         logging.error(f"Error extracting metrics from CSV: {e}")
         return {"total_sales": 0, "budget_pct": 0}
 
+def get_version_info():
+    """Get version information from version.json or git"""
+    version_file = BASE_DIR.parent / "version.json"
+    
+    # Try to load from version.json first
+    if version_file.exists():
+        try:
+            with open(version_file, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            logging.warning(f"Could not read version.json: {e}")
+    
+    # Fallback: try to get git info
+    try:
+        git_hash = subprocess.check_output(
+            ['git', 'rev-parse', '--short', 'HEAD'],
+            cwd=BASE_DIR.parent,
+            stderr=subprocess.DEVNULL,
+            text=True
+        ).strip()
+        
+        git_branch = subprocess.check_output(
+            ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+            cwd=BASE_DIR.parent,
+            stderr=subprocess.DEVNULL,
+            text=True
+        ).strip()
+        
+        return {
+            "version": f"{git_branch}@{git_hash}",
+            "git_commit": git_hash,
+            "git_branch": git_branch,
+            "deployed_at": datetime.now().isoformat()
+        }
+    except Exception:
+        return {
+            "version": "dev",
+            "git_commit": "unknown",
+            "deployed_at": datetime.now().isoformat()
+        }
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse("index.html", {
         "request": request,
         "status": report_status
     })
+
+@app.get("/version")
+async def version():
+    """Return version information"""
+    return JSONResponse(get_version_info())
 
 @app.post("/run-report")
 async def run_report(background_tasks: BackgroundTasks):

@@ -33,6 +33,10 @@
                 <div class="status-dot"></div>
                 <span class="status-text">Ready to run</span>
             </div>
+            <div class="version-info" id="versionInfo">
+                <span class="version-label">Version:</span>
+                <span class="version-value" id="versionValue">Loading...</span>
+            </div>
         </header>
 
         <main>
@@ -475,7 +479,29 @@
             }
         }
 
+        // Fetch and display version info
+        async function loadVersionInfo() {
+            try {
+                const response = await fetch('/version');
+                const versionData = await response.json();
+                const versionValue = document.getElementById('versionValue');
+                
+                if (versionData.version) {
+                    const versionText = versionData.version;
+                    const dateText = versionData.deployed_at ? ` (${new Date(versionData.deployed_at).toLocaleDateString()})` : '';
+                    versionValue.textContent = versionText + dateText;
+                    versionValue.title = `Git commit: ${versionData.git_commit || 'unknown'}\nDeployed: ${versionData.deployed_at || 'unknown'}`;
+                } else {
+                    versionValue.textContent = 'Unknown';
+                }
+            } catch (error) {
+                console.error('Error loading version info:', error);
+                document.getElementById('versionValue').textContent = 'Unknown';
+            }
+        }
+
         // Initial load
+        loadVersionInfo();
         refreshStatus();
     </script>
 </body>

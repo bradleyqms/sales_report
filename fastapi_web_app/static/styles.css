@@ -132,6 +132,28 @@ body {
     color: #34d399;
 }
 
+/* Version info */
+.version-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background-color: rgba(74, 85, 104, 0.3);
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.version-label {
+    color: #a0aec0;
+    font-weight: 500;
+}
+
+.version-value {
+    color: #cbd5e0;
+    font-family: 'Courier New', monospace;
+    cursor: help;
+}
+
 /* Main content */
 main {
     display: flex;
