@@ -17,17 +17,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from sharepoint_client import SharePointHandler, download_inputs, upload_outputs
 from qry_data_ingestion import process_qry_files
 from qry_data_mapping import apply_mappings
-
-def print_progress(current, total, message=""):
-    """Print a simple progress bar."""
-    percentage = int((current / total) * 100)
-    bar_length = 30
-    filled_length = int(bar_length * current // total)
-    bar = '#' * filled_length + '-' * (bar_length - filled_length)
-    sys.stdout.write(f'\r[{bar}] {percentage}% {message}')
-    sys.stdout.flush()
-    if current == total:
-        print()  # New line when complete
+from utils import print_progress, get_current_year, get_prior_year, get_current_month, format_mtd_date_range
 
 class USASpaReportGenerator:
     def __init__(self, config_path, sales_path, budget_path, prior_path):
@@ -57,11 +47,11 @@ class USASpaReportGenerator:
             raise
             
     def _prepare_data(self):
-        # Dates
+        # Dates (use dynamic calculation from utils)
         now = datetime.datetime.now()
-        self.current_month = now.month
-        self.current_year = now.year
-        self.prior_year = now.year - 1
+        self.current_month = get_current_month()
+        self.current_year = get_current_year()
+        self.prior_year = get_prior_year()
         
         # Filter Sales to AR (for QRY data, Document Type is 'AR', not 'AR Invoice')
         self.df = self.df[self.df['Document Type'] == 'AR'].copy()
@@ -69,18 +59,162 @@ class USASpaReportGenerator:
         # Filter to USA Spa
         self.df = self.df[(self.df['Market_Group'] == 'USA') & (self.df['Channel_Level'] == 'Spa')].copy()
         
-        # Convert Sales to kEUR
-        value_col = 'Value_in_EUR_converted' if 'Value_in_EUR_converted' in self.df.columns else 'Total Value (EUR)'
-        self.df['kEUR'] = self.df[value_col].fillna(0) / 1000
-        
+        # Prefer USD values for USA Spa; fall back to EUR if USD not available
+        # Normalize to a single k-value column used throughout the report: 'kVAL'
+        if 'Value_kUSD' in self.df.columns:
+            # already in kUSD
+            self.df['kVAL'] = pd.to_numeric(self.df['Value_kUSD'], errors='coerce').fillna(0)
+            self.unit = 'kUSD'
+        elif 'Value_in_USD_converted' in self.df.columns:
+            # convert to kUSD
+            self.df['kVAL'] = pd.to_numeric(self.df['Value_in_USD_converted'], errors='coerce').fillna(0) / 1000
+            self.unit = 'kUSD'
+        else:
+            # fallback to EUR behaviour (existing behavior)
+            value_col = 'Value_in_EUR_converted' if 'Value_in_EUR_converted' in self.df.columns else 'Total Value (EUR)'
+            self.df['kVAL'] = pd.to_numeric(self.df[value_col], errors='coerce').fillna(0) / 1000
+            self.unit = 'kEUR'
+
+        # Keep the original detected unit so we can convert later if needed
+        self._original_unit = self.unit
+        # Prefer local USA-specific budget/prior files (if present) over any provided file
+        repo_root = Path(__file__).parent.parent
+        local_budget_dir = repo_root / 'data' / 'inputs' / 'budget'
+        if local_budget_dir.exists():
+            candidates = sorted(local_budget_dir.glob('*.csv'), key=lambda p: p.name.lower())
+            chosen = None
+            for keyword in ('usa_spa', 'usa', 'spa'):
+                for p in candidates:
+                    if keyword in p.name.lower():
+                        chosen = p
+                        break
+                if chosen:
+                    break
+
+            if chosen:
+                try:
+                    alt_budget = pd.read_csv(chosen)
+                    logging.info(f"Preferring local budget file: {chosen.name}")
+                    self.budget_df = alt_budget
+                except Exception:
+                    pass
+
         # Filter Budget for Current Month
         # Budget Date is DD/MM/YYYY
         self.budget_df['Date'] = pd.to_datetime(self.budget_df['Date'], format='%d/%m/%Y')
         self.budget_month = self.budget_df[self.budget_df['Date'].dt.month == self.current_month].copy()
+        # If the provided budget file contains no rows for the USA/Spa regions we are reporting,
+        # try to find a USA-specific budget file in the inputs folder and use that instead.
+        try:
+            sales_regions = set(self.df['Region'].dropna().unique())
+        except Exception:
+            sales_regions = set()
+
+        if self.budget_month.shape[0] == 0 or not any(self.budget_month['Region'].isin(sales_regions)):
+            # search for candidate budget files in data/inputs/budget
+            repo_root = Path(__file__).parent.parent
+            budget_dir = repo_root / 'data' / 'inputs' / 'budget'
+            if budget_dir.exists():
+                # prioritize files with 'usa_spa' then 'usa'
+                candidates = sorted(budget_dir.glob('*.csv'), key=lambda p: p.name.lower())
+                chosen = None
+                for keyword in ('usa_spa', 'usa', 'spa'):
+                    for p in candidates:
+                        if keyword in p.name.lower():
+                            chosen = p
+                            break
+                    if chosen:
+                        break
+
+                if chosen:
+                    try:
+                        alt_budget = pd.read_csv(chosen)
+                        alt_budget['Date'] = pd.to_datetime(alt_budget['Date'], format='%d/%m/%Y', errors='coerce')
+                        alt_budget_month = alt_budget[alt_budget['Date'].dt.month == self.current_month].copy()
+                        if alt_budget_month.shape[0] > 0 and any(alt_budget_month['Region'].isin(sales_regions)):
+                            logging.info(f"Using fallback budget file: {chosen.name}")
+                            self.budget_df = alt_budget
+                            self.budget_month = alt_budget_month
+                    except Exception:
+                        pass
         
         # Filter Prior for Same Month Last Year
-        target_prior_date = f"{self.prior_year}-{self.current_month:02d}"
-        self.prior_month = self.prior_df[self.prior_df['Date'].astype(str).str.startswith(target_prior_date)].copy()
+        # Prior file may have Date in DD/MM/YYYY format — try to parse safely
+        try:
+            self.prior_df['Date'] = pd.to_datetime(self.prior_df['Date'], format='%d/%m/%Y')
+            self.prior_month = self.prior_df[(self.prior_df['Date'].dt.year == self.prior_year) & (self.prior_df['Date'].dt.month == self.current_month)].copy()
+        except Exception:
+            # Fallback to original string-starts behaviour if parsing fails
+            target_prior_date = f"{self.prior_year}-{self.current_month:02d}"
+            self.prior_month = self.prior_df[self.prior_df['Date'].astype(str).str.startswith(target_prior_date)].copy()
+
+        # Prefer local USA-specific prior files if present
+        local_prior_dir = repo_root / 'data' / 'inputs' / 'prior_years'
+        if local_prior_dir.exists():
+            candidates = sorted(local_prior_dir.glob('*.csv'), key=lambda p: p.name.lower())
+            chosen = None
+            for keyword in ('usa_spa', 'usa', 'spa'):
+                for p in candidates:
+                    if keyword in p.name.lower():
+                        chosen = p
+                        break
+                if chosen:
+                    break
+
+            if chosen:
+                try:
+                    alt_prior = pd.read_csv(chosen)
+                    logging.info(f"Preferring local prior file: {chosen.name}")
+                    self.prior_df = alt_prior
+                except Exception:
+                    pass
+
+        # Pre-aggregate budget and prior by Region for quick lookups (support both kUSD and kEUR)
+        def sum_numeric(df_section, col):
+            # Robustly parse numeric columns that may contain thousands separators or quoted strings
+            if col not in df_section.columns:
+                return pd.Series(dtype=float)
+
+            tmp = df_section[['Region', col]].copy()
+            # Normalize values: convert NaN to empty string, strip spaces, remove commas and other thousands separators
+            tmp[col] = tmp[col].astype(str).str.replace('\u00a0', '', regex=False).str.replace(' ', '', regex=False).str.replace(',', '', regex=False)
+            # Replace empty-like strings with 0
+            tmp[col] = tmp[col].replace({'nan': '', 'None': '', '': '0'})
+            # Convert to numeric
+            tmp[col] = pd.to_numeric(tmp[col], errors='coerce').fillna(0.0)
+            # Group by Region and sum
+            grouped = tmp.groupby('Region')[col].sum()
+            return grouped
+
+        self.budget_region_kusd = sum_numeric(self.budget_month, 'Value_kUSD')
+        self.budget_region_keur = sum_numeric(self.budget_month, 'Value_kEUR')
+        self.prior_region_kusd = sum_numeric(self.prior_month, 'Value_kUSD')
+        self.prior_region_keur = sum_numeric(self.prior_month, 'Value_kEUR')
+
+        # If any USD budget/prior values are present for the sales regions, force report unit to kUSD
+        try:
+            usd_budget_total = float(self.budget_region_kusd.sum()) if not self.budget_region_kusd.empty else 0.0
+            usd_prior_total = float(self.prior_region_kusd.sum()) if not self.prior_region_kusd.empty else 0.0
+        except Exception:
+            usd_budget_total = 0.0
+            usd_prior_total = 0.0
+
+        if usd_budget_total != 0.0 or usd_prior_total != 0.0:
+            logging.info("Detected USD budget/prior values — forcing report unit to kUSD")
+            # Force label to kUSD
+            self.unit = 'kUSD'
+            # If sales were originally in kEUR, convert actuals to kUSD using an exchange rate
+            if getattr(self, '_original_unit', None) == 'kEUR':
+                try:
+                    eur_to_usd = float(os.getenv('EUR_TO_USD', '1.07'))
+                except Exception:
+                    eur_to_usd = 1.07
+                # Convert kVAL (kEUR) -> kUSD by multiplying by EUR->USD rate
+                logging.info(f"Converting sales actuals from kEUR to kUSD using rate {eur_to_usd}")
+                try:
+                    self.df['kVAL'] = pd.to_numeric(self.df['kVAL'], errors='coerce').fillna(0.0) * eur_to_usd
+                except Exception:
+                    pass
         
     def calculate_report(self):
         report_data = []
@@ -157,27 +291,39 @@ class USASpaReportGenerator:
                     
                     if filter_val:
                         s_mask = (self.df['Region'] == filter_val)
-                        val_actual = self.df[s_mask]['kEUR'].sum()
-                        val_budget = self.budget_month[self.budget_month['Region'] == filter_val]['Value_kEUR'].sum() if 'Value_kEUR' in self.budget_month.columns else 0
-                        val_prior = self.prior_month[self.prior_month['Region'] == filter_val]['Value_kEUR'].sum() if 'Value_kEUR' in self.prior_month.columns else 0
+                        val_actual = self.df[s_mask]['kVAL'].sum()
+                        # Use precomputed region-level lookups; prefer USD values when present, otherwise fall back to EUR
+                        val_budget = 0
+                        val_prior = 0
+                        if filter_val in self.budget_region_kusd.index and self.budget_region_kusd.get(filter_val, 0) != 0:
+                            val_budget = float(self.budget_region_kusd.get(filter_val, 0))
+                        elif filter_val in self.budget_region_keur.index and self.budget_region_keur.get(filter_val, 0) != 0:
+                            val_budget = float(self.budget_region_keur.get(filter_val, 0))
+
+                        if filter_val in self.prior_region_kusd.index and self.prior_region_kusd.get(filter_val, 0) != 0:
+                            val_prior = float(self.prior_region_kusd.get(filter_val, 0))
+                        elif filter_val in self.prior_region_keur.index and self.prior_region_keur.get(filter_val, 0) != 0:
+                            val_prior = float(self.prior_region_keur.get(filter_val, 0))
                         
                         val_diff_budget = val_actual - val_budget
                         val_pct_budget = (val_actual / val_budget * 100) - 100 if val_budget != 0 else 0
                         val_diff_prior = val_actual - val_prior
                         val_pct_prior = (val_actual / val_prior * 100) - 100 if val_prior != 0 else 0
                         
-                        rows.append({
-                            'label': label,
-                            'actual': val_actual,
-                            'budget': val_budget,
-                            'prior': val_prior,
-                            'diff_budget': val_diff_budget,
-                            'pct_budget': val_pct_budget,
-                            'diff_prior': val_diff_prior,
-                            'pct_prior': val_pct_prior,
-                            'is_total': False,
-                            'is_spacer': False
-                        })
+                        # Skip rows with no values across actual, budget and prior
+                        if not (val_actual == 0 and val_budget == 0 and val_prior == 0):
+                            rows.append({
+                                'label': label,
+                                'actual': val_actual,
+                                'budget': val_budget,
+                                'prior': val_prior,
+                                'diff_budget': val_diff_budget,
+                                'pct_budget': val_pct_budget,
+                                'diff_prior': val_diff_prior,
+                                'pct_prior': val_pct_prior,
+                                'is_total': False,
+                                'is_spacer': False
+                            })
                         
                         sec_actual += val_actual
                         sec_budget += val_budget
@@ -191,26 +337,29 @@ class USASpaReportGenerator:
                 region = section.get('region')
                 if region:
                     sales_mask = (self.df['Region'] == region)
-                    sec_actual = self.df[sales_mask]['kEUR'].sum()
-                    sec_budget = self.budget_month[self.budget_month['Region'] == region]['Value_kEUR'].sum() if 'Value_kEUR' in self.budget_month.columns else 0
-                    sec_prior = self.prior_month[self.prior_month['Region'] == region]['Value_kEUR'].sum() if 'Value_kEUR' in self.prior_month.columns else 0
-                    
+                    sec_actual = self.df[sales_mask]['kVAL'].sum()
+                    # Look up aggregated budget/prior values by region preferring USD then EUR
+                    sec_budget = float(self.budget_region_kusd.get(region, 0)) if region in self.budget_region_kusd.index and self.budget_region_kusd.get(region, 0) != 0 else float(self.budget_region_keur.get(region, 0)) if region in self.budget_region_keur.index else 0
+                    sec_prior = float(self.prior_region_kusd.get(region, 0)) if region in self.prior_region_kusd.index and self.prior_region_kusd.get(region, 0) != 0 else float(self.prior_region_keur.get(region, 0)) if region in self.prior_region_keur.index else 0
+                
                     sec_diff_budget = sec_actual - sec_budget
                     sec_pct_budget = (sec_actual / sec_budget * 100) - 100 if sec_budget != 0 else 0
                     sec_diff_prior = sec_actual - sec_prior
                     sec_pct_prior = (sec_actual / sec_prior * 100) - 100 if sec_prior != 0 else 0
                     
-                    rows.append({
-                        'label': section['title'],
-                        'actual': sec_actual,
-                        'budget': sec_budget,
-                        'prior': sec_prior,
-                        'diff_budget': sec_diff_budget,
-                        'pct_budget': sec_pct_budget,
-                        'diff_prior': sec_diff_prior,
-                        'pct_prior': sec_pct_prior,
-                        'is_total': False
-                    })
+                    # Skip section row if there are no values
+                    if not (sec_actual == 0 and sec_budget == 0 and sec_prior == 0):
+                        rows.append({
+                            'label': section['title'],
+                            'actual': sec_actual,
+                            'budget': sec_budget,
+                            'prior': sec_prior,
+                            'diff_budget': sec_diff_budget,
+                            'pct_budget': sec_pct_budget,
+                            'diff_prior': sec_diff_prior,
+                            'pct_prior': sec_pct_prior,
+                            'is_total': False
+                        })
             
             # Add rows to report
             report_data.extend(rows)
@@ -284,12 +433,13 @@ class USASpaReportGenerator:
         now = datetime.datetime.now()
         month_name = now.strftime('%b')
         year_short = str(now.year)[2:]
-        col_curr = f"{month_name}-{year_short}A"
+        col_curr = f"{month_name}-{year_short}A MTD"
         col_budget = f"{month_name}-{year_short}B"
         col_prior = f"{month_name}-{self.prior_year}A"
         
-        print(f"{'kEUR':<30} {col_curr:>10} {col_budget:>10} {'25A vs 25B':>12} {'% 25A vs 25B':>14} {col_prior:>10} {'% 25A vs 24A':>14}")
-        print("-" * 110)
+        print(f"USA Spa Report (Month-to-Date: {now.strftime('%B 1-%d, %Y')})")
+        print(f"{self.unit:<30} {col_curr:>14} {col_budget:>10} {'25A vs 25B':>12} {'% 25A vs 25B':>14} {col_prior:>10} {'% 25A vs 24A':>14}")
+        print("-" * 114)
         
         for _, row in df.iterrows():
             if 'is_spacer' in df.columns and row.get('is_spacer') == True:
@@ -311,22 +461,25 @@ class USASpaReportGenerator:
             
             # Format
             a_str = f"{int(round(actual))}" if abs(actual) >= 0.5 else ("-" if actual == 0 else "0")
-            b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
+            b_str = f"{int(round(budget/1000))}" if abs(budget) >= 500 else ("-" if budget == 0 else "0")
             db_str = f"{int(round(diff_budget))}" if abs(diff_budget) >= 0.5 else ("-" if diff_budget == 0 else "0")
             pb_str = f"{pct_budget:.1f}%" if budget != 0 else "-"
             p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
             pp_str = f"{pct_prior:.1f}%" if prior != 0 else "-"
             
-            print(f"{label:<30} {a_str:>10} {b_str:>10} {db_str:>12} {pb_str:>14} {p_str:>10} {pp_str:>14}")
+            print(f"{label:<30} {a_str:>14} {b_str:>10} {db_str:>12} {pb_str:>14} {p_str:>10} {pp_str:>14}")
             
             if row.get('is_total') or row.get('is_grand_total'):
-                print("-" * 110)
+                print("-" * 114)
     
     def export_report(self, df, base_path):
         """Export the report in formatted text style to CSV/TXT, HTML for Outlook, and PDF."""
+        now = datetime.datetime.now()
+        month_name = now.strftime('%b')
+        year_short = str(now.year)[2:]
         # Define column widths for text format
-        col_widths = [35, 12, 12, 12, 14, 12, 14]
-        headers = ['kEUR', 'Nov-25A', 'Nov-25B', '25A vs 25B', '% 25A vs 25B', 'Nov-24A', '% 25A vs 24A']
+        col_widths = [35, 16, 12, 12, 14, 12, 14]
+        headers = [self.unit, f'{month_name}-{year_short}A MTD', f'{month_name}-{year_short}B', '25A vs 25B', '% 25A vs 25B', f'{month_name}-{self.prior_year}A', '% 25A vs 24A']
         
         # Create text format
         header_line = ''.join(f"{h:<{w}}" for h, w in zip(headers, col_widths))
@@ -349,7 +502,7 @@ class USASpaReportGenerator:
             pct_prior = row['pct_prior']
             
             a_str = f"{int(round(actual))}" if abs(actual) >= 0.5 else ("-" if actual == 0 else "0")
-            b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
+            b_str = f"{int(round(budget/1000))}" if abs(budget) >= 500 else ("-" if budget == 0 else "0")
             db_str = f"{int(round(diff_budget))}" if abs(diff_budget) >= 0.5 else ("-" if diff_budget == 0 else "0")
             pb_str = f"{pct_budget:.1f}%" if budget != 0 else "-"
             p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
@@ -394,7 +547,7 @@ class USASpaReportGenerator:
             pct_prior = row['pct_prior']
             
             a_str = f"{int(round(actual))}" if abs(actual) >= 0.5 else ("-" if actual == 0 else "0")
-            b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
+            b_str = f"{int(round(budget/1000))}" if abs(budget) >= 500 else ("-" if budget == 0 else "0")
             db_str = f"{int(round(diff_budget))}" if abs(diff_budget) >= 0.5 else ("-" if diff_budget == 0 else "0")
             pb_str = f"{pct_budget:.1f}%" if budget != 0 else "-"
             p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
@@ -425,11 +578,12 @@ class USASpaReportGenerator:
         csv_df['% 25A vs 25B'] = csv_df.apply(lambda row: f"{row['pct_budget']:.1f}%" if row['budget'] != 0 else "-", axis=1)
         csv_df['% 25A vs 24A'] = csv_df.apply(lambda row: f"{row['pct_prior']:.1f}%" if row['prior'] != 0 else "-", axis=1)
         csv_df['Nov-25A'] = csv_df['actual'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
-        csv_df['Nov-25B'] = csv_df['budget'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
+        csv_df['Nov-25B'] = csv_df['budget'].apply(lambda x: f"{int(round(x/1000))}" if abs(x) >= 500 else ("-" if x == 0 else "0"))
         csv_df['25A vs 25B'] = csv_df['diff_budget'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
         csv_df['Nov-24A'] = csv_df['prior'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
-        csv_df = csv_df.rename(columns={'label': 'kEUR'})
-        csv_df = csv_df[['kEUR', 'Nov-25A', 'Nov-25B', '25A vs 25B', '% 25A vs 25B', 'Nov-24A', '% 25A vs 24A']]
+        # Rename the label column to the appropriate unit (kUSD or kEUR) and select columns
+        csv_df = csv_df.rename(columns={'label': self.unit})
+        csv_df = csv_df[[self.unit, 'Nov-25A', 'Nov-25B', '25A vs 25B', '% 25A vs 25B', 'Nov-24A', '% 25A vs 24A']]
         
         # Write to CSV file (proper CSV format with commas)
         csv_path = base_path
@@ -454,10 +608,12 @@ class USASpaReportGenerator:
         styles = getSampleStyleSheet()
         
         # PDF title
-        title = Paragraph("USA Spa Regional Report", styles['Heading1'])
+        now_date = datetime.datetime.now()
+        date_range = f"{now_date.strftime('%B')} 1-{now_date.day}, {now_date.year}"
+        title = Paragraph(f"USA Spa Regional Report (MTD: {date_range})", styles['Heading1'])
         
         # Prepare table data
-        pdf_data = [['kEUR', 'Nov-25A', 'Nov-25B', '25A vs 25B', '% 25A vs 25B', 'Nov-24A', '% 25A vs 24A']]
+        pdf_data = [[self.unit, f'{month_name}-{year_short}A MTD', f'{month_name}-{year_short}B', '25A vs 25B', '% 25A vs 25B', f'{month_name}-{self.prior_year}A', '% 25A vs 24A']]
         
         for _, row in df.iterrows():
             if 'is_spacer' in df.columns and row.get('is_spacer') == True:
@@ -474,7 +630,7 @@ class USASpaReportGenerator:
             pct_prior = row['pct_prior']
             
             a_str = f"{int(round(actual))}" if abs(actual) >= 0.5 else ("-" if actual == 0 else "0")
-            b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
+            b_str = f"{int(round(budget/1000))}" if abs(budget) >= 500 else ("-" if budget == 0 else "0")
             db_str = f"{int(round(diff_budget))}" if abs(diff_budget) >= 0.5 else ("-" if diff_budget == 0 else "0")
             pb_str = f"{pct_budget:.1f}%" if budget != 0 else "-"
             p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")

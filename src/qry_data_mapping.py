@@ -2,13 +2,35 @@ import os
 from pathlib import Path
 import pandas as pd
 import logging
+import datetime
+from collections import defaultdict
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def apply_mappings(sales_df, mapping_df):
+def apply_mappings(sales_df, mapping_df, output_dir=None):
     """
     Applies entity mappings to the sales DataFrame.
+    
+    Args:
+        sales_df: DataFrame containing sales data
+        mapping_df: DataFrame containing entity mappings
+        output_dir: Optional path to output directory for unmapped entities CSV.
+                   If None, defaults to ../data/outputs relative to this file.
+    
+    Returns:
+        Mapped sales DataFrame
+        
+    Side Effects:
+        Exports unmapped_entities_{timestamp}.csv to output_dir with:
+        - entity_type: 'customer' or 'employee'
+        - entity_name: Name of unmapped entity
+        - count: Number of records for this entity
+        - first_seen: Earliest date in data
+        - last_seen: Latest date in data
     """
+    # Initialize unmapped entity tracking
+    unmapped_entities = defaultdict(lambda: {'count': 0, 'dates': []})
+    
     # Validate mapping file has expected columns
     expected_cols = ['Sales_Employee', 'Customer_Name', 'Market_Group', 'Region', 'Channel_Level', 'Company_Group']
     missing_cols = [col for col in expected_cols if col not in mapping_df.columns]
@@ -32,15 +54,22 @@ def apply_mappings(sales_df, mapping_df):
         sales_df.loc[~sales_df['Company Entity'].isin(['GmbH', 'AG']), 'temp_employee'] = pd.NA
         sales_df = sales_df.merge(map_emp, left_on='temp_employee', right_on='Sales_Employee', how='left', suffixes=('', '_emp'))
         
-        # Log unmapped employees
+        # Track unmapped employees
         unmapped_emp = sales_df[sales_df['Company Entity'].isin(['GmbH', 'AG']) & sales_df['Market_Group'].isna()]
         if not unmapped_emp.empty:
             logging.warning(f"Found {len(unmapped_emp)} unmapped employee records (GmbH/AG)")
+            for _, row in unmapped_emp.iterrows():
+                emp_name = str(row.get('Sales Employee Name', 'Unknown')).strip()
+                if emp_name and emp_name not in ['nan', 'None', '']:
+                    key = ('employee', emp_name)
+                    unmapped_entities[key]['count'] += 1
+                    if 'Posting Date' in row and pd.notna(row['Posting Date']):
+                        unmapped_entities[key]['dates'].append(row['Posting Date'])
         
         sales_df.drop('temp_employee', axis=1, inplace=True)
 
     # 2. Customer Mapping (for other entities)
-    if 'Customer_Name' in mapping_df.columns:
+    if 'Customer_Name' in mapping_df.columns and 'Customer Name' in sales_df.columns:
         cust_cols = ['Customer_Name', 'Market_Group', 'Region', 'Channel_Level', 'Company_Group', 'Sales_Employee_Cleaned']
         # Drop duplicates in mapping
         map_cust = mapping_df[cust_cols].dropna(subset=['Customer_Name']).drop_duplicates(subset=['Customer_Name'])
@@ -89,10 +118,17 @@ def apply_mappings(sales_df, mapping_df):
                         if col in row and pd.notna(row[col]):
                             sales_df.at[idx, col] = row[col]
 
-        # Log unmapped customers after attempting Sales Employee matches
+        # Track unmapped customers after attempting Sales Employee matches
         unmapped_cust = sales_df[~sales_df['Company Entity'].isin(['GmbH', 'AG']) & sales_df['Market_Group'].isna()]
         if not unmapped_cust.empty:
             logging.warning(f"Found {len(unmapped_cust)} unmapped customer records (non-GmbH/AG)")
+            for _, row in unmapped_cust.iterrows():
+                cust_name = str(row.get('Customer Name', 'Unknown')).strip()
+                if cust_name and cust_name not in ['nan', 'None', '']:
+                    key = ('customer', cust_name)
+                    unmapped_entities[key]['count'] += 1
+                    if 'Posting Date' in row and pd.notna(row['Posting Date']):
+                        unmapped_entities[key]['dates'].append(row['Posting Date'])
 
         sales_df.drop('temp_customer', axis=1, inplace=True)
 
@@ -111,14 +147,16 @@ def apply_mappings(sales_df, mapping_df):
             sales_df.drop(col, axis=1, inplace=True)
 
     # For Export entity, keep only AR rows (for QRY data, Document Type is 'AR', not 'AR Invoice')
-    sales_df = sales_df[~((sales_df['Company Entity'] == 'Export') & (sales_df['Document Type'] != 'AR'))]
+    if 'Company Entity' in sales_df.columns and 'Document Type' in sales_df.columns and len(sales_df) > 0:
+        sales_df = sales_df[~((sales_df['Company Entity'] == 'Export') & (sales_df['Document Type'] != 'AR'))]
     
     # For rows with Region == 'Switzerland', keep only AG entity
-    if 'Region' in sales_df.columns:
+    if 'Region' in sales_df.columns and 'Company Entity' in sales_df.columns and len(sales_df) > 0:
         sales_df = sales_df[~((sales_df['Region'] == 'Switzerland') & (sales_df['Company Entity'] != 'AG'))]
 
     # Filter out rows where Customer Name contains "Interco"
-    sales_df = sales_df[~sales_df['Customer Name'].str.contains('Interco', case=False, na=False)]
+    if 'Customer Name' in sales_df.columns and len(sales_df) > 0:
+        sales_df = sales_df[~sales_df['Customer Name'].str.contains('Interco', case=False, na=False)]
 
     # Map Channel_Level 'eCommerce (excl. USA)' to 'eCommerce EU (incl. UK)'
     if 'Channel_Level' in sales_df.columns:
@@ -129,6 +167,66 @@ def apply_mappings(sales_df, mapping_df):
         sales_df['Sales_Employee_Cleaned'] = sales_df['Sales_Employee_Cleaned'].replace('eCommerce (excl. USA)', 'eCommerce EU (incl. UK)')
     if 'Region' in sales_df.columns:
         sales_df['Region'] = sales_df['Region'].replace('eCommerce (excl. USA)', 'eCommerce EU (incl. UK)')
+    
+    # Export unmapped entities to CSV
+    if unmapped_entities:
+        if output_dir is None:
+            output_dir = Path(__file__).parent.parent / "data" / "outputs"
+        else:
+            output_dir = Path(output_dir)
+        
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Build unmapped entities DataFrame
+        unmapped_records = []
+        for (entity_type, entity_name), data in unmapped_entities.items():
+            record = {
+                'entity_type': entity_type,
+                'entity_name': entity_name,
+                'count': data['count']
+            }
+            
+            # Calculate first_seen and last_seen from dates
+            if data['dates']:
+                try:
+                    # Parse dates if they're strings
+                    dates = []
+                    for d in data['dates']:
+                        if isinstance(d, str):
+                            try:
+                                dates.append(pd.to_datetime(d))
+                            except:
+                                pass
+                        elif isinstance(d, (pd.Timestamp, datetime.datetime)):
+                            dates.append(pd.Timestamp(d))
+                    
+                    if dates:
+                        record['first_seen'] = min(dates).strftime('%Y-%m-%d')
+                        record['last_seen'] = max(dates).strftime('%Y-%m-%d')
+                    else:
+                        record['first_seen'] = 'N/A'
+                        record['last_seen'] = 'N/A'
+                except Exception:
+                    record['first_seen'] = 'N/A'
+                    record['last_seen'] = 'N/A'
+            else:
+                record['first_seen'] = 'N/A'
+                record['last_seen'] = 'N/A'
+            
+            unmapped_records.append(record)
+        
+        unmapped_df = pd.DataFrame(unmapped_records)
+        unmapped_df = unmapped_df.sort_values(['entity_type', 'count'], ascending=[True, False])
+        
+        # Generate timestamped filename
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        unmapped_path = output_dir / f"unmapped_entities_{timestamp}.csv"
+        unmapped_df.to_csv(unmapped_path, index=False)
+        
+        logging.info(f"Exported {len(unmapped_records)} unmapped entities to {unmapped_path}")
+        logging.info(f"Unmapped summary: {unmapped_df['entity_type'].value_counts().to_dict()}")
+    else:
+        logging.info("No unmapped entities found - all entities successfully mapped!")
         
     return sales_df
 

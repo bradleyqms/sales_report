@@ -22,17 +22,7 @@ from qry_data_mapping import apply_mappings
 from receivables_report_generator import ManagementReportGenerator
 from gvl_report import GVLReportGenerator
 from usa_spa_report import USASpaReportGenerator
-
-def print_progress(current, total, message=""):
-    """Print a simple progress bar."""
-    percentage = int((current / total) * 100)
-    bar_length = 30
-    filled_length = int(bar_length * current // total)
-    bar = '#' * filled_length + '-' * (bar_length - filled_length)
-    sys.stdout.write(f'\r[{bar}] {percentage}% {message}')
-    sys.stdout.flush()
-    if current == total:
-        print()  # New line when complete
+from utils import print_progress, get_current_year, get_prior_year, get_current_month, format_mtd_date_range
 
 
 
@@ -186,7 +176,7 @@ def main():
     
     print()
     print("=" * 80)
-    print("GENERATING REPORTS")
+    print("GENERATING REPORTS (MONTH-TO-DATE)")
     print("=" * 80)
     print()
     
@@ -194,7 +184,7 @@ def main():
     # REPORT 1: RECEIVABLES (MANAGEMENT) REPORT
     # =========================================================================
     print("-" * 80)
-    print("REPORT 1: RECEIVABLES MANAGEMENT REPORT")
+    print("REPORT 1: RECEIVABLES MANAGEMENT REPORT (MTD)")
     print("-" * 80)
     print()
     
@@ -217,7 +207,7 @@ def main():
     # REPORT 2: GVL REPORT
     # =========================================================================
     print("-" * 80)
-    print("REPORT 2: GVL REPORT (SALES BY EMPLOYEE)")
+    print("REPORT 2: GVL REPORT (SALES BY EMPLOYEE) - MTD")
     print("-" * 80)
     print()
     
@@ -242,7 +232,7 @@ def main():
     # REPORT 3: USA SPA REGIONAL REPORT
     # =========================================================================
     print("-" * 80)
-    print("REPORT 3: USA SPA REGIONAL REPORT")
+    print("REPORT 3: USA SPA REGIONAL REPORT (MTD)")
     print("-" * 80)
     print()
     

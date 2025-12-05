@@ -21,9 +21,9 @@
             "market_group": "UK",
             "type": "channel",
             "items": [
-                {"label": "Spa", "filter_value": "Spa", "budget_region_map": "Spa"},
-                {"label": "Retail", "filter_value": "Retail", "budget_region_map": "Retail"},
-                {"label": "Other UK", "is_fallback": true}
+                {"label": "UK - Spa", "filter_value": "Spa", "budget_region_map": "Spa"},
+                {"label": "UK - Retail", "filter_value": "Retail", "budget_region_map": "Retail"},
+                {"label": "UK - Other", "is_fallback": true}
             ]
         },
         {
@@ -32,9 +32,9 @@
             "market_group": "USA",
             "type": "channel",
             "items": [
-                {"label": "Spa", "filter_value": "Spa", "budget_region_map": "Spa"},
-                {"label": "Retail", "filter_value": "Retail", "budget_region_map": "Retail"},
-                {"label": "Other USA", "is_fallback": true}
+                {"label": "USA - Spa", "filter_value": "Spa", "budget_region_map": "Spa"},
+                {"label": "USA - Retail", "filter_value": "Retail", "budget_region_map": "Retail"},
+                {"label": "USA - Other", "is_fallback": true}
             ]
         },
         {

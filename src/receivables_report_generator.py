@@ -18,17 +18,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from sharepoint_client import SharePointHandler, download_inputs, upload_outputs
 from qry_data_ingestion import process_qry_files
 from qry_data_mapping import apply_mappings
-
-def print_progress(current, total, message=""):
-    """Print a simple progress bar."""
-    percentage = int((current / total) * 100)
-    bar_length = 30
-    filled_length = int(bar_length * current // total)
-    bar = '#' * filled_length + '-' * (bar_length - filled_length)
-    sys.stdout.write(f'\r[{bar}] {percentage}% {message}')
-    sys.stdout.flush()
-    if current == total:
-        print()  # New line when complete
+from utils import print_progress, get_current_year, get_prior_year, get_current_month, format_mtd_date_range
 
 class ManagementReportGenerator:
     def __init__(self, config_path, sales_path, budget_path, prior_path):
@@ -163,7 +153,13 @@ class ManagementReportGenerator:
                 prior_mask &= (self.prior_month['Market_Group'] == m_group)
             
             section_total_sales = self.df[sales_mask]['kEUR'].sum()
-            section_total_budget = self.budget_month[budget_mask]['Value_kEUR'].sum()
+            
+            # Budget values already in kEUR/kUSD format
+            if m_group == 'USA' and 'Value_kUSD' in self.budget_month.columns:
+                section_total_budget = self.budget_month[budget_mask]['Value_kUSD'].sum()
+            else:
+                section_total_budget = self.budget_month[budget_mask]['Value_kEUR'].sum()
+            
             section_total_prior = self.prior_month[prior_mask]['Value_kEUR'].sum()
             
             # Track allocated amounts to calculate fallback
@@ -207,7 +203,12 @@ class ManagementReportGenerator:
                 b_mask &= (self.budget_month[lookup_col] == b_filter_val)
                 p_mask &= (self.prior_month[lookup_col] == b_filter_val)
                 
-                val_budget = self.budget_month[b_mask]['Value_kEUR'].sum()
+                # Budget values are already in kEUR/kUSD format in source file
+                if m_group == 'USA' and 'Value_kUSD' in self.budget_month.columns:
+                    val_budget = self.budget_month[b_mask]['Value_kUSD'].sum()
+                else:
+                    val_budget = self.budget_month[b_mask]['Value_kEUR'].sum()
+                
                 val_prior = self.prior_month[p_mask]['Value_kEUR'].sum()
                 
                 rows.append({
@@ -300,9 +301,9 @@ class ManagementReportGenerator:
         now = datetime.datetime.now()
         month_name = now.strftime('%b')
         year_short = str(now.year)[2:]
-        col_curr = f"{month_name}-{year_short}A"
+        col_curr = f"{month_name}-{year_short}A MTD"
         
-        print(f"{'kEUR':<30} {col_curr:>10} {'Budget':>10} {'Prior':>10} {'% vs Bud':>10}")
+        print(f"{'kEUR':<30} {col_curr:>15} {'Budget':>10} {'Prior':>10} {'% vs Bud':>10}")
         print("-" * 75)
         
         for _, row in df.iterrows():
@@ -322,7 +323,7 @@ class ManagementReportGenerator:
             # Calculate %
             pct = (sales / budget * 100) if budget and budget != 0 else 0
             
-            # Format
+            # Format values (already in kEUR)
             s_str = f"{int(round(sales))}" if abs(sales) >= 0.5 else ("-" if sales == 0 else "0")
             b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
             p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
@@ -336,8 +337,12 @@ class ManagementReportGenerator:
     def export_report(self, df, base_path):
         """Export the report in formatted text style to CSV/TXT, HTML for Outlook, and PDF."""
         # Define column widths for text format
-        col_widths = [35, 12, 12, 12, 12]
-        headers = ['kEUR', 'Nov-25A', 'Budget', 'Prior', '% vs Bud']
+        now = datetime.datetime.now()
+        month_name = now.strftime('%b')
+        year_short = str(now.year)[2:]
+        col_curr = f"{month_name}-{year_short}A MTD"
+        col_widths = [35, 15, 12, 12, 12]
+        headers = ['kEUR', col_curr, 'Budget', 'Prior', '% vs Bud']
         
         # Create text format
         header_line = ''.join(f"{h:<{w}}" for h, w in zip(headers, col_widths))
@@ -422,11 +427,11 @@ class ManagementReportGenerator:
         if 'is_spacer' in csv_df.columns:
             csv_df = csv_df[~csv_df['is_spacer']]
         csv_df['% vs Bud'] = csv_df.apply(lambda row: f"{(row['sales'] / row['budget'] * 100):.1f}%" if row['budget'] and row['budget'] != 0 else "-", axis=1)
-        csv_df['Nov-25A'] = csv_df['sales'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
-        csv_df['Budget'] = csv_df['budget'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
+        csv_df[col_curr] = csv_df['sales'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
+        csv_df['Budget'] = csv_df.apply(lambda row: f"{int(round(row['budget']/1000))}" if row.get('budget_needs_division', True) and abs(row['budget']) >= 500 else (f"{int(round(row['budget']))}" if not row.get('budget_needs_division', True) and abs(row['budget']) >= 0.5 else ("-" if row['budget'] == 0 else "0")), axis=1)
         csv_df['Prior'] = csv_df['prior'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
         csv_df = csv_df.rename(columns={'label': 'kEUR'})
-        csv_df = csv_df[['kEUR', 'Nov-25A', 'Budget', 'Prior', '% vs Bud']]
+        csv_df = csv_df[['kEUR', col_curr, 'Budget', 'Prior', '% vs Bud']]
         
         # Write to CSV file (proper CSV format with commas)
         csv_path = base_path
@@ -466,8 +471,7 @@ class ManagementReportGenerator:
                 bottom=Side(style='thin', color='000000')
             )
             
-            # Write headers
-            headers = ['kEUR', 'Nov-25A', 'Budget', 'Prior', '% vs Bud']
+            # Write headers (reuse headers from above with MTD)
             for col_idx, header in enumerate(headers, start=1):
                 cell = ws.cell(row=1, column=col_idx, value=header)
                 cell.font = header_font
@@ -557,11 +561,12 @@ class ManagementReportGenerator:
         doc = SimpleDocTemplate(pdf_path, pagesize=A4)
         styles = getSampleStyleSheet()
         
-        # PDF title
-        title = Paragraph("QRY Management Report", styles['Heading1'])
+        # PDF title with MTD date range
+        date_range = now.strftime('%B 1-%d, %Y')
+        title = Paragraph(f"QRY Management Report (MTD: {date_range})", styles['Heading1'])
         
         # Prepare table data
-        pdf_data = [['kEUR', 'Nov-25A', 'Budget', 'Prior', '% vs Bud']]
+        pdf_data = [headers]
         
         for _, row in df.iterrows():
             if 'is_spacer' in df.columns and row.get('is_spacer') == True:

@@ -17,17 +17,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from sharepoint_client import SharePointHandler, download_inputs, upload_outputs
 from qry_data_ingestion import process_qry_files
 from qry_data_mapping import apply_mappings
-
-def print_progress(current, total, message=""):
-    """Print a simple progress bar."""
-    percentage = int((current / total) * 100)
-    bar_length = 30
-    filled_length = int(bar_length * current // total)
-    bar = '#' * filled_length + '-' * (bar_length - filled_length)
-    sys.stdout.write(f'\r[{bar}] {percentage}% {message}')
-    sys.stdout.flush()
-    if current == total:
-        print()  # New line when complete
+from utils import print_progress, get_current_year, get_prior_year, get_current_month, format_mtd_date_range
 
 class GVLReportGenerator:
     def __init__(self, config_path, sales_path, budget_path, prior_path):
@@ -245,9 +235,9 @@ class GVLReportGenerator:
         now = datetime.datetime.now()
         month_name = now.strftime('%b')
         year_short = str(now.year)[2:]
-        col_curr = f"{month_name}-{year_short}A"
+        col_curr = f"{month_name}-{year_short}A MTD"
         
-        print(f"{'kEUR':<30} {col_curr:>10} {'Budget':>10} {'Prior':>10} {'% vs Bud':>10}")
+        print(f"{'kEUR':<30} {col_curr:>15} {'Budget':>10} {'Prior':>10} {'% vs Bud':>10}")
         print("-" * 75)
         
         for _, row in df.iterrows():
@@ -281,8 +271,12 @@ class GVLReportGenerator:
     def export_report(self, df, base_path):
         """Export the report in formatted text style to CSV/TXT, HTML for Outlook, and PDF."""
         # Define column widths for text format
-        col_widths = [35, 12, 12, 12, 12]
-        headers = ['kEUR', 'Nov-25A', 'Budget', 'Prior', '% vs Bud']
+        now = datetime.datetime.now()
+        month_name = now.strftime('%b')
+        year_short = str(now.year)[2:]
+        col_curr = f"{month_name}-{year_short}A MTD"
+        col_widths = [35, 15, 12, 12, 12]
+        headers = ['kEUR', col_curr, 'Budget', 'Prior', '% vs Bud']
         
         # Create text format
         header_line = ''.join(f"{h:<{w}}" for h, w in zip(headers, col_widths))
@@ -367,11 +361,11 @@ class GVLReportGenerator:
         if 'is_spacer' in csv_df.columns:
             csv_df = csv_df[~csv_df['is_spacer'].fillna(False)]
         csv_df['% vs Bud'] = csv_df.apply(lambda row: f"{(row['sales'] / row['budget'] * 100):.1f}%" if row['budget'] and row['budget'] != 0 else "-", axis=1)
-        csv_df['Nov-25A'] = csv_df['sales'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
+        csv_df[col_curr] = csv_df['sales'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
         csv_df['Budget'] = csv_df['budget'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
         csv_df['Prior'] = csv_df['prior'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
         csv_df = csv_df.rename(columns={'label': 'kEUR'})
-        csv_df = csv_df[['kEUR', 'Nov-25A', 'Budget', 'Prior', '% vs Bud']]
+        csv_df = csv_df[['kEUR', col_curr, 'Budget', 'Prior', '% vs Bud']]
         
         # Write to CSV file (proper CSV format with commas)
         csv_path = base_path
@@ -395,11 +389,12 @@ class GVLReportGenerator:
         doc = SimpleDocTemplate(pdf_path, pagesize=A4)
         styles = getSampleStyleSheet()
         
-        # PDF title
-        title = Paragraph("GVL Management Report", styles['Heading1'])
+        # PDF title with MTD date range
+        date_range = now.strftime('%B 1-%d, %Y')
+        title = Paragraph(f"GVL Management Report (MTD: {date_range})", styles['Heading1'])
         
         # Prepare table data
-        pdf_data = [['kEUR', 'Nov-25A', 'Budget', 'Prior', '% vs Bud']]
+        pdf_data = [headers]
         
         for _, row in df.iterrows():
             if 'is_spacer' in df.columns and row.get('is_spacer') == True:

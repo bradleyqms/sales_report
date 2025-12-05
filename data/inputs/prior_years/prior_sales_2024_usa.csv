@@ -1,49 +1,49 @@
-﻿Year,Month,Date,Market_Group,Region,Channel_Level,Subchannel / Partner,Sales Employee / Account,Company_Group,Currency,Metric,Value_kEUR,Value_EUR,,,,,,,,,,,,
-2024,1,01/01/2024,USA,Northeast,,,,Company 1,,,,, 737 ,,,,,,,,,,,
-2024,2,01/02/2024,USA,Northeast,,,,Company 1,,,,," 19,085 ",,,,,,,,,,,
-2024,3,01/03/2024,USA,Northeast,,,,Company 1,,,,," 4,325 ",,,,,,,,,,,
-2024,4,01/04/2024,USA,Northeast,,,,Company 1,,,,," 5,130 ",,,,,,,,,,,
-2024,5,01/05/2024,USA,Northeast,,,,Company 1,,,,," 7,128 ",,,,,,,,,,,
-2024,6,01/06/2024,USA,Northeast,,,,Company 1,,,,," 9,117 ",,,,,,,,,,,
-2024,7,01/07/2024,USA,Northeast,,,,Company 1,,,,," 3,616 ",,,,,,,,,,,
-2024,8,01/08/2024,USA,Northeast,,,,Company 1,,,,," 10,517 ",,,,,,,,,,,
-2024,9,01/09/2024,USA,Northeast,,,,Company 1,,,,," 2,284 ",,,,,,,,,,,
-2024,10,01/10/2024,USA,Northeast,,,,Company 1,,,,," 19,801 ",,,,,,,,,,,
-2024,11,01/11/2024,USA,Northeast,,,,Company 1,,,,," 3,577 ",,,,,,,,,,,
-2024,12,01/12/2024,USA,Northeast,,,,Company 1,,,,," 5,305 ",,,,,,,,,,,
-2024,1,01/01/2024,USA,Central,,,,Company 1,,,,," 5,613 ",,,,,,,,,,,
-2024,2,01/02/2024,USA,Central,,,,Company 1,,,,,,,,,,,,,,,,
-2024,3,01/03/2024,USA,Central,,,,Company 1,,,,," 5,828 ",,,,,,,,,,,
-2024,4,01/04/2024,USA,Central,,,,Company 1,,,,," 5,600 ",,,,,,,,,,,
-2024,5,01/05/2024,USA,Central,,,,Company 1,,,,,,,,,,,,,,,,
-2024,6,01/06/2024,USA,Central,,,,Company 1,,,,," 8,987 ",,,,,,,,,,,
-2024,7,01/07/2024,USA,Central,,,,Company 1,,,,," 5,838 ",,,,,,,,,,,
-2024,8,01/08/2024,USA,Central,,,,Company 1,,,,,,,,,,,,,,,,
-2024,9,01/09/2024,USA,Central,,,,Company 1,,,,," 26,293 ",,,,,,,,,,,
-2024,10,01/10/2024,USA,Central,,,,Company 1,,,,," 6,636 ",,,,,,,,,,,
-2024,11,01/11/2024,USA,Central,,,,Company 1,,,,," 7,519 ",,,,,,,,,,,
-2024,12,01/12/2024,USA,Central,,,,Company 1,,,,," 12,063 ",,,,,,,,,,,
-2024,1,01/01/2024,USA,Southeast,,,,Company 1,,,,," 5,379 ",,,,,,,,,,,
-2024,2,01/02/2024,USA,Southeast,,,,Company 1,,,,," 3,868 ",,,,,,,,,,,
-2024,3,01/03/2024,USA,Southeast,,,,Company 1,,,,," 8,849 ",,,,,,,,,,,
-2024,4,01/04/2024,USA,Southeast,,,,Company 1,,,,," 20,236 ",,,,,,,,,,,
-2024,5,01/05/2024,USA,Southeast,,,,Company 1,,,,," 19,130 ",,,,,,,,,,,
-2024,6,01/06/2024,USA,Southeast,,,,Company 1,,,,," 10,444 ",,,,,,,,,,,
-2024,7,01/07/2024,USA,Southeast,,,,Company 1,,,,," 9,075 ",,,,,,,,,,,
-2024,8,01/08/2024,USA,Southeast,,,,Company 1,,,,," 29,199 ",,,,,,,,,,,
-2024,9,01/09/2024,USA,Southeast,,,,Company 1,,,,," 24,196 ",,,,,,,,,,,
-2024,10,01/10/2024,USA,Southeast,,,,Company 1,,,,," 22,885 ",,,,,,,,,,,
-2024,11,01/11/2024,USA,Southeast,,,,Company 1,,,,," 46,698 ",,,,,,,,,,,
-2024,12,01/12/2024,USA,Southeast,,,,Company 1,,,,," 8,098 ",,,,,,,,,,,
-2024,1,01/01/2024,USA,West,,,,Company 1,,,,," 22,658 ",,,,,,,,,,,
-2024,2,01/02/2024,USA,West,,,,Company 1,,,,," 33,194 ",,,,,,,,,,,
-2024,3,01/03/2024,USA,West,,,,Company 1,,,,," 39,181 ",,,,,,,,,,,
-2024,4,01/04/2024,USA,West,,,,Company 1,,,,," 34,589 ",,,,,,,,,,,
-2024,5,01/05/2024,USA,West,,,,Company 1,,,,," 14,666 ",,,,,,,,,,,
-2024,6,01/06/2024,USA,West,,,,Company 1,,,,," 21,977 ",,,,,,,,,,,
-2024,7,01/07/2024,USA,West,,,,Company 1,,,,," 24,192 ",,,,,,,,,,,
-2024,8,01/08/2024,USA,West,,,,Company 1,,,,," 27,277 ",,,,,,,,,,,
-2024,9,01/09/2024,USA,West,,,,Company 1,,,,," 45,690 ",,,,,,,,,,,
-2024,10,01/10/2024,USA,West,,,,Company 1,,,,," 34,342 ",,,,,,,,,,,
-2024,11,01/11/2024,USA,West,,,,Company 1,,,,," 16,317 ",,,,,,,,,,,
-2024,12,01/12/2024,USA,West,,,,Company 1,,,,," 20,797 ",,,,,,,,,,,
+﻿Year,Month,Date,Market_Group,Region,Channel_Level,Subchannel / Partner,Sales Employee / Account,Company_Group,Currency,Metric,Value_kEUR,Value_EUR,Value_kUSD
+2024,1,01/01/2024,USA,Northeast,,,,Company 1,USD,Sales PY,,,737
+2024,2,01/02/2024,USA,Northeast,,,,Company 1,USD,Sales PY,,,"19,085"
+2024,3,01/03/2024,USA,Northeast,,,,Company 1,USD,Sales PY,,,"4,325"
+2024,4,01/04/2024,USA,Northeast,,,,Company 1,USD,Sales PY,,,"5,130"
+2024,5,01/05/2024,USA,Northeast,,,,Company 1,USD,Sales PY,,,"7,128"
+2024,6,01/06/2024,USA,Northeast,,,,Company 1,USD,Sales PY,,,"9,117"
+2024,7,01/07/2024,USA,Northeast,,,,Company 1,USD,Sales PY,,,"3,616"
+2024,8,01/08/2024,USA,Northeast,,,,Company 1,USD,Sales PY,,,"10,517"
+2024,9,01/09/2024,USA,Northeast,,,,Company 1,USD,Sales PY,,,"2,284"
+2024,10,01/10/2024,USA,Northeast,,,,Company 1,USD,Sales PY,,,"19,801"
+2024,11,01/11/2024,USA,Northeast,,,,Company 1,USD,Sales PY,,,"3,577"
+2024,12,01/12/2024,USA,Northeast,,,,Company 1,USD,Sales PY,,,"5,305"
+2024,1,01/01/2024,USA,Central,,,,Company 1,USD,Sales PY,,,"5,613"
+2024,2,01/02/2024,USA,Central,,,,Company 1,USD,Sales PY,,,
+2024,3,01/03/2024,USA,Central,,,,Company 1,USD,Sales PY,,,"5,828"
+2024,4,01/04/2024,USA,Central,,,,Company 1,USD,Sales PY,,,"5,600"
+2024,5,01/05/2024,USA,Central,,,,Company 1,USD,Sales PY,,,
+2024,6,01/06/2024,USA,Central,,,,Company 1,USD,Sales PY,,,"8,987"
+2024,7,01/07/2024,USA,Central,,,,Company 1,USD,Sales PY,,,"5,838"
+2024,8,01/08/2024,USA,Central,,,,Company 1,USD,Sales PY,,,
+2024,9,01/09/2024,USA,Central,,,,Company 1,USD,Sales PY,,,"26,293"
+2024,10,01/10/2024,USA,Central,,,,Company 1,USD,Sales PY,,,"6,636"
+2024,11,01/11/2024,USA,Central,,,,Company 1,USD,Sales PY,,,"7,519"
+2024,12,01/12/2024,USA,Central,,,,Company 1,USD,Sales PY,,,"12,063"
+2024,1,01/01/2024,USA,Southeast,,,,Company 1,USD,Sales PY,,,"5,379"
+2024,2,01/02/2024,USA,Southeast,,,,Company 1,USD,Sales PY,,,"3,868"
+2024,3,01/03/2024,USA,Southeast,,,,Company 1,USD,Sales PY,,,"8,849"
+2024,4,01/04/2024,USA,Southeast,,,,Company 1,USD,Sales PY,,,"20,236"
+2024,5,01/05/2024,USA,Southeast,,,,Company 1,USD,Sales PY,,,"19,130"
+2024,6,01/06/2024,USA,Southeast,,,,Company 1,USD,Sales PY,,,"10,444"
+2024,7,01/07/2024,USA,Southeast,,,,Company 1,USD,Sales PY,,,"9,075"
+2024,8,01/08/2024,USA,Southeast,,,,Company 1,USD,Sales PY,,,"29,199"
+2024,9,01/09/2024,USA,Southeast,,,,Company 1,USD,Sales PY,,,"24,196"
+2024,10,01/10/2024,USA,Southeast,,,,Company 1,USD,Sales PY,,,"22,885"
+2024,11,01/11/2024,USA,Southeast,,,,Company 1,USD,Sales PY,,,"46,698"
+2024,12,01/12/2024,USA,Southeast,,,,Company 1,USD,Sales PY,,,"8,098"
+2024,1,01/01/2024,USA,West,,,,Company 1,USD,Sales PY,,,"22,658"
+2024,2,01/02/2024,USA,West,,,,Company 1,USD,Sales PY,,,"33,194"
+2024,3,01/03/2024,USA,West,,,,Company 1,USD,Sales PY,,,"39,181"
+2024,4,01/04/2024,USA,West,,,,Company 1,USD,Sales PY,,,"34,589"
+2024,5,01/05/2024,USA,West,,,,Company 1,USD,Sales PY,,,"14,666"
+2024,6,01/06/2024,USA,West,,,,Company 1,USD,Sales PY,,,"21,977"
+2024,7,01/07/2024,USA,West,,,,Company 1,USD,Sales PY,,,"24,192"
+2024,8,01/08/2024,USA,West,,,,Company 1,USD,Sales PY,,,"27,277"
+2024,9,01/09/2024,USA,West,,,,Company 1,USD,Sales PY,,,"45,690"
+2024,10,01/10/2024,USA,West,,,,Company 1,USD,Sales PY,,,"34,342"
+2024,11,01/11/2024,USA,West,,,,Company 1,USD,Sales PY,,,"16,317"
+2024,12,01/12/2024,USA,West,,,,Company 1,USD,Sales PY,,,"20,797"
