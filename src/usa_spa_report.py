@@ -77,66 +77,11 @@ class USASpaReportGenerator:
 
         # Keep the original detected unit so we can convert later if needed
         self._original_unit = self.unit
-        # Prefer local USA-specific budget/prior files (if present) over any provided file
-        repo_root = Path(__file__).parent.parent
-        local_budget_dir = repo_root / 'data' / 'inputs' / 'budget'
-        if local_budget_dir.exists():
-            candidates = sorted(local_budget_dir.glob('*.csv'), key=lambda p: p.name.lower())
-            chosen = None
-            for keyword in ('usa_spa', 'usa', 'spa'):
-                for p in candidates:
-                    if keyword in p.name.lower():
-                        chosen = p
-                        break
-                if chosen:
-                    break
-
-            if chosen:
-                try:
-                    alt_budget = pd.read_csv(chosen)
-                    logging.info(f"Preferring local budget file: {chosen.name}")
-                    self.budget_df = alt_budget
-                except Exception:
-                    pass
-
+        
         # Filter Budget for Current Month
         # Budget Date is DD/MM/YYYY
         self.budget_df['Date'] = pd.to_datetime(self.budget_df['Date'], format='%d/%m/%Y')
         self.budget_month = self.budget_df[self.budget_df['Date'].dt.month == self.current_month].copy()
-        # If the provided budget file contains no rows for the USA/Spa regions we are reporting,
-        # try to find a USA-specific budget file in the inputs folder and use that instead.
-        try:
-            sales_regions = set(self.df['Region'].dropna().unique())
-        except Exception:
-            sales_regions = set()
-
-        if self.budget_month.shape[0] == 0 or not any(self.budget_month['Region'].isin(sales_regions)):
-            # search for candidate budget files in data/inputs/budget
-            repo_root = Path(__file__).parent.parent
-            budget_dir = repo_root / 'data' / 'inputs' / 'budget'
-            if budget_dir.exists():
-                # prioritize files with 'usa_spa' then 'usa'
-                candidates = sorted(budget_dir.glob('*.csv'), key=lambda p: p.name.lower())
-                chosen = None
-                for keyword in ('usa_spa', 'usa', 'spa'):
-                    for p in candidates:
-                        if keyword in p.name.lower():
-                            chosen = p
-                            break
-                    if chosen:
-                        break
-
-                if chosen:
-                    try:
-                        alt_budget = pd.read_csv(chosen)
-                        alt_budget['Date'] = pd.to_datetime(alt_budget['Date'], format='%d/%m/%Y', errors='coerce')
-                        alt_budget_month = alt_budget[alt_budget['Date'].dt.month == self.current_month].copy()
-                        if alt_budget_month.shape[0] > 0 and any(alt_budget_month['Region'].isin(sales_regions)):
-                            logging.info(f"Using fallback budget file: {chosen.name}")
-                            self.budget_df = alt_budget
-                            self.budget_month = alt_budget_month
-                    except Exception:
-                        pass
         
         # Filter Prior for Same Month Last Year
         # Prior file may have Date in DD/MM/YYYY format — try to parse safely
@@ -147,27 +92,6 @@ class USASpaReportGenerator:
             # Fallback to original string-starts behaviour if parsing fails
             target_prior_date = f"{self.prior_year}-{self.current_month:02d}"
             self.prior_month = self.prior_df[self.prior_df['Date'].astype(str).str.startswith(target_prior_date)].copy()
-
-        # Prefer local USA-specific prior files if present
-        local_prior_dir = repo_root / 'data' / 'inputs' / 'prior_years'
-        if local_prior_dir.exists():
-            candidates = sorted(local_prior_dir.glob('*.csv'), key=lambda p: p.name.lower())
-            chosen = None
-            for keyword in ('usa_spa', 'usa', 'spa'):
-                for p in candidates:
-                    if keyword in p.name.lower():
-                        chosen = p
-                        break
-                if chosen:
-                    break
-
-            if chosen:
-                try:
-                    alt_prior = pd.read_csv(chosen)
-                    logging.info(f"Preferring local prior file: {chosen.name}")
-                    self.prior_df = alt_prior
-                except Exception:
-                    pass
 
         # Pre-aggregate budget and prior by Region for quick lookups (support both kUSD and kEUR)
         def sum_numeric(df_section, col):
