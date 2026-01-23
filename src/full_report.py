@@ -46,6 +46,15 @@ def main():
     print(f"Starting at: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     print()
     
+    current_year = get_current_year()  # Returns 2026
+    prior_year = get_prior_year()      # Returns 2025
+    
+    # Update file paths to use dynamic year:
+    budget_path = str(project_root / f'data/inputs/budget/budget_{current_year}_processed.csv')
+    prior_path = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_processed.csv')
+    gvl_budget_path = str(project_root / f'data/inputs/budget/budget_GVL_{current_year}.csv')
+    gvl_prior_path = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv')
+    
     # Determine if we use SharePoint or local files
     if use_sharepoint:
         print("[INFO] Using SharePoint for data sources")
@@ -103,10 +112,12 @@ def main():
             # Step 3: Download support files
             print_progress(3, 6, "Downloading support files...")
             
+            current_year = get_current_year()
+            prior_year = get_prior_year()
             other_paths = {
                 'mapping': '/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/entity_mappings.csv',
-                'budget': '/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/budget_2025_processed.csv',
-                'prior': '/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/prior_sales_2024_processed.csv'
+                'budget': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/budget_{current_year}_processed.csv',
+                'prior': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/prior_sales_{prior_year}_processed.csv'
             }
             
             local_paths = {}
@@ -123,9 +134,9 @@ def main():
                         if key == 'mapping':
                             local_paths[key] = str(project_root / 'data/inputs/mappings/entity_mappings.csv')
                         elif key == 'budget':
-                            local_paths[key] = str(project_root / 'data/inputs/budget/budget_2025_processed.csv')
+                            local_paths[key] = str(project_root / f'data/inputs/budget/budget_{current_year}_processed.csv')
                         elif key == 'prior':
-                            local_paths[key] = str(project_root / 'data/inputs/prior_years/prior_sales_2024_processed.csv')
+                            local_paths[key] = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_processed.csv')
             finally:
                 sys.stdout = original_stdout
             
@@ -140,12 +151,14 @@ def main():
             print(f"[OK] Mapped {len(mapped_df)} records")
             
             # Save unified mapped data
-            mapped_path = os.path.join(temp_dir, 'qry_unified_mapped_2025.csv')
+            current_year = get_current_year()
+            prior_year = get_prior_year()
+            mapped_path = os.path.join(temp_dir, f'qry_unified_mapped_{current_year}.csv')
             mapped_df.to_csv(mapped_path, index=False)
             
             budget_path = local_paths['budget']
             prior_path = local_paths['prior']
-            gvl_prior_path = str(project_root / 'data/inputs/prior_years/prior_sales_2024_gvl.csv')
+            gvl_prior_path = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv')
             
         except Exception as e:
             logging.error(f"Error during data preparation: {e}")
@@ -156,10 +169,12 @@ def main():
         print()
         
         # Use existing local files
-        mapped_path = str(project_root / 'data/outputs/qry_unified_mapped_2025.csv')
-        budget_path = str(project_root / 'data/inputs/budget/budget_2025_processed.csv')
-        prior_path = str(project_root / 'data/inputs/prior_years/prior_sales_2024_processed.csv')
-        gvl_prior_path = str(project_root / 'data/inputs/prior_years/prior_sales_2024_gvl.csv')
+        current_year = get_current_year()
+        prior_year = get_prior_year()
+        mapped_path = str(project_root / f'data/outputs/qry_unified_mapped_{current_year}.csv')
+        budget_path = str(project_root / f'data/inputs/budget/budget_{current_year}_processed.csv')
+        prior_path = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_processed.csv')
+        gvl_prior_path = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv')
         
         if not os.path.exists(mapped_path):
             logging.error(f"Mapped data file not found: {mapped_path}")
@@ -213,7 +228,8 @@ def main():
     
     try:
         # GVL report needs individual salesperson budgets, not aggregated
-        gvl_budget_path = str(project_root / 'data/inputs/budget/budget_GVL_2025.csv')
+        current_year = get_current_year()
+        gvl_budget_path = str(project_root / f'data/inputs/budget/budget_GVL_{current_year}.csv')
         gvl_gen = GVLReportGenerator(
             str(project_root / 'src/config/gvl_report_structure.json'),
             mapped_path,
@@ -325,7 +341,8 @@ def main():
     combined_df = pd.concat(dfs_to_combine, ignore_index=True)
     
     # Export combined report
-    combined_base = os.path.join(output_dir, f'combined_management_report_2025_{timestamp}')
+    current_year = get_current_year()
+    combined_base = os.path.join(output_dir, f'combined_management_report_{current_year}_{timestamp}')
     receivables_gen.export_report(combined_df, combined_base + '.csv')
     print()
     

@@ -520,10 +520,12 @@ if __name__ == "__main__":
             print_progress(current_step, total_steps, "Downloading support files...")
             
             # Define other SharePoint paths
+            current_year = get_current_year()
+            prior_year = get_prior_year()
             other_paths = {
                 'mapping': '/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/entity_mappings.csv',
-                'budget': '/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/budget_2025_processed.csv',
-                'prior': '/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/prior_sales_2024_processed.csv'
+                'budget': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/budget_{current_year}_processed.csv',
+                'prior': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/prior_sales_{prior_year}_processed.csv'
             }
             
             local_paths = {}
@@ -539,10 +541,10 @@ if __name__ == "__main__":
                         # Fallback to local paths
                         if key == 'mapping':
                             local_paths[key] = str(project_root / 'data/inputs/mappings/entity_mappings.csv')
-                        elif key == 'budget':
-                            local_paths[key] = str(project_root / 'data/inputs/budget/budget_GVL_2025.csv')
+                        if key == 'budget':
+                            local_paths[key] = str(project_root / f'data/inputs/budget/budget_GVL_{current_year}.csv')
                         elif key == 'prior':
-                            local_paths[key] = str(project_root / 'data/inputs/prior_years/prior_sales_2024_processed.csv')
+                            local_paths[key] = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_processed.csv')
             finally:
                 sys.stdout = original_stdout  # Restore stdout
             
@@ -555,7 +557,8 @@ if __name__ == "__main__":
             print_progress(current_step, total_steps, "Generating management report...")
             
             # Save mapped data locally for reference/debugging
-            mapped_path = os.path.join(temp_dir, 'qry_unified_mapped_2025.csv')
+            current_year = get_current_year()
+            mapped_path = os.path.join(temp_dir, f'qry_unified_mapped_{current_year}.csv')
             mapped_df.to_csv(mapped_path, index=False)
             
             # Run the report generator with processed data
@@ -572,7 +575,8 @@ if __name__ == "__main__":
             # Generate timestamped filename
             now = datetime.datetime.now()
             timestamp = now.strftime('%Y%m%d_%H%M%S')
-            base_filename = f'management_report_gvl_2025_{timestamp}'
+            current_year = get_current_year()
+            base_filename = f'management_report_gvl_{current_year}_{timestamp}'
             
             # Export to data/outputs folder
             output_dir = str(project_root / 'data/outputs')
@@ -588,11 +592,13 @@ if __name__ == "__main__":
         print("SharePoint credentials not found. Using local files.")
         # Fallback to local file processing
         project_root = Path(__file__).parent.parent
+        current_year = get_current_year()
+        prior_year = get_prior_year()
         generator = GVLReportGenerator(
             project_root / 'src/config/gvl_report_structure.json',
-            project_root / 'data/outputs/qry_unified_mapped_2025.csv',
-            project_root / 'data/inputs/budget/budget_2025_processed.csv',
-            project_root / 'data/inputs/prior_years/prior_sales_2024_processed.csv'
+            project_root / f'data/outputs/qry_unified_mapped_{current_year}.csv',
+            project_root / f'data/inputs/budget/budget_2025_processed.csv',
+            project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_processed.csv'
         )
         df = generator.calculate_report()
         generator.render_report(df)
@@ -600,7 +606,8 @@ if __name__ == "__main__":
         # Generate timestamped filename
         now = datetime.datetime.now()
         timestamp = now.strftime('%Y%m%d_%H%M%S')
-        output_path = project_root / f'data/outputs/management_report_gvl_2025_{timestamp}.csv'
+        current_year = get_current_year()
+        output_path = project_root / f'data/outputs/management_report_gvl_{current_year}_{timestamp}.csv'
         
         generator.export_report(df, output_path)
     
