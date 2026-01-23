@@ -54,6 +54,8 @@ def main():
     prior_path = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_processed.csv')
     gvl_budget_path = str(project_root / f'data/inputs/budget/budget_GVL_{current_year}.csv')
     gvl_prior_path = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv')
+    usa_spa_budget_path = str(project_root / f'data/inputs/budget/budget_USA_spa_{current_year}.csv')
+    usa_spa_prior_path = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_usa.csv')
     
     # Determine if we use SharePoint or local files
     if use_sharepoint:
@@ -256,8 +258,8 @@ def main():
         usa_spa_gen = USASpaReportGenerator(
             str(project_root / 'src/config/usa_spa_report_structure.json'),
             mapped_path,
-            budget_path,
-            prior_path
+            usa_spa_budget_path,
+            usa_spa_prior_path
         )
         usa_spa_df = usa_spa_gen.calculate_report()
         usa_spa_gen.render_report(usa_spa_df)
