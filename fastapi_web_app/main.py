@@ -223,6 +223,7 @@ def execute_report():
     report_status["xlsx_url"] = ""
     report_status["pdf_url"] = ""
     report_status["zip_url"] = ""
+    report_status["unmapped_url"] = ""
 
     try:
         # Path to the full_report.py script
@@ -257,14 +258,14 @@ def execute_report():
 
                 # Output directory
                 output_dir = script_path.parent.parent / "data" / "outputs"
+                static_dir = Path("static")
+                static_dir.mkdir(exist_ok=True)
 
                 # Find generated files (now combined)
                 generated_files = [f for f in os.listdir(output_dir) if timestamp in f and 'combined' in f]
 
                 if generated_files:
                     # Create zip file
-                    static_dir = Path("static")
-                    static_dir.mkdir(exist_ok=True)
                     zip_path = static_dir / f'combined_reports_{timestamp}.zip'
 
                     with zipfile.ZipFile(zip_path, 'w') as zipf:
@@ -291,7 +292,16 @@ def execute_report():
                         elif file.endswith('.pdf'):
                             shutil.copy(output_dir / file, static_dir / file)
                             report_status["pdf_url"] = f'/download/{file}'
-                else:
+                
+                # Find and copy unmapped entities file (latest one)
+                unmapped_files = sorted(output_dir.glob("unmapped_entities_*.csv"), 
+                                       key=lambda x: x.stat().st_mtime, reverse=True)
+                if unmapped_files:
+                    latest_unmapped = unmapped_files[0]
+                    shutil.copy(latest_unmapped, static_dir / latest_unmapped.name)
+                    report_status["unmapped_url"] = f'/download/{latest_unmapped.name}'
+                
+                if not generated_files and not unmapped_files:
                     report_status["output"] += "\n\nNo generated files found."
             else:
                 report_status["output"] += "\n\nCould not parse timestamp from output."
