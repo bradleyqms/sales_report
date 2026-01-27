@@ -28,8 +28,8 @@ def apply_mappings(sales_df, mapping_df, output_dir=None):
         - first_seen: Earliest date in data
         - last_seen: Latest date in data
     """
-    # Initialize unmapped entity tracking
-    unmapped_entities = defaultdict(lambda: {'count': 0, 'dates': []})
+    # Initialize unmapped entity tracking with expanded fields
+    unmapped_entities = defaultdict(lambda: {'count': 0, 'dates': [], 'values': [], 'sources': [], 'customer_codes': [], 'rows': []})
     
     # Validate mapping file has expected columns
     expected_cols = ['Sales_Employee', 'Customer_Name', 'Market_Group', 'Region', 'Channel_Level', 'Company_Group']
@@ -54,7 +54,7 @@ def apply_mappings(sales_df, mapping_df, output_dir=None):
         sales_df.loc[~sales_df['Company Entity'].isin(['GmbH', 'AG']), 'temp_employee'] = pd.NA
         sales_df = sales_df.merge(map_emp, left_on='temp_employee', right_on='Sales_Employee', how='left', suffixes=('', '_emp'))
         
-        # Track unmapped employees
+        # Track unmapped employees with AR values and source files
         unmapped_emp = sales_df[sales_df['Company Entity'].isin(['GmbH', 'AG']) & sales_df['Market_Group'].isna()]
         if not unmapped_emp.empty:
             logging.warning(f"Found {len(unmapped_emp)} unmapped employee records (GmbH/AG)")
@@ -65,6 +65,13 @@ def apply_mappings(sales_df, mapping_df, output_dir=None):
                     unmapped_entities[key]['count'] += 1
                     if 'Posting Date' in row and pd.notna(row['Posting Date']):
                         unmapped_entities[key]['dates'].append(row['Posting Date'])
+                    # Capture AR value (kEUR)
+                    val_col = 'Value_in_EUR_converted' if 'Value_in_EUR_converted' in row and pd.notna(row['Value_in_EUR_converted']) else 'Total Value (EUR)'
+                    if val_col in row and pd.notna(row[val_col]):
+                        unmapped_entities[key]['values'].append(row[val_col])
+                    # Capture source file
+                    if 'Source_File' in row and pd.notna(row['Source_File']):
+                        unmapped_entities[key]['sources'].append(row['Source_File'])
         
         sales_df.drop('temp_employee', axis=1, inplace=True)
 
@@ -129,6 +136,18 @@ def apply_mappings(sales_df, mapping_df, output_dir=None):
                     unmapped_entities[key]['count'] += 1
                     if 'Posting Date' in row and pd.notna(row['Posting Date']):
                         unmapped_entities[key]['dates'].append(row['Posting Date'])
+                    # Capture AR value (kEUR)
+                    val_col = 'Value_in_EUR_converted' if 'Value_in_EUR_converted' in row and pd.notna(row['Value_in_EUR_converted']) else 'Total Value (EUR)'
+                    if val_col in row and pd.notna(row[val_col]):
+                        unmapped_entities[key]['values'].append(row[val_col])
+                    # Capture source file
+                    if 'Source_File' in row and pd.notna(row['Source_File']):
+                        unmapped_entities[key]['sources'].append(row['Source_File'])
+                    # Capture customer code (for customers only)
+                    if 'Customer Code' in row and pd.notna(row['Customer Code']):
+                        unmapped_entities[key]['customer_codes'].append(row['Customer Code'])
+                    else:
+                        unmapped_entities[key]['customer_codes'].append('')
 
         sales_df.drop('temp_customer', axis=1, inplace=True)
 
@@ -177,7 +196,7 @@ def apply_mappings(sales_df, mapping_df, output_dir=None):
         
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Build unmapped entities DataFrame
+        # Build unmapped entities DataFrame with extended info
         unmapped_records = []
         for (entity_type, entity_name), data in unmapped_entities.items():
             record = {
@@ -212,6 +231,30 @@ def apply_mappings(sales_df, mapping_df, output_dir=None):
             else:
                 record['first_seen'] = 'N/A'
                 record['last_seen'] = 'N/A'
+            
+            # Calculate total AR value (kEUR)
+            if data['values']:
+                try:
+                    total_value = sum([float(v) for v in data['values'] if pd.notna(v)])
+                    record['total_ar_value_keur'] = round(total_value / 1000, 2) if total_value > 100 else round(total_value, 2)
+                except Exception:
+                    record['total_ar_value_keur'] = 'N/A'
+            else:
+                record['total_ar_value_keur'] = 0
+            
+            # List unique source files
+            if data['sources']:
+                unique_sources = list(set([s for s in data['sources'] if s and s not in ['nan', 'None', '']]))
+                record['sap_extract_files'] = '; '.join(sorted(unique_sources)) if unique_sources else 'Unknown'
+            else:
+                record['sap_extract_files'] = 'Unknown'
+            
+            # Customer code - only for customers, empty for employees
+            if data['customer_codes']:
+                unique_codes = list(set([c for c in data['customer_codes'] if c and c not in ['nan', 'None', '']]))
+                record['customer_code'] = '; '.join(sorted(unique_codes)) if unique_codes else ''
+            else:
+                record['customer_code'] = ''
             
             unmapped_records.append(record)
         

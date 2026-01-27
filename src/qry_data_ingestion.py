@@ -112,12 +112,13 @@ def process_qry_files(folder):
         return pd.DataFrame()
     
     # Create formatted DataFrame for mapping compatibility
-    qry_df = df[['sales_employee', 'customer', 'value', 'category', 'Company Entity', 'Currency']].copy()
+    qry_df = df[['sales_employee', 'customer', 'value', 'category', 'Company Entity', 'Currency', 'file']].copy()
     qry_df.rename(columns={
         'sales_employee': 'Sales Employee Name',
         'customer': 'Customer Name',
         'value': 'Total Value (EUR)',
-        'category': 'Document Type'
+        'category': 'Document Type',
+        'file': 'Source_File'
     }, inplace=True)
     
     qry_df['Metric'] = 'Receivables'

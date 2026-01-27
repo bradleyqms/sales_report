@@ -77,7 +77,39 @@ class USASpaReportGenerator:
 
         # Keep the original detected unit so we can convert later if needed
         self._original_unit = self.unit
-        
+        # Prefer local USA-specific budget/prior files (if present) over any provided file
+        repo_root = Path(__file__).parent.parent
+        local_budget_dir = repo_root / 'data' / 'inputs' / 'budget'
+        if local_budget_dir.exists():
+            # Look for current year USA Spa budget file first
+            current_year_usa_spa_file = local_budget_dir / f'budget_USA_spa_{self.current_year}.csv'
+            if current_year_usa_spa_file.exists():
+                try:
+                    alt_budget = pd.read_csv(current_year_usa_spa_file)
+                    logging.info(f"Preferring local budget file: {current_year_usa_spa_file.name}")
+                    self.budget_df = alt_budget
+                except Exception:
+                    pass
+            else:
+                # Fallback to searching for any USA Spa budget file
+                candidates = sorted(local_budget_dir.glob('*.csv'), key=lambda p: p.name.lower())
+                chosen = None
+                for keyword in ('usa_spa', 'usa', 'spa'):
+                    for p in candidates:
+                        if keyword in p.name.lower():
+                            chosen = p
+                            break
+                    if chosen:
+                        break
+
+                if chosen:
+                    try:
+                        alt_budget = pd.read_csv(chosen)
+                        logging.info(f"Preferring local budget file: {chosen.name}")
+                        self.budget_df = alt_budget
+                    except Exception:
+                        pass
+
         # Filter Budget for Current Month
         # Budget Date is DD/MM/YYYY
         self.budget_df['Date'] = pd.to_datetime(self.budget_df['Date'], format='%d/%m/%Y')
@@ -229,18 +261,20 @@ class USASpaReportGenerator:
                         elif filter_val in self.prior_region_keur.index and self.prior_region_keur.get(filter_val, 0) != 0:
                             val_prior = float(self.prior_region_keur.get(filter_val, 0))
                         
-                        # Calculate differences using displayed values (budget/1000 for consistency)
-                        val_diff_budget = val_actual - (val_budget / 1000)
-                        val_pct_budget = (val_actual / val_budget * 100) - 100 if val_budget != 0 else 0
+                        # Calculate differences and percentages
+                        # Budget is stored in full values; divide by 1000 for display
+                        val_budget_display = val_budget / 1000
+                        val_diff_budget = val_actual - val_budget_display
+                        val_pct_budget = (val_actual / val_budget_display * 100) - 100 if val_budget_display != 0 else 0
                         val_diff_prior = val_actual - val_prior
                         val_pct_prior = (val_actual / val_prior * 100) - 100 if val_prior != 0 else 0
                         
                         # Skip rows with no values across actual, budget and prior
-                        if not (val_actual == 0 and val_budget == 0 and val_prior == 0):
+                        if not (val_actual == 0 and val_budget_display == 0 and val_prior == 0):
                             rows.append({
                                 'label': label,
                                 'actual': val_actual,
-                                'budget': val_budget,
+                                'budget': val_budget_display,
                                 'prior': val_prior,
                                 'diff_budget': val_diff_budget,
                                 'pct_budget': val_pct_budget,
@@ -251,7 +285,7 @@ class USASpaReportGenerator:
                             })
                         
                         sec_actual += val_actual
-                        sec_budget += val_budget
+                        sec_budget += val_budget_display
                         sec_prior += val_prior
                         sec_diff_budget += val_diff_budget
                         sec_pct_budget = (sec_actual / sec_budget * 100) - 100 if sec_budget != 0 else 0
@@ -264,11 +298,13 @@ class USASpaReportGenerator:
                     sales_mask = (self.df['Region'] == region)
                     sec_actual = self.df[sales_mask]['kVAL'].sum()
                     # Look up aggregated budget/prior values by region preferring USD then EUR
-                    sec_budget = float(self.budget_region_kusd.get(region, 0)) if region in self.budget_region_kusd.index and self.budget_region_kusd.get(region, 0) != 0 else float(self.budget_region_keur.get(region, 0)) if region in self.budget_region_keur.index else 0
+                    sec_budget_raw = float(self.budget_region_kusd.get(region, 0)) if region in self.budget_region_kusd.index and self.budget_region_kusd.get(region, 0) != 0 else float(self.budget_region_keur.get(region, 0)) if region in self.budget_region_keur.index else 0
                     sec_prior = float(self.prior_region_kusd.get(region, 0)) if region in self.prior_region_kusd.index and self.prior_region_kusd.get(region, 0) != 0 else float(self.prior_region_keur.get(region, 0)) if region in self.prior_region_keur.index else 0
                 
-                    # Calculate differences using displayed values (budget/1000 for consistency)
-                    sec_diff_budget = sec_actual - (sec_budget / 1000)
+                    # Calculate differences and percentages
+                    # Budget is stored in full values; divide by 1000 for display
+                    sec_budget = sec_budget_raw / 1000
+                    sec_diff_budget = sec_actual - sec_budget
                     sec_pct_budget = (sec_actual / sec_budget * 100) - 100 if sec_budget != 0 else 0
                     sec_diff_prior = sec_actual - sec_prior
                     sec_pct_prior = (sec_actual / sec_prior * 100) - 100 if sec_prior != 0 else 0
@@ -359,12 +395,13 @@ class USASpaReportGenerator:
         now = datetime.datetime.now()
         month_name = now.strftime('%b')
         year_short = str(now.year)[2:]
+        prior_year_short = str(self.prior_year)[2:]
         col_curr = f"{month_name}-{year_short}A MTD"
         col_budget = f"{month_name}-{year_short}B"
-        col_prior = f"{month_name}-{self.prior_year}A"
+        col_prior = f"{month_name}-{prior_year_short}A"
         
         print(f"USA Spa Report (Month-to-Date: {now.strftime('%B 1-%d, %Y')})")
-        print(f"{self.unit:<30} {col_curr:>14} {col_budget:>10} {'25A vs 25B':>12} {'% 25A vs 25B':>14} {col_prior:>10} {'% 25A vs 24A':>14}")
+        print(f"{self.unit:<30} {col_curr:>14} {col_budget:>10} {f'{year_short}A vs {year_short}B':>12} {f'% {year_short}A vs {year_short}B':>14} {col_prior:>10} {f'% {year_short}A vs {prior_year_short}A':>14}")
         print("-" * 114)
         
         for _, row in df.iterrows():
@@ -387,7 +424,7 @@ class USASpaReportGenerator:
             
             # Format
             a_str = f"{int(round(actual))}" if abs(actual) >= 0.5 else ("-" if actual == 0 else "0")
-            b_str = f"{int(round(budget/1000))}" if abs(budget) >= 500 else ("-" if budget == 0 else "0")
+            b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
             db_str = f"{int(round(diff_budget))}" if abs(diff_budget) >= 0.5 else ("-" if diff_budget == 0 else "0")
             pb_str = f"{pct_budget:.1f}%" if budget != 0 else "-"
             p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
@@ -403,9 +440,10 @@ class USASpaReportGenerator:
         now = datetime.datetime.now()
         month_name = now.strftime('%b')
         year_short = str(now.year)[2:]
+        prior_year_short = str(self.prior_year)[2:]
         # Define column widths for text format
         col_widths = [35, 16, 12, 12, 14, 12, 14]
-        headers = [self.unit, f'{month_name}-{year_short}A MTD', f'{month_name}-{year_short}B', '25A vs 25B', '% 25A vs 25B', f'{month_name}-{self.prior_year}A', '% 25A vs 24A']
+        headers = [self.unit, f'{month_name}-{year_short}A MTD', f'{month_name}-{year_short}B', f'{year_short}A vs {year_short}B', f'% {year_short}A vs {year_short}B', f'{month_name}-{prior_year_short}A', f'% {year_short}A vs {prior_year_short}A']
         
         # Create text format
         header_line = ''.join(f"{h:<{w}}" for h, w in zip(headers, col_widths))
@@ -428,7 +466,7 @@ class USASpaReportGenerator:
             pct_prior = row['pct_prior']
             
             a_str = f"{int(round(actual))}" if abs(actual) >= 0.5 else ("-" if actual == 0 else "0")
-            b_str = f"{int(round(budget/1000))}" if abs(budget) >= 500 else ("-" if budget == 0 else "0")
+            b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
             db_str = f"{int(round(diff_budget))}" if abs(diff_budget) >= 0.5 else ("-" if diff_budget == 0 else "0")
             pb_str = f"{pct_budget:.1f}%" if budget != 0 else "-"
             p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
@@ -473,7 +511,7 @@ class USASpaReportGenerator:
             pct_prior = row['pct_prior']
             
             a_str = f"{int(round(actual))}" if abs(actual) >= 0.5 else ("-" if actual == 0 else "0")
-            b_str = f"{int(round(budget/1000))}" if abs(budget) >= 500 else ("-" if budget == 0 else "0")
+            b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
             db_str = f"{int(round(diff_budget))}" if abs(diff_budget) >= 0.5 else ("-" if diff_budget == 0 else "0")
             pb_str = f"{pct_budget:.1f}%" if budget != 0 else "-"
             p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
@@ -501,15 +539,15 @@ class USASpaReportGenerator:
         # Filter out spacer rows for CSV
         if 'is_spacer' in csv_df.columns:
             csv_df = csv_df[~csv_df['is_spacer'].fillna(False)]
-        csv_df['% 25A vs 25B'] = csv_df.apply(lambda row: f"{row['pct_budget']:.1f}%" if row['budget'] != 0 else "-", axis=1)
-        csv_df['% 25A vs 24A'] = csv_df.apply(lambda row: f"{row['pct_prior']:.1f}%" if row['prior'] != 0 else "-", axis=1)
-        csv_df['Nov-25A'] = csv_df['actual'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
-        csv_df['Nov-25B'] = csv_df['budget'].apply(lambda x: f"{int(round(x/1000))}" if abs(x) >= 500 else ("-" if x == 0 else "0"))
-        csv_df['25A vs 25B'] = csv_df['diff_budget'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
-        csv_df['Nov-24A'] = csv_df['prior'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
+        csv_df[f'% {year_short}A vs {year_short}B'] = csv_df.apply(lambda row: f"{row['pct_budget']:.1f}%" if row['budget'] != 0 else "-", axis=1)
+        csv_df[f'% {year_short}A vs {prior_year_short}A'] = csv_df.apply(lambda row: f"{row['pct_prior']:.1f}%" if row['prior'] != 0 else "-", axis=1)
+        csv_df[f'{month_name}-{year_short}A'] = csv_df['actual'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
+        csv_df[f'{month_name}-{year_short}B'] = csv_df['budget'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
+        csv_df[f'{year_short}A vs {year_short}B'] = csv_df['diff_budget'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
+        csv_df[f'{month_name}-{prior_year_short}A'] = csv_df['prior'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
         # Rename the label column to the appropriate unit (kUSD or kEUR) and select columns
         csv_df = csv_df.rename(columns={'label': self.unit})
-        csv_df = csv_df[[self.unit, 'Nov-25A', 'Nov-25B', '25A vs 25B', '% 25A vs 25B', 'Nov-24A', '% 25A vs 24A']]
+        csv_df = csv_df[[self.unit, f'{month_name}-{year_short}A', f'{month_name}-{year_short}B', f'{year_short}A vs {year_short}B', f'% {year_short}A vs {year_short}B', f'{month_name}-{prior_year_short}A', f'% {year_short}A vs {prior_year_short}A']]
         
         # Write to CSV file (proper CSV format with commas)
         csv_path = base_path
@@ -539,7 +577,7 @@ class USASpaReportGenerator:
         title = Paragraph(f"USA Spa Regional Report (MTD: {date_range})", styles['Heading1'])
         
         # Prepare table data
-        pdf_data = [[self.unit, f'{month_name}-{year_short}A MTD', f'{month_name}-{year_short}B', '25A vs 25B', '% 25A vs 25B', f'{month_name}-{self.prior_year}A', '% 25A vs 24A']]
+        pdf_data = [[self.unit, f'{month_name}-{year_short}A MTD', f'{month_name}-{year_short}B', f'{year_short}A vs {year_short}B', f'% {year_short}A vs {year_short}B', f'{month_name}-{prior_year_short}A', f'% {year_short}A vs {prior_year_short}A']]
         
         for _, row in df.iterrows():
             if 'is_spacer' in df.columns and row.get('is_spacer') == True:

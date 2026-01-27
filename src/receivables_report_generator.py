@@ -61,14 +61,73 @@ class ManagementReportGenerator:
         value_col = 'Value_in_EUR_converted' if 'Value_in_EUR_converted' in self.df.columns else 'Total Value (EUR)'
         self.df['kEUR'] = self.df[value_col].fillna(0) / 1000
         
+        # Check if USA-specific budget/prior files are available, and prefer them for USA sections
+        repo_root = Path(__file__).parent.parent
+        usa_budget_path = repo_root / f'data/inputs/budget/budget_USA_spa_{self.current_year}.csv'
+        usa_prior_path = repo_root / f'data/inputs/prior_years/prior_sales_{self.prior_year}_usa.csv'
+        
+        # Load USA-specific budget if available, otherwise use provided budget
+        if usa_budget_path.exists():
+            try:
+                self.usa_budget_df = pd.read_csv(usa_budget_path)
+                logging.info(f"[DEBUG] Loaded USA-specific budget file: {usa_budget_path.name}")
+            except Exception as e:
+                logging.warning(f"[DEBUG] Failed to load USA budget file: {e}")
+                self.usa_budget_df = None
+        else:
+            self.usa_budget_df = None
+        
+        # Load USA-specific prior if available, otherwise use provided prior
+        if usa_prior_path.exists():
+            try:
+                self.usa_prior_df = pd.read_csv(usa_prior_path)
+                logging.info(f"[DEBUG] Loaded USA-specific prior file: {usa_prior_path.name}")
+            except Exception as e:
+                logging.warning(f"[DEBUG] Failed to load USA prior file: {e}")
+                self.usa_prior_df = None
+        else:
+            self.usa_prior_df = None
+        
         # Filter Budget for Current Month
         # Budget Date is DD/MM/YYYY
         self.budget_df['Date'] = pd.to_datetime(self.budget_df['Date'], format='%d/%m/%Y')
         self.budget_month = self.budget_df[self.budget_df['Date'].dt.month == self.current_month].copy()
-        
+        # Ensure budget numeric columns are parsed correctly (handles strings/commas)
+        if 'Value_kEUR' in self.budget_month.columns:
+            self.budget_month['Value_kEUR'] = pd.to_numeric(self.budget_month['Value_kEUR'], errors='coerce').fillna(0)
+        if 'Value_kUSD' in self.budget_month.columns:
+            self.budget_month['Value_kUSD'] = pd.to_numeric(self.budget_month['Value_kUSD'], errors='coerce').fillna(0)
+
         # Filter Prior for Same Month Last Year
-        target_prior_date = f"{self.prior_year}-{self.current_month:02d}"
-        self.prior_month = self.prior_df[self.prior_df['Date'].astype(str).str.startswith(target_prior_date)].copy()
+        # Prior year file has Date in DD/MM/YYYY format
+        self.prior_df['Date'] = pd.to_datetime(self.prior_df['Date'], format='%d/%m/%Y', errors='coerce')
+        self.prior_month = self.prior_df[
+            (self.prior_df['Date'].dt.year == self.prior_year) & 
+            (self.prior_df['Date'].dt.month == self.current_month)
+        ].copy()
+
+        # Ensure prior numeric columns are parsed correctly
+        if 'Value_kEUR' in self.prior_month.columns:
+            self.prior_month['Value_kEUR'] = pd.to_numeric(self.prior_month['Value_kEUR'], errors='coerce').fillna(0)
+        if 'Value_kUSD' in self.prior_month.columns:
+            self.prior_month['Value_kUSD'] = pd.to_numeric(self.prior_month['Value_kUSD'], errors='coerce').fillna(0)
+        logging.info(f"[DEBUG] Prior month filtered records: {len(self.prior_month)}")
+        logging.info(f"[DEBUG] Prior month sample:\n{self.prior_month.head()}")
+
+        # Quick sanity check: totals by Region for current month/prior year
+        if 'Region' in self.prior_month.columns and 'Value_kEUR' in self.prior_month.columns:
+            region_totals = self.prior_month.groupby('Region')['Value_kEUR'].sum().sort_values(ascending=False)
+            logging.info(f"[DEBUG] Prior month totals by Region:\n{region_totals}")
+        
+        # Debugging information
+        logging.info(f"[DEBUG] Prior year file columns: {list(self.prior_df.columns)}")
+        logging.info(f"[DEBUG] Prior year file shape: {self.prior_df.shape}")
+        logging.info(f"[DEBUG] Prior year unique years: {self.prior_df['Year'].unique() if 'Year' in self.prior_df.columns else 'No Year column'}")
+        logging.info(f"[DEBUG] Current month for filtering: {get_current_month()}")
+        
+        # After filtering by month
+        logging.info(f"[DEBUG] Prior year data after month filter: {len(self.prior_month)} records")
+        logging.info(f"[DEBUG] Prior year sample (filtered):\n{self.prior_month.head()}")
         
     def calculate_report(self):
         report_data = []
@@ -153,14 +212,41 @@ class ManagementReportGenerator:
                 prior_mask &= (self.prior_month['Market_Group'] == m_group)
             
             section_total_sales = self.df[sales_mask]['kEUR'].sum()
-            
-            # Budget values already in kEUR/kUSD format
-            if m_group == 'USA' and 'Value_kUSD' in self.budget_month.columns:
+
+            # For USA sections, prefer USA-specific budget/prior and restrict to defined regions
+            if m_group == 'USA' and self.usa_budget_df is not None:
+                # Regions defined in the section items (type == 'region')
+                usa_regions = [it.get('filter_value') for it in section.get('items', []) if section.get('type') == 'region' and it.get('filter_value')]
+                usa_budget_month = self.usa_budget_df.copy()
+                usa_budget_month['Date'] = pd.to_datetime(usa_budget_month['Date'], format='%d/%m/%Y', errors='coerce')
+                usa_budget_month = usa_budget_month[usa_budget_month['Date'].dt.month == self.current_month]
+                if usa_regions:
+                    usa_budget_month = usa_budget_month[usa_budget_month['Region'].isin(usa_regions)]
+                # Parse numerics
+                if 'Value_kUSD' in usa_budget_month.columns:
+                    usa_budget_month['Value_kUSD'] = pd.to_numeric(usa_budget_month['Value_kUSD'], errors='coerce').fillna(0)
+                if 'Value_kEUR' in usa_budget_month.columns:
+                    usa_budget_month['Value_kEUR'] = pd.to_numeric(usa_budget_month['Value_kEUR'], errors='coerce').fillna(0)
+                section_total_budget = usa_budget_month['Value_kUSD'].sum() if 'Value_kUSD' in usa_budget_month.columns else usa_budget_month['Value_kEUR'].sum()
+            elif m_group == 'USA' and 'Value_kUSD' in self.budget_month.columns:
                 section_total_budget = self.budget_month[budget_mask]['Value_kUSD'].sum()
             else:
                 section_total_budget = self.budget_month[budget_mask]['Value_kEUR'].sum()
-            
-            section_total_prior = self.prior_month[prior_mask]['Value_kEUR'].sum()
+
+            if m_group == 'USA' and self.usa_prior_df is not None:
+                usa_prior_month = self.usa_prior_df.copy()
+                usa_prior_month['Date'] = pd.to_datetime(usa_prior_month['Date'], format='%d/%m/%Y', errors='coerce')
+                usa_prior_month = usa_prior_month[(usa_prior_month['Date'].dt.year == self.prior_year) & (usa_prior_month['Date'].dt.month == self.current_month)]
+                usa_regions = [it.get('filter_value') for it in section.get('items', []) if section.get('type') == 'region' and it.get('filter_value')]
+                if usa_regions:
+                    usa_prior_month = usa_prior_month[usa_prior_month['Region'].isin(usa_regions)]
+                if 'Value_kUSD' in usa_prior_month.columns:
+                    usa_prior_month['Value_kUSD'] = pd.to_numeric(usa_prior_month['Value_kUSD'], errors='coerce').fillna(0)
+                if 'Value_kEUR' in usa_prior_month.columns:
+                    usa_prior_month['Value_kEUR'] = pd.to_numeric(usa_prior_month['Value_kEUR'], errors='coerce').fillna(0)
+                section_total_prior = usa_prior_month['Value_kUSD'].sum() if 'Value_kUSD' in usa_prior_month.columns else usa_prior_month['Value_kEUR'].sum()
+            else:
+                section_total_prior = self.prior_month[prior_mask]['Value_kEUR'].sum()
             
             # Track allocated amounts to calculate fallback
             allocated_sales = 0
@@ -202,14 +288,37 @@ class ManagementReportGenerator:
                 
                 b_mask &= (self.budget_month[lookup_col] == b_filter_val)
                 p_mask &= (self.prior_month[lookup_col] == b_filter_val)
-                
-                # Budget values are already in kEUR/kUSD format in source file
-                if m_group == 'USA' and 'Value_kUSD' in self.budget_month.columns:
+
+                # For USA region items, compute from USA-specific datasets if available
+                if m_group == 'USA' and section.get('type') == 'region' and self.usa_budget_df is not None:
+                    usa_budget_month = self.usa_budget_df.copy()
+                    usa_budget_month['Date'] = pd.to_datetime(usa_budget_month['Date'], format='%d/%m/%Y', errors='coerce')
+                    usa_budget_month = usa_budget_month[usa_budget_month['Date'].dt.month == self.current_month]
+                    usa_budget_month = usa_budget_month[usa_budget_month['Region'] == filter_val]
+                    if 'Value_kUSD' in usa_budget_month.columns:
+                        usa_budget_month['Value_kUSD'] = pd.to_numeric(usa_budget_month['Value_kUSD'], errors='coerce').fillna(0)
+                        val_budget = usa_budget_month['Value_kUSD'].sum()
+                    else:
+                        usa_budget_month['Value_kEUR'] = pd.to_numeric(usa_budget_month['Value_kEUR'], errors='coerce').fillna(0)
+                        val_budget = usa_budget_month['Value_kEUR'].sum()
+                elif m_group == 'USA' and 'Value_kUSD' in self.budget_month.columns:
                     val_budget = self.budget_month[b_mask]['Value_kUSD'].sum()
                 else:
                     val_budget = self.budget_month[b_mask]['Value_kEUR'].sum()
-                
-                val_prior = self.prior_month[p_mask]['Value_kEUR'].sum()
+
+                if m_group == 'USA' and section.get('type') == 'region' and self.usa_prior_df is not None:
+                    usa_prior_month = self.usa_prior_df.copy()
+                    usa_prior_month['Date'] = pd.to_datetime(usa_prior_month['Date'], format='%d/%m/%Y', errors='coerce')
+                    usa_prior_month = usa_prior_month[(usa_prior_month['Date'].dt.year == self.prior_year) & (usa_prior_month['Date'].dt.month == self.current_month)]
+                    usa_prior_month = usa_prior_month[usa_prior_month['Region'] == filter_val]
+                    if 'Value_kUSD' in usa_prior_month.columns:
+                        usa_prior_month['Value_kUSD'] = pd.to_numeric(usa_prior_month['Value_kUSD'], errors='coerce').fillna(0)
+                        val_prior = usa_prior_month['Value_kUSD'].sum()
+                    else:
+                        usa_prior_month['Value_kEUR'] = pd.to_numeric(usa_prior_month['Value_kEUR'], errors='coerce').fillna(0)
+                        val_prior = usa_prior_month['Value_kEUR'].sum()
+                else:
+                    val_prior = self.prior_month[p_mask]['Value_kEUR'].sum()
                 
                 rows.append({
                     'label': label,
