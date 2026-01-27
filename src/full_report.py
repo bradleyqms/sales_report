@@ -116,10 +116,15 @@ def main():
             
             current_year = get_current_year()
             prior_year = get_prior_year()
+            # Map of file type to SharePoint path
             other_paths = {
                 'mapping': '/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/entity_mappings.csv',
                 'budget': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/budget_{current_year}_processed.csv',
-                'prior': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/prior_sales_{prior_year}_processed.csv'
+                'prior': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/prior_sales_{prior_year}_processed.csv',
+                'gvl_budget': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/budget_GVL_{current_year}.csv',
+                'gvl_prior': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/prior_sales_{prior_year}_gvl.csv',
+                'usa_spa_budget': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/budget_USA_spa_{current_year}.csv',
+                'usa_spa_prior': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/prior_sales_{prior_year}_usa.csv'
             }
             
             local_paths = {}
@@ -139,6 +144,14 @@ def main():
                             local_paths[key] = str(project_root / f'data/inputs/budget/budget_{current_year}_processed.csv')
                         elif key == 'prior':
                             local_paths[key] = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_processed.csv')
+                        elif key == 'gvl_budget':
+                            local_paths[key] = str(project_root / f'data/inputs/budget/budget_GVL_{current_year}.csv')
+                        elif key == 'gvl_prior':
+                            local_paths[key] = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv')
+                        elif key == 'usa_spa_budget':
+                            local_paths[key] = str(project_root / f'data/inputs/budget/budget_USA_spa_{current_year}.csv')
+                        elif key == 'usa_spa_prior':
+                            local_paths[key] = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_usa.csv')
             finally:
                 sys.stdout = original_stdout
             
@@ -176,7 +189,16 @@ def main():
         mapped_path = str(project_root / f'data/outputs/qry_unified_mapped_{current_year}.csv')
         budget_path = str(project_root / f'data/inputs/budget/budget_{current_year}_processed.csv')
         prior_path = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_processed.csv')
-        gvl_prior_path = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv')
+        
+        # Create local_paths dict for consistency
+        local_paths = {
+            'budget': budget_path,
+            'prior': prior_path,
+            'gvl_budget': str(project_root / f'data/inputs/budget/budget_GVL_{current_year}.csv'),
+            'gvl_prior': str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv'),
+            'usa_spa_budget': str(project_root / f'data/inputs/budget/budget_USA_spa_{current_year}.csv'),
+            'usa_spa_prior': str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_usa.csv')
+        }
         
         if not os.path.exists(mapped_path):
             logging.error(f"Mapped data file not found: {mapped_path}")
@@ -230,8 +252,8 @@ def main():
     
     try:
         # GVL report needs individual salesperson budgets, not aggregated
-        current_year = get_current_year()
-        gvl_budget_path = str(project_root / f'data/inputs/budget/budget_GVL_{current_year}.csv')
+        gvl_budget_path = local_paths.get('gvl_budget', str(project_root / f'data/inputs/budget/budget_GVL_{get_current_year()}.csv'))
+        gvl_prior_path = local_paths.get('gvl_prior', str(project_root / f'data/inputs/prior_years/prior_sales_{get_prior_year()}_gvl.csv'))
         gvl_gen = GVLReportGenerator(
             str(project_root / 'src/config/gvl_report_structure.json'),
             mapped_path,
@@ -255,6 +277,8 @@ def main():
     print()
     
     try:
+        usa_spa_budget_path = local_paths.get('usa_spa_budget', str(project_root / f'data/inputs/budget/budget_USA_spa_{get_current_year()}.csv'))
+        usa_spa_prior_path = local_paths.get('usa_spa_prior', str(project_root / f'data/inputs/prior_years/prior_sales_{get_prior_year()}_usa.csv'))
         usa_spa_gen = USASpaReportGenerator(
             str(project_root / 'src/config/usa_spa_report_structure.json'),
             mapped_path,
