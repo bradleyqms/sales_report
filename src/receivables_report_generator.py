@@ -213,9 +213,7 @@ class ManagementReportGenerator:
             
             section_total_sales = self.df[sales_mask]['kEUR'].sum()
 
-            # For USA sections with channel type, DO NOT use USA-specific budget for section total
-            # because line items are computed from generic budget by channel
-            # Only use USA-specific budget if type is 'region'
+            # For USA sections, prefer USA-specific budget/prior only for region-based sections
             if m_group == 'USA' and self.usa_budget_df is not None and section.get('type') == 'region':
                 # Regions defined in the section items (type == 'region')
                 usa_regions = [it.get('filter_value') for it in section.get('items', []) if it.get('filter_value')]

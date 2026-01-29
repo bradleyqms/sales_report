@@ -64,10 +64,42 @@ class GVLReportGenerator:
         self.budget_df['Sales_Employee_Cleaned'] = self.budget_df['Sales Employee / Account'].fillna('').str.strip()
         self.prior_df['Sales_Employee_Cleaned'] = self.prior_df['Sales Employee / Account'].fillna('').str.strip()
         
+        logging.info(f"Budget DF loaded: {len(self.budget_df)} rows, columns: {self.budget_df.columns.tolist()}")
+
+        # Map Sales Employees to Region using entity mappings (for roll-up alignment)
+        repo_root = Path(__file__).parent.parent
+        mapping_path = repo_root / 'data/inputs/mappings/entity_mappings.csv'
+        self.employee_region_map = {}
+        if mapping_path.exists():
+            try:
+                mapping_df = pd.read_csv(mapping_path)
+                mapping_df['Sales_Employee'] = mapping_df['Sales_Employee'].fillna('').str.strip()
+                mapping_df['Sales_Employee_Cleaned'] = mapping_df['Sales_Employee_Cleaned'].fillna('').str.strip()
+                mapping_df['Region'] = mapping_df['Region'].fillna('').str.strip()
+
+                cleaned_map = mapping_df[mapping_df['Sales_Employee_Cleaned'] != ''].drop_duplicates(subset=['Sales_Employee_Cleaned'])
+                raw_map = mapping_df[mapping_df['Sales_Employee'] != ''].drop_duplicates(subset=['Sales_Employee'])
+
+                self.employee_region_map.update(dict(zip(cleaned_map['Sales_Employee_Cleaned'], cleaned_map['Region'])))
+                self.employee_region_map.update({
+                    k: v for k, v in dict(zip(raw_map['Sales_Employee'], raw_map['Region'])).items()
+                    if k not in self.employee_region_map
+                })
+
+                self.budget_df['Region'] = self.budget_df['Sales_Employee_Cleaned'].map(self.employee_region_map).fillna('')
+                self.prior_df['Region'] = self.prior_df['Sales_Employee_Cleaned'].map(self.employee_region_map).fillna('')
+            except Exception as e:
+                logging.warning(f"Could not apply employee-region mapping: {e}")
+        else:
+            logging.warning(f"Mapping file not found: {mapping_path}")
+        
         # Filter Budget for Current Month
         # Budget Date is DD/MM/YYYY
         self.budget_df['Date'] = pd.to_datetime(self.budget_df['Date'], format='%d/%m/%Y')
         self.budget_month = self.budget_df[self.budget_df['Date'].dt.month == self.current_month].copy()
+        
+        logging.info(f"Budget month ({self.current_month}): {len(self.budget_month)} rows")
+        logging.info(f"Budget month employees: {self.budget_month['Sales_Employee_Cleaned'].unique().tolist()}")
         
         # Filter Prior for Same Month Last Year
         # Prior Date is DD/MM/YYYY
@@ -140,17 +172,33 @@ class GVLReportGenerator:
             sec_prior = 0
             
             rows = []
+            fallback_indices = []
+            known_filters = []
+            section_region = section.get('title', '')
             
             if 'items' in section:
                 # Section with items (sales employees)
                 for item in section['items']:
                     label = item['label']
                     filter_val = item.get('filter_value')
+                    is_fallback = item.get('is_fallback', False) or label.lower().startswith('other')
                     
+                    if is_fallback:
+                        rows.append({
+                            'label': label,
+                            'sales': 0.0,
+                            'budget': 0.0,
+                            'prior': 0.0,
+                            'is_total': False,
+                            'is_spacer': False
+                        })
+                        fallback_indices.append(len(rows) - 1)
+                        continue
+
                     if filter_val:
+                        known_filters.append(filter_val)
                         s_mask = (self.df['Sales_Employee_Cleaned'] == filter_val)
                         val_sales = self.df[s_mask]['kEUR'].sum()
-                        # budget and prior commented out
                         val_budget = self._get_budget_value(filter_val)
                         val_prior = self._get_prior_value(filter_val)
                         
@@ -184,7 +232,41 @@ class GVLReportGenerator:
                         'is_spacer': False
                     })
             
-            # Add rows to report
+            # Fill fallback rows for "Other" categories using remaining Region totals
+            # BEFORE adding to report_data
+            if fallback_indices and section_region:
+                region_mask = (self.df['Region'] == section_region)
+                if known_filters:
+                    region_mask &= (~self.df['Sales_Employee_Cleaned'].isin(known_filters) | self.df['Sales_Employee_Cleaned'].isna())
+
+                fallback_sales = self.df[region_mask]['kEUR'].sum()
+
+                budget_mask = (self.budget_month['Region'] == section_region) if 'Region' in self.budget_month.columns else None
+                prior_mask = (self.prior_month['Region'] == section_region) if 'Region' in self.prior_month.columns else None
+
+                if budget_mask is not None and known_filters:
+                    budget_mask &= (~self.budget_month['Sales_Employee_Cleaned'].isin(known_filters) | self.budget_month['Sales_Employee_Cleaned'].isna())
+                if prior_mask is not None and known_filters:
+                    prior_mask &= (~self.prior_month['Sales_Employee_Cleaned'].isin(known_filters) | self.prior_month['Sales_Employee_Cleaned'].isna())
+
+                fallback_budget = self.budget_month[budget_mask]['Value_kEUR'].sum() if budget_mask is not None else 0
+                fallback_prior = self.prior_month[prior_mask]['Value_kEUR'].sum() if prior_mask is not None else 0
+
+                for idx in fallback_indices:
+                    rows[idx] = {
+                        'label': rows[idx]['label'],
+                        'sales': fallback_sales,
+                        'budget': fallback_budget,
+                        'prior': fallback_prior,
+                        'is_total': False,
+                        'is_spacer': False
+                    }
+
+                sec_sales += fallback_sales
+                sec_budget += fallback_budget
+                sec_prior += fallback_prior
+
+            # Add rows to report (after fallback calculation)
             report_data.extend(rows)
             
             # Add Section Total if requested
@@ -524,8 +606,8 @@ if __name__ == "__main__":
             prior_year = get_prior_year()
             other_paths = {
                 'mapping': '/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/entity_mappings.csv',
-                'budget': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/budget_{current_year}_processed.csv',
-                'prior': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/prior_sales_{prior_year}_processed.csv'
+                'budget': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/budget_GVL_{current_year}.csv',
+                'prior': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/prior_sales_{prior_year}_gvl.csv'
             }
             
             local_paths = {}
@@ -544,7 +626,7 @@ if __name__ == "__main__":
                         if key == 'budget':
                             local_paths[key] = str(project_root / f'data/inputs/budget/budget_GVL_{current_year}.csv')
                         elif key == 'prior':
-                            local_paths[key] = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_processed.csv')
+                            local_paths[key] = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv')
             finally:
                 sys.stdout = original_stdout  # Restore stdout
             
