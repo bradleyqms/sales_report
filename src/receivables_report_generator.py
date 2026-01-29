@@ -213,10 +213,10 @@ class ManagementReportGenerator:
             
             section_total_sales = self.df[sales_mask]['kEUR'].sum()
 
-            # For USA sections, prefer USA-specific budget/prior and restrict to defined regions
-            if m_group == 'USA' and self.usa_budget_df is not None:
+            # For USA sections, prefer USA-specific budget/prior only for region-based sections
+            if m_group == 'USA' and self.usa_budget_df is not None and section.get('type') == 'region':
                 # Regions defined in the section items (type == 'region')
-                usa_regions = [it.get('filter_value') for it in section.get('items', []) if section.get('type') == 'region' and it.get('filter_value')]
+                usa_regions = [it.get('filter_value') for it in section.get('items', []) if it.get('filter_value')]
                 usa_budget_month = self.usa_budget_df.copy()
                 usa_budget_month['Date'] = pd.to_datetime(usa_budget_month['Date'], format='%d/%m/%Y', errors='coerce')
                 usa_budget_month = usa_budget_month[usa_budget_month['Date'].dt.month == self.current_month]
@@ -233,11 +233,11 @@ class ManagementReportGenerator:
             else:
                 section_total_budget = self.budget_month[budget_mask]['Value_kEUR'].sum()
 
-            if m_group == 'USA' and self.usa_prior_df is not None:
+            if m_group == 'USA' and self.usa_prior_df is not None and section.get('type') == 'region':
                 usa_prior_month = self.usa_prior_df.copy()
                 usa_prior_month['Date'] = pd.to_datetime(usa_prior_month['Date'], format='%d/%m/%Y', errors='coerce')
                 usa_prior_month = usa_prior_month[(usa_prior_month['Date'].dt.year == self.prior_year) & (usa_prior_month['Date'].dt.month == self.current_month)]
-                usa_regions = [it.get('filter_value') for it in section.get('items', []) if section.get('type') == 'region' and it.get('filter_value')]
+                usa_regions = [it.get('filter_value') for it in section.get('items', []) if it.get('filter_value')]
                 if usa_regions:
                     usa_prior_month = usa_prior_month[usa_prior_month['Region'].isin(usa_regions)]
                 if 'Value_kUSD' in usa_prior_month.columns:
