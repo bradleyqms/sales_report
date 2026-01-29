@@ -45,7 +45,7 @@ def apply_mappings(sales_df, mapping_df, output_dir=None):
 
     # 1. Employee Mapping (for GmbH/AG entities)
     if 'Sales_Employee' in mapping_df.columns:
-        emp_cols = ['Sales_Employee', 'Market_Group', 'Region', 'Channel_Level', 'Company_Group', 'Sales_Employee_Cleaned']
+        emp_cols = ['Sales_Employee', 'Market_Group', 'Region', 'Sub Region', 'Channel_Level', 'Company_Group', 'Sales_Employee_Cleaned']
         # Drop duplicates in mapping to avoid row explosion
         map_emp = mapping_df[emp_cols].dropna(subset=['Sales_Employee']).drop_duplicates(subset=['Sales_Employee'])
         
@@ -77,7 +77,7 @@ def apply_mappings(sales_df, mapping_df, output_dir=None):
 
     # 2. Customer Mapping (for other entities)
     if 'Customer_Name' in mapping_df.columns and 'Customer Name' in sales_df.columns:
-        cust_cols = ['Customer_Name', 'Market_Group', 'Region', 'Channel_Level', 'Company_Group', 'Sales_Employee_Cleaned']
+        cust_cols = ['Customer_Name', 'Market_Group', 'Region', 'Sub Region', 'Channel_Level', 'Company_Group', 'Sales_Employee_Cleaned']
         # Drop duplicates in mapping
         map_cust = mapping_df[cust_cols].dropna(subset=['Customer_Name']).drop_duplicates(subset=['Customer_Name'])
         

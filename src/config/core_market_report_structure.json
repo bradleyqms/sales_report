@@ -1,0 +1,61 @@
+{
+  "sections": [
+    {
+      "title": "Germany",
+      "show_total": true,
+      "items": [
+        {"label": "North", "filter_value": "North"},
+        {"label": "North East", "filter_value": "North East"},
+        {"label": "NRW", "filter_value": "NRW"},
+        {"label": "Bayern", "filter_value": "Bayern"},
+        {"label": "South West", "filter_value": "South West"},
+        {"label": "Retail", "filter_value": "Retail"},
+        {"label": "DE Other", "filter_value": "DE Other"}
+      ]
+    },
+    {
+      "title": "Benelux",
+      "show_total": true,
+      "items": [
+        {"label": "NL Central", "filter_value": "NL Central"},
+        {"label": "NL Other + BL", "filter_value": "NL Other + BL"},
+        {"label": "NL Other", "filter_value": "NL Other"}
+      ]
+    },
+    {
+      "title": "Switzerland",
+      "show_total": true,
+      "items": [
+        {"label": "German Switzerland", "filter_value": "German Switzerland"},
+        {"label": "French Switzerland", "filter_value": "French Switzerland"},
+        {"label": "Other Switzerland", "filter_value": "Other Switzerland"}
+      ]
+    },
+    {
+      "title": "Spain",
+      "show_total": false,
+      "items": [
+        {"label": "Spain", "filter_value": "Spain"}
+      ]
+    },
+    {
+      "title": "France",
+      "show_total": false,
+      "items": [
+        {"label": "France South", "filter_value": "France South"}
+      ]
+    },
+    {
+      "title": "Italy",
+      "show_total": false,
+      "items": [
+        {"label": "Italy", "filter_value": "Italy"}
+      ]
+    },
+    {
+      "title": "Total Core Markets",
+      "is_total": true,
+      "components": ["Germany", "Benelux", "Switzerland", "Spain", "France", "Italy"]
+    }
+  ]
+}
