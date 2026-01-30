@@ -1,11 +1,71 @@
 import os
 from pathlib import Path
 import pandas as pd
+import numpy as np
 import logging
 import datetime
 from collections import defaultdict
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def collect_unmapped_stats(unmapped_df, entity_type, entity_col):
+    """
+    Vectorized collection of unmapped entity statistics.
+    Returns a dict of {(entity_type, entity_name): stats} entries.
+    """
+    if unmapped_df.empty:
+        return {}
+    
+    result = {}
+    
+    # Get entity names
+    entity_names = unmapped_df[entity_col].fillna('Unknown').astype(str).str.strip()
+    valid_mask = ~entity_names.isin(['nan', 'None', ''])
+    
+    if not valid_mask.any():
+        return {}
+    
+    working_df = unmapped_df[valid_mask].copy()
+    working_df['_entity_name'] = entity_names[valid_mask]
+    
+    # Get value column
+    if 'Value_in_EUR_converted' in working_df.columns:
+        val_col = 'Value_in_EUR_converted'
+    elif 'Total Value (EUR)' in working_df.columns:
+        val_col = 'Total Value (EUR)'
+    else:
+        val_col = None
+    
+    # Group by entity name and aggregate
+    for entity_name, group in working_df.groupby('_entity_name'):
+        key = (entity_type, entity_name)
+        stats = {
+            'count': len(group),
+            'dates': [],
+            'values': [],
+            'sources': [],
+            'customer_codes': []
+        }
+        
+        # Collect values
+        if val_col and val_col in group.columns:
+            stats['values'] = group[val_col].dropna().tolist()
+        
+        # Collect source files
+        if 'Source_File' in group.columns:
+            stats['sources'] = group['Source_File'].dropna().tolist()
+        
+        # Collect customer codes (for customers only)
+        if entity_type == 'customer' and 'Customer Code' in group.columns:
+            stats['customer_codes'] = group['Customer Code'].dropna().astype(str).tolist()
+        
+        # Collect dates
+        if 'Posting Date' in group.columns:
+            stats['dates'] = group['Posting Date'].dropna().tolist()
+        
+        result[key] = stats
+    
+    return result
 
 def apply_mappings(sales_df, mapping_df, output_dir=None):
     """
@@ -37,15 +97,16 @@ def apply_mappings(sales_df, mapping_df, output_dir=None):
     if missing_cols:
         logging.warning(f"Mapping file missing columns: {missing_cols}. Some mappings may fail.")
     
-    # Clean mapping data
-    mapping_df = mapping_df.apply(lambda x: x.str.strip() if x.dtype == 'object' else x)
+    # Clean mapping data - vectorized string stripping
+    for col in mapping_df.select_dtypes(include=['object']).columns:
+        mapping_df[col] = mapping_df[col].str.strip()
 
     # Apply mappings
     # No longer splitting into df_emp and df_cust; apply mappings to the entire df
 
     # 1. Employee Mapping (for GmbH/AG entities)
     if 'Sales_Employee' in mapping_df.columns:
-        emp_cols = ['Sales_Employee', 'Market_Group', 'Region', 'Channel_Level', 'Company_Group', 'Sales_Employee_Cleaned']
+        emp_cols = ['Sales_Employee', 'Market_Group', 'Region', 'Sub Region', 'Channel_Level', 'Company_Group', 'Sales_Employee_Cleaned']
         # Drop duplicates in mapping to avoid row explosion
         map_emp = mapping_df[emp_cols].dropna(subset=['Sales_Employee']).drop_duplicates(subset=['Sales_Employee'])
         
@@ -54,30 +115,18 @@ def apply_mappings(sales_df, mapping_df, output_dir=None):
         sales_df.loc[~sales_df['Company Entity'].isin(['GmbH', 'AG']), 'temp_employee'] = pd.NA
         sales_df = sales_df.merge(map_emp, left_on='temp_employee', right_on='Sales_Employee', how='left', suffixes=('', '_emp'))
         
-        # Track unmapped employees with AR values and source files
+        # Track unmapped employees with AR values and source files (VECTORIZED)
         unmapped_emp = sales_df[sales_df['Company Entity'].isin(['GmbH', 'AG']) & sales_df['Market_Group'].isna()]
         if not unmapped_emp.empty:
             logging.warning(f"Found {len(unmapped_emp)} unmapped employee records (GmbH/AG)")
-            for _, row in unmapped_emp.iterrows():
-                emp_name = str(row.get('Sales Employee Name', 'Unknown')).strip()
-                if emp_name and emp_name not in ['nan', 'None', '']:
-                    key = ('employee', emp_name)
-                    unmapped_entities[key]['count'] += 1
-                    if 'Posting Date' in row and pd.notna(row['Posting Date']):
-                        unmapped_entities[key]['dates'].append(row['Posting Date'])
-                    # Capture AR value (kEUR)
-                    val_col = 'Value_in_EUR_converted' if 'Value_in_EUR_converted' in row and pd.notna(row['Value_in_EUR_converted']) else 'Total Value (EUR)'
-                    if val_col in row and pd.notna(row[val_col]):
-                        unmapped_entities[key]['values'].append(row[val_col])
-                    # Capture source file
-                    if 'Source_File' in row and pd.notna(row['Source_File']):
-                        unmapped_entities[key]['sources'].append(row['Source_File'])
+            emp_stats = collect_unmapped_stats(unmapped_emp, 'employee', 'Sales Employee Name')
+            unmapped_entities.update(emp_stats)
         
         sales_df.drop('temp_employee', axis=1, inplace=True)
 
     # 2. Customer Mapping (for other entities)
     if 'Customer_Name' in mapping_df.columns and 'Customer Name' in sales_df.columns:
-        cust_cols = ['Customer_Name', 'Market_Group', 'Region', 'Channel_Level', 'Company_Group', 'Sales_Employee_Cleaned']
+        cust_cols = ['Customer_Name', 'Market_Group', 'Region', 'Sub Region', 'Channel_Level', 'Company_Group', 'Sales_Employee_Cleaned']
         # Drop duplicates in mapping
         map_cust = mapping_df[cust_cols].dropna(subset=['Customer_Name']).drop_duplicates(subset=['Customer_Name'])
         
@@ -125,34 +174,17 @@ def apply_mappings(sales_df, mapping_df, output_dir=None):
                         if col in row and pd.notna(row[col]):
                             sales_df.at[idx, col] = row[col]
 
-        # Track unmapped customers after attempting Sales Employee matches
+        # Track unmapped customers after attempting Sales Employee matches (VECTORIZED)
         unmapped_cust = sales_df[~sales_df['Company Entity'].isin(['GmbH', 'AG']) & sales_df['Market_Group'].isna()]
         if not unmapped_cust.empty:
             logging.warning(f"Found {len(unmapped_cust)} unmapped customer records (non-GmbH/AG)")
-            for _, row in unmapped_cust.iterrows():
-                cust_name = str(row.get('Customer Name', 'Unknown')).strip()
-                if cust_name and cust_name not in ['nan', 'None', '']:
-                    key = ('customer', cust_name)
-                    unmapped_entities[key]['count'] += 1
-                    if 'Posting Date' in row and pd.notna(row['Posting Date']):
-                        unmapped_entities[key]['dates'].append(row['Posting Date'])
-                    # Capture AR value (kEUR)
-                    val_col = 'Value_in_EUR_converted' if 'Value_in_EUR_converted' in row and pd.notna(row['Value_in_EUR_converted']) else 'Total Value (EUR)'
-                    if val_col in row and pd.notna(row[val_col]):
-                        unmapped_entities[key]['values'].append(row[val_col])
-                    # Capture source file
-                    if 'Source_File' in row and pd.notna(row['Source_File']):
-                        unmapped_entities[key]['sources'].append(row['Source_File'])
-                    # Capture customer code (for customers only)
-                    if 'Customer Code' in row and pd.notna(row['Customer Code']):
-                        unmapped_entities[key]['customer_codes'].append(row['Customer Code'])
-                    else:
-                        unmapped_entities[key]['customer_codes'].append('')
+            cust_stats = collect_unmapped_stats(unmapped_cust, 'customer', 'Customer Name')
+            unmapped_entities.update(cust_stats)
 
         sales_df.drop('temp_customer', axis=1, inplace=True)
 
     # Combine the mappings: for common columns, prefer emp if available, else cust
-    common_cols = ['Market_Group', 'Region', 'Channel_Level', 'Company_Group', 'Sales_Employee_Cleaned']
+    common_cols = ['Market_Group', 'Region', 'Sub Region', 'Channel_Level', 'Company_Group', 'Sales_Employee_Cleaned']
     for col in common_cols:
         if col + '_cust' in sales_df.columns:
             sales_df[col] = sales_df[col].fillna(sales_df[col + '_cust'])

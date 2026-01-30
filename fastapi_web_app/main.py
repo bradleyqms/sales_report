@@ -224,6 +224,8 @@ def execute_report():
     report_status["pdf_url"] = ""
     report_status["zip_url"] = ""
     report_status["unmapped_url"] = ""
+    report_status["core_market_csv_url"] = ""
+    report_status["core_market_html_url"] = ""
 
     try:
         # Path to the full_report.py script
@@ -261,8 +263,8 @@ def execute_report():
                 static_dir = Path("static")
                 static_dir.mkdir(exist_ok=True)
 
-                # Find generated files (now combined)
-                generated_files = [f for f in os.listdir(output_dir) if timestamp in f and 'combined' in f]
+                # Find generated files (now combined and core_market)
+                generated_files = [f for f in os.listdir(output_dir) if timestamp in f and ('combined' in f or 'core_market' in f)]
 
                 if generated_files:
                     # Create zip file
@@ -277,7 +279,20 @@ def execute_report():
 
                     # Copy individual files to static
                     for file in generated_files:
-                        if file.endswith('.csv'):
+                        if 'core_market' in file:
+                            if file.endswith('.csv'):
+                                shutil.copy(output_dir / file, static_dir / file)
+                                report_status["core_market_csv_url"] = f'/download/{file}'
+                            elif file.endswith('.html'):
+                                shutil.copy(output_dir / file, static_dir / file)
+                                report_status["core_market_html_url"] = f'/download/{file}'
+                            elif file.endswith('.txt'):
+                                shutil.copy(output_dir / file, static_dir / file)
+                            elif file.endswith('.xlsx'):
+                                shutil.copy(output_dir / file, static_dir / file)
+                            elif file.endswith('.pdf'):
+                                shutil.copy(output_dir / file, static_dir / file)
+                        elif file.endswith('.csv'):
                             shutil.copy(output_dir / file, static_dir / file)
                             report_status["csv_url"] = f'/download/{file}'
                         elif file.endswith('.txt'):

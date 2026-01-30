@@ -7,6 +7,7 @@ import sys
 import time
 import logging
 from pathlib import Path
+from typing import List
 from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -18,41 +19,49 @@ from sharepoint_client import SharePointHandler, download_inputs, upload_outputs
 from qry_data_ingestion import process_qry_files
 from qry_data_mapping import apply_mappings
 from utils import print_progress, get_current_year, get_prior_year, get_current_month, format_mtd_date_range
+from base_report_generator import BaseReportGenerator
 
-class GVLReportGenerator:
+class GVLReportGenerator(BaseReportGenerator):
+    """
+    GVL Report Generator for sales by employee.
+    
+    Generates reports showing sales by individual sales employee
+    with budget and prior year comparisons.
+    """
+    
     def __init__(self, config_path, sales_path, budget_path, prior_path):
-        self.config = self._load_config(config_path)
-        try:
-            self.df = pd.read_csv(sales_path)
-            self.budget_df = pd.read_csv(budget_path)
-            self.prior_df = pd.read_csv(prior_path)
-        except FileNotFoundError as e:
-            logging.error(f"Required data file not found: {e}")
-            raise
-        except pd.errors.EmptyDataError as e:
-            logging.error(f"Data file is empty: {e}")
-            raise
-        
+        # Call parent constructor (loads config, data files, prepares dates)
+        super().__init__(config_path, sales_path, budget_path, prior_path)
         self._prepare_data()
+    
+    def get_report_headers(self) -> List[str]:
+        """Return column headers for the GVL report."""
+        now = datetime.datetime.now()
+        month_name = now.strftime('%b')
+        year_short = str(now.year)[2:]
+        return ['kEUR', f'{month_name}-{year_short}A MTD', 'Budget', 'Prior', '% vs Bud']
+    
+    def get_report_title(self) -> str:
+        """Return the report title."""
+        return "GVL Management Report"
+    
+    def format_row_for_export(self, row: pd.Series) -> List[str]:
+        """Format a row for export to CSV/TXT/HTML/PDF."""
+        label = row['label']
+        sales = row['sales']
+        budget = row['budget']
+        prior = row['prior']
         
-    def _load_config(self, path):
-        try:
-            with open(path, 'r') as f:
-                return json.load(f)
-        except FileNotFoundError:
-            logging.error(f"Config file not found: {path}")
-            raise
-        except json.JSONDecodeError as e:
-            logging.error(f"Invalid JSON in config file: {e}")
-            raise
+        pct = (sales / budget * 100) if budget and budget != 0 else 0
+        
+        s_str = f"{int(round(sales))}" if abs(sales) >= 0.5 else ("-" if sales == 0 else "0")
+        b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
+        p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
+        pct_str = f"{pct:.1f}%" if budget and budget != 0 else "-"
+        
+        return [label, s_str, b_str, p_str, pct_str]
             
     def _prepare_data(self):
-        # Dates
-        now = datetime.datetime.now()
-        self.current_month = now.month
-        self.current_year = now.year
-        self.prior_year = now.year - 1
-        
         # Filter Sales to AR (for QRY data, Document Type is 'AR', not 'AR Invoice')
         self.df = self.df[self.df['Document Type'] == 'AR'].copy()
         
@@ -350,183 +359,7 @@ class GVLReportGenerator:
             if row.get('is_total') or row.get('is_grand_total'):
                 print("-" * 75)
     
-    def export_report(self, df, base_path):
-        """Export the report in formatted text style to CSV/TXT, HTML for Outlook, and PDF."""
-        # Define column widths for text format
-        now = datetime.datetime.now()
-        month_name = now.strftime('%b')
-        year_short = str(now.year)[2:]
-        col_curr = f"{month_name}-{year_short}A MTD"
-        col_widths = [35, 15, 12, 12, 12]
-        headers = ['kEUR', col_curr, 'Budget', 'Prior', '% vs Bud']
-        
-        # Create text format
-        header_line = ''.join(f"{h:<{w}}" for h, w in zip(headers, col_widths))
-        separator = '-' * len(header_line)
-        
-        formatted_lines = [header_line, separator]
-        
-        for _, row in df.iterrows():
-            if 'is_spacer' in df.columns and row.get('is_spacer') == True:
-                formatted_lines.append('')
-                continue
-                
-            label = row['label']
-            sales = row['sales']
-            budget = row['budget']
-            prior = row['prior']
-            
-            pct = (sales / budget * 100) if budget and budget != 0 else 0
-            
-            s_str = f"{int(round(sales))}" if abs(sales) >= 0.5 else ("-" if sales == 0 else "0")
-            b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
-            p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
-            pct_str = f"{pct:.1f}%" if budget and budget != 0 else "-"
-            
-            row_line = f"{label:<{col_widths[0]}}{s_str:>{col_widths[1]}}{b_str:>{col_widths[2]}}{p_str:>{col_widths[3]}}{pct_str:>{col_widths[4]}}"
-            formatted_lines.append(row_line)
-            
-            if row.get('is_total') or row.get('is_grand_total'):
-                formatted_lines.append(separator)
-        
-        text_content = '\n'.join(formatted_lines)
-        
-        # Create HTML format for Outlook
-        html_content = f"""
-        <html>
-        <body>
-        <table border="1" style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 12px;">
-        <tr style="background-color: #f0f0f0;">
-            <th style="padding: 8px; text-align: left;">{headers[0]}</th>
-            <th style="padding: 8px; text-align: right;">{headers[1]}</th>
-            <th style="padding: 8px; text-align: right;">{headers[2]}</th>
-            <th style="padding: 8px; text-align: right;">{headers[3]}</th>
-            <th style="padding: 8px; text-align: right;">{headers[4]}</th>
-        </tr>
-        """
-        
-        for _, row in df.iterrows():
-            if 'is_spacer' in df.columns and row.get('is_spacer') == True:
-                html_content += '<tr><td colspan="5" style="height: 10px;"></td></tr>\n'
-                continue
-                
-            label = row['label']
-            sales = row['sales']
-            budget = row['budget']
-            prior = row['prior']
-            
-            pct = (sales / budget * 100) if budget and budget != 0 else 0
-            
-            s_str = f"{int(round(sales))}" if abs(sales) >= 0.5 else ("-" if sales == 0 else "0")
-            b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
-            p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
-            pct_str = f"{pct:.1f}%" if budget and budget != 0 else "-"
-            
-            # Highlight totals
-            bg_color = '#e6f3ff' if row.get('is_total') or row.get('is_grand_total') else 'white'
-            
-            html_content += f"""
-            <tr style="background-color: {bg_color};">
-                <td style="padding: 8px;">{label}</td>
-                <td style="padding: 8px; text-align: right;">{s_str}</td>
-                <td style="padding: 8px; text-align: right;">{b_str}</td>
-                <td style="padding: 8px; text-align: right;">{p_str}</td>
-                <td style="padding: 8px; text-align: right;">{pct_str}</td>
-            </tr>
-            """
-        
-        html_content += "</table></body></html>"
-        
-        # Create proper CSV format with comma separators
-        csv_df = df.copy()
-        # Filter out spacer rows for CSV
-        if 'is_spacer' in csv_df.columns:
-            csv_df = csv_df[~csv_df['is_spacer'].fillna(False)]
-        csv_df['% vs Bud'] = csv_df.apply(lambda row: f"{(row['sales'] / row['budget'] * 100):.1f}%" if row['budget'] and row['budget'] != 0 else "-", axis=1)
-        csv_df[col_curr] = csv_df['sales'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
-        csv_df['Budget'] = csv_df['budget'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
-        csv_df['Prior'] = csv_df['prior'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
-        csv_df = csv_df.rename(columns={'label': 'kEUR'})
-        csv_df = csv_df[['kEUR', col_curr, 'Budget', 'Prior', '% vs Bud']]
-        
-        # Write to CSV file (proper CSV format with commas)
-        csv_path = base_path
-        csv_df.to_csv(csv_path, index=False, sep=',')
-        print(f"Report exported to {csv_path}")
-        
-        # Write to TXT file (text format)
-        txt_path = base_path.replace('.csv', '.txt')
-        with open(txt_path, 'w') as f:
-            f.write(text_content)
-        print(f"Report exported to {txt_path}")
-        
-        # Write to HTML file (for Outlook)
-        html_path = base_path.replace('.csv', '.html')
-        with open(html_path, 'w') as f:
-            f.write(html_content)
-        print(f"Report exported to {html_path} (Outlook-ready HTML table)")
-        
-        # Create PDF format
-        pdf_path = base_path.replace('.csv', '.pdf')
-        doc = SimpleDocTemplate(pdf_path, pagesize=A4)
-        styles = getSampleStyleSheet()
-        
-        # PDF title with MTD date range
-        date_range = now.strftime('%B 1-%d, %Y')
-        title = Paragraph(f"GVL Management Report (MTD: {date_range})", styles['Heading1'])
-        
-        # Prepare table data
-        pdf_data = [headers]
-        
-        for _, row in df.iterrows():
-            if 'is_spacer' in df.columns and row.get('is_spacer') == True:
-                pdf_data.append(['', '', '', '', ''])  # Empty row for spacing
-                continue
-                
-            label = row['label']
-            sales = row['sales']
-            budget = row['budget']
-            prior = row['prior']
-            
-            pct = (sales / budget * 100) if budget and budget != 0 else 0
-            
-            s_str = f"{int(round(sales))}" if abs(sales) >= 0.5 else ("-" if sales == 0 else "0")
-            b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
-            p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
-            pct_str = f"{pct:.1f}%" if budget and budget != 0 else "-"
-            
-            pdf_data.append([label, s_str, b_str, p_str, pct_str])
-        
-        # Create table
-        table = Table(pdf_data)
-        
-        # Style the table
-        style = TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('ALIGN', (0, 1), (0, -1), 'LEFT'),  # Left align first column
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 14),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ])
-        
-        # Add special styling for totals
-        row_idx = 1
-        for _, row in df.iterrows():
-            if row.get('is_total') or row.get('is_grand_total'):
-                style.add('BACKGROUND', (0, row_idx), (-1, row_idx), colors.lightblue)
-                style.add('FONTNAME', (0, row_idx), (-1, row_idx), 'Helvetica-Bold')
-            row_idx += 1
-        
-        table.setStyle(style)
-        
-        # Build PDF
-        elements = [title, Spacer(1, 20), table]
-        doc.build(elements)
-        print(f"Report exported to {pdf_path} (PDF format)")
+    # export_report() is inherited from BaseReportGenerator
 
 if __name__ == "__main__":
     start_time = datetime.datetime.now()

@@ -9,6 +9,7 @@ import warnings
 import json
 from pathlib import Path
 from dotenv import load_dotenv
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Suppress pandas FutureWarnings for concat and fillna
 warnings.filterwarnings('ignore', category=FutureWarning, module='pandas')
@@ -22,6 +23,7 @@ from qry_data_mapping import apply_mappings
 from receivables_report_generator import ManagementReportGenerator
 from gvl_report import GVLReportGenerator
 from usa_spa_report import USASpaReportGenerator
+from core_market_report import CoreMarketReportGenerator
 from utils import print_progress, get_current_year, get_prior_year, get_current_month, format_mtd_date_range
 
 
@@ -73,7 +75,7 @@ def main():
         temp_dir = tempfile.mkdtemp()
         
         try:
-            # Step 1: Download QRY files
+            # Step 1: Download QRY files (PARALLEL)
             print_progress(1, 6, "Downloading QRY files from SharePoint...")
             
             qry_files = [
@@ -87,20 +89,24 @@ def main():
             
             sp_base_path = "/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/"
             
+            def download_qry_file(filename):
+                """Download a single QRY file. Returns (filename, success)."""
+                sp_path = sp_base_path + filename
+                local_path = os.path.join(temp_dir, filename)
+                try:
+                    sp_handler.download_file(sp_path, local_path)
+                    return (filename, True)
+                except Exception:
+                    return (filename, False)
+            
+            # Use ThreadPoolExecutor for parallel downloads (6 workers to avoid rate limiting)
             downloaded_count = 0
-            original_stdout = sys.stdout
-            sys.stdout = open(os.devnull, 'w')
-            try:
-                for filename in qry_files:
-                    sp_path = sp_base_path + filename
-                    local_path = os.path.join(temp_dir, filename)
-                    try:
-                        sp_handler.download_file(sp_path, local_path)
+            with ThreadPoolExecutor(max_workers=6) as executor:
+                futures = {executor.submit(download_qry_file, f): f for f in qry_files}
+                for future in as_completed(futures):
+                    filename, success = future.result()
+                    if success:
                         downloaded_count += 1
-                    except Exception:
-                        pass
-            finally:
-                sys.stdout = original_stdout
             
             print()
             print(f"[OK] Downloaded {downloaded_count}/{len(qry_files)} QRY files")
@@ -111,7 +117,7 @@ def main():
             print()
             print(f"[OK] Processed {len(qry_df)} QRY records")
             
-            # Step 3: Download support files
+            # Step 3: Download support files (PARALLEL)
             print_progress(3, 6, "Downloading support files...")
             
             current_year = get_current_year()
@@ -127,37 +133,35 @@ def main():
                 'usa_spa_prior': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/prior_sales_{prior_year}_usa.csv'
             }
             
+            # Local fallback paths
+            fallback_paths = {
+                'mapping': str(project_root / 'data/inputs/mappings/entity_mappings.csv'),
+                'budget': str(project_root / f'data/inputs/budget/budget_{current_year}_processed.csv'),
+                'prior': str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_processed.csv'),
+                'gvl_budget': str(project_root / f'data/inputs/budget/budget_GVL_{current_year}.csv'),
+                'gvl_prior': str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv'),
+                'usa_spa_budget': str(project_root / f'data/inputs/budget/budget_USA_spa_{current_year}.csv'),
+                'usa_spa_prior': str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_usa.csv')
+            }
+            
+            def download_support_file(key_sp_path):
+                """Download a single support file. Returns (key, local_path, success)."""
+                key, sp_path = key_sp_path
+                local_path = os.path.join(temp_dir, os.path.basename(sp_path))
+                try:
+                    sp_handler.download_file(sp_path, local_path)
+                    logging.info(f"[SP] Downloaded '{key}' to: {local_path}")
+                    return (key, local_path, True)
+                except Exception as e:
+                    logging.warning(f"[SP] Failed to download '{key}': {e}. Using local fallback.")
+                    return (key, fallback_paths[key], False)
+            
             local_paths = {}
-            original_stdout = sys.stdout
-            sys.stdout = open(os.devnull, 'w')
-            try:
-                for key, sp_path in other_paths.items():
-                    local_path = os.path.join(temp_dir, os.path.basename(sp_path))
-                    logging.info(f"[SP] Attempting download for '{key}': {sp_path}")
-                    try:
-                        sp_handler.download_file(sp_path, local_path)
-                        local_paths[key] = local_path
-                        logging.info(f"[SP] Downloaded '{key}' to: {local_path}")
-                    except Exception as e:
-                        logging.warning(f"[SP] Failed to download '{key}' from {sp_path}: {e}. Using local fallback.")
-                        # Fallback to local paths
-                        if key == 'mapping':
-                            local_paths[key] = str(project_root / 'data/inputs/mappings/entity_mappings.csv')
-                        elif key == 'budget':
-                            local_paths[key] = str(project_root / f'data/inputs/budget/budget_{current_year}_processed.csv')
-                        elif key == 'prior':
-                            local_paths[key] = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_processed.csv')
-                        elif key == 'gvl_budget':
-                            local_paths[key] = str(project_root / f'data/inputs/budget/budget_GVL_{current_year}.csv')
-                        elif key == 'gvl_prior':
-                            local_paths[key] = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv')
-                        elif key == 'usa_spa_budget':
-                            local_paths[key] = str(project_root / f'data/inputs/budget/budget_USA_spa_{current_year}.csv')
-                        elif key == 'usa_spa_prior':
-                            local_paths[key] = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_usa.csv')
-                        logging.info(f"[SP] Fallback for '{key}': {local_paths[key]}")
-            finally:
-                sys.stdout = original_stdout
+            with ThreadPoolExecutor(max_workers=6) as executor:
+                futures = {executor.submit(download_support_file, item): item[0] for item in other_paths.items()}
+                for future in as_completed(futures):
+                    key, local_path, success = future.result()
+                    local_paths[key] = local_path
             
             print()
             print(f"[OK] Downloaded support files")
@@ -249,37 +253,10 @@ def main():
         print()
     
     # =========================================================================
-    # REPORT 2: GVL REPORT
+    # REPORT 2: USA SPA REGIONAL REPORT
     # =========================================================================
     print("-" * 80)
-    print("REPORT 2: GVL REPORT (SALES BY EMPLOYEE) - MTD")
-    print("-" * 80)
-    print()
-    
-    try:
-        # GVL report needs individual salesperson budgets, not aggregated
-        gvl_budget_path = local_paths.get('gvl_budget', str(project_root / f'data/inputs/budget/budget_GVL_{get_current_year()}.csv'))
-        gvl_prior_path = local_paths.get('gvl_prior', str(project_root / f'data/inputs/prior_years/prior_sales_{get_prior_year()}_gvl.csv'))
-        logging.info(f"[REPORT] GVL using gvl_budget_path={gvl_budget_path}, gvl_prior_path={gvl_prior_path}")
-        gvl_gen = GVLReportGenerator(
-            str(project_root / 'src/config/gvl_report_structure.json'),
-            mapped_path,
-            gvl_budget_path,
-            gvl_prior_path
-        )
-        gvl_df = gvl_gen.calculate_report()
-        gvl_gen.render_report(gvl_df)
-        
-    except Exception as e:
-        logging.error(f"Error generating GVL report: {e}")
-        print(f"[ERROR] Failed to generate GVL report: {e}")
-        print()
-    
-    # =========================================================================
-    # REPORT 3: USA SPA REGIONAL REPORT
-    # =========================================================================
-    print("-" * 80)
-    print("REPORT 3: USA SPA REGIONAL REPORT (MTD)")
+    print("REPORT 2: USA SPA REGIONAL REPORT (MTD)")
     print("-" * 80)
     print()
     
@@ -304,6 +281,38 @@ def main():
     except Exception as e:
         logging.error(f"Error generating USA Spa report: {e}")
         print(f"[ERROR] Failed to generate USA Spa report: {e}")
+        print()
+    
+    # =========================================================================
+    # REPORT 3: CORE MARKET REPORT
+    # =========================================================================
+    print("-" * 80)
+    print("REPORT 3: CORE MARKET REPORT (SUB-REGION BREAKDOWN) - MTD")
+    print("-" * 80)
+    print()
+    
+    try:
+        # Use GVL budget for Core Market Report (has sub-region breakdown)
+        core_market_budget_path = local_paths.get('gvl_budget', str(project_root / f'data/inputs/budget/budget_GVL_{get_current_year()}.csv'))
+        core_market_prior_path = local_paths.get('gvl_prior', str(project_root / f'data/inputs/prior_years/prior_sales_{get_prior_year()}_gvl.csv'))
+        logging.info(f"[REPORT] Core Market using budget_path={core_market_budget_path}, prior_path={core_market_prior_path}")
+        
+        core_market_gen = CoreMarketReportGenerator(
+            str(project_root / 'src/config/core_market_report_structure.json'),
+            mapped_path,
+            core_market_budget_path,
+            core_market_prior_path
+        )
+        core_market_df = core_market_gen.calculate_report()
+        core_market_gen.render_report(core_market_df)
+        
+        # Export Core Market Report to separate CSV
+        core_market_base = os.path.join(output_dir, f'management_report_core_markets_{get_current_year()}_{timestamp}')
+        core_market_gen.export_report(core_market_df, core_market_base + '.csv')
+        
+    except Exception as e:
+        logging.error(f"Error generating Core Market report: {e}")
+        print(f"[ERROR] Failed to generate Core Market report: {e}")
         print()
     
     # =========================================================================
