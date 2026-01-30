@@ -117,6 +117,16 @@
                         </a>
                     </div>
                     <div class="download-item">
+                        <a id="coreMarketCsvLink" href="#" class="download-link disabled">
+                            <span class="icon">📊</span> Core Market Report (CSV)
+                        </a>
+                    </div>
+                    <div class="download-item">
+                        <a id="coreMarketHtmlLink" href="#" class="download-link disabled">
+                            <span class="icon">🌐</span> Core Market Report (HTML)
+                        </a>
+                    </div>
+                    <div class="download-item">
                         <a id="zipLink" href="#" class="download-link disabled">
                             <span class="icon">📦</span> All Files (ZIP)
                         </a>
@@ -208,6 +218,8 @@
                 'xlsxLink': status.xlsx_url,
                 'pdfLink': status.pdf_url,
                 'unmappedLink': status.unmapped_url,
+                'coreMarketCsvLink': status.core_market_csv_url,
+                'coreMarketHtmlLink': status.core_market_html_url,
                 'zipLink': status.zip_url
             };
 
@@ -332,8 +344,7 @@
                 
                 const sections = [
                     { title: 'Management Report', rows: [] },
-                    { title: 'Core Markets', rows: [] },
-                    { title: 'USA Breakdown', rows: [] }
+                    { title: 'USA Spa Breakdown', rows: [] }
                 ];
 
                 let currentSectionIndex = 0;
@@ -345,22 +356,54 @@
 
                     if (row[0] === 'Total Sales') {
                         currentSectionIndex = 1;
-                    } else if (row[0] === 'Total Core Markets') {
-                        currentSectionIndex = 2;
                     }
                 }
 
                 tablesContainer.innerHTML = '';
                 
-                sections.forEach(section => {
-                    if (section.rows.length > 0) {
-                        const card = createTableCard(section.title, headerRow, section.rows);
-                        tablesContainer.appendChild(card);
-                    }
-                });
+                // First add Management Report
+                if (sections[0].rows.length > 0) {
+                    const card = createTableCard(sections[0].title, headerRow, sections[0].rows);
+                    tablesContainer.appendChild(card);
+                }
+                
+                // Then load Core Market Report (from separate CSV)
+                await loadCoreMarketTable();
+                
+                // Finally add USA Spa Breakdown
+                if (sections[1].rows.length > 0) {
+                    const card = createTableCard(sections[1].title, headerRow, sections[1].rows);
+                    tablesContainer.appendChild(card);
+                }
 
             } catch (error) {
                 console.error('Error loading table data:', error);
+            }
+        }
+        
+        async function loadCoreMarketTable() {
+            try {
+                const statusResponse = await fetch('/status');
+                if (!statusResponse.ok) return;
+                const status = await statusResponse.json();
+                
+                if (!status.core_market_csv_url) return;
+                
+                const response = await fetch(status.core_market_csv_url);
+                if (!response.ok) return;
+                const text = await response.text();
+                
+                const allRows = parseCSV(text);
+                if (allRows.length === 0) return;
+
+                const headerRow = allRows[0];
+                const dataRows = allRows.slice(1);
+                
+                const card = createTableCard('Core Markets Report', headerRow, dataRows);
+                tablesContainer.appendChild(card);
+                
+            } catch (error) {
+                console.error('Error loading Core Market table:', error);
             }
         }
 

@@ -40,7 +40,7 @@
     },
     {
       "title": "France",
-      "show_total": false,
+      "show_total": true,
       "items": [
         {"label": "France South", "filter_value": "France South"}
       ]

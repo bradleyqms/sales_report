@@ -116,6 +116,65 @@ class BaseReportGenerator(ABC):
         self.prior_year = get_prior_year()
         self.current_month = get_current_month()
     
+    def _filter_budget_for_month(self, date_format: str = '%d/%m/%Y') -> pd.DataFrame:
+        """
+        Filter budget data for the current month.
+        
+        Args:
+            date_format: Date format string for parsing (default DD/MM/YYYY)
+            
+        Returns:
+            DataFrame filtered to current month's budget data
+        """
+        budget_df = self.budget_df.copy()
+        budget_df['Date'] = pd.to_datetime(budget_df['Date'], format=date_format, errors='coerce')
+        budget_month = budget_df[budget_df['Date'].dt.month == self.current_month].copy()
+        
+        # Ensure numeric columns are parsed correctly
+        if 'Value_kEUR' in budget_month.columns:
+            budget_month['Value_kEUR'] = pd.to_numeric(budget_month['Value_kEUR'], errors='coerce').fillna(0)
+        if 'Value_kUSD' in budget_month.columns:
+            budget_month['Value_kUSD'] = pd.to_numeric(budget_month['Value_kUSD'], errors='coerce').fillna(0)
+        
+        return budget_month
+    
+    def _filter_prior_for_month(self, date_format: str = '%d/%m/%Y') -> pd.DataFrame:
+        """
+        Filter prior year data for the same month last year.
+        
+        Args:
+            date_format: Date format string for parsing (default DD/MM/YYYY)
+            
+        Returns:
+            DataFrame filtered to prior year's same month data
+        """
+        prior_df = self.prior_df.copy()
+        prior_df['Date'] = pd.to_datetime(prior_df['Date'], format=date_format, errors='coerce')
+        prior_month = prior_df[
+            (prior_df['Date'].dt.year == self.prior_year) & 
+            (prior_df['Date'].dt.month == self.current_month)
+        ].copy()
+        
+        # Ensure numeric columns are parsed correctly
+        if 'Value_kEUR' in prior_month.columns:
+            prior_month['Value_kEUR'] = pd.to_numeric(prior_month['Value_kEUR'], errors='coerce').fillna(0)
+        if 'Value_kUSD' in prior_month.columns:
+            prior_month['Value_kUSD'] = pd.to_numeric(prior_month['Value_kUSD'], errors='coerce').fillna(0)
+        
+        return prior_month
+    
+    def _convert_to_keur(self, value_col: str = None) -> None:
+        """
+        Convert sales values to kEUR and store in 'kEUR' column.
+        
+        Args:
+            value_col: Column name containing EUR values. If None, auto-detects.
+        """
+        if value_col is None:
+            value_col = 'Value_in_EUR_converted' if 'Value_in_EUR_converted' in self.df.columns else 'Total Value (EUR)'
+        
+        self.df['kEUR'] = pd.to_numeric(self.df[value_col], errors='coerce').fillna(0) / 1000
+    
     def get_pdf_styles(self) -> Dict[str, TableStyle]:
         """
         Get standard PDF table styles.
@@ -311,3 +370,262 @@ class BaseReportGenerator(ABC):
             df: DataFrame containing report data from calculate_report()
         """
         pass
+    
+    @abstractmethod
+    def get_report_headers(self) -> List[str]:
+        """
+        Get column headers for the report.
+        
+        Must be implemented by subclasses to return the appropriate
+        headers for CSV/PDF/HTML exports.
+        
+        Returns:
+            List of column header strings
+        """
+        pass
+    
+    @abstractmethod
+    def get_report_title(self) -> str:
+        """
+        Get the report title for exports.
+        
+        Must be implemented by subclasses to return the report title.
+        
+        Returns:
+            Report title string
+        """
+        pass
+    
+    @abstractmethod
+    def format_row_for_export(self, row: pd.Series) -> List[str]:
+        """
+        Format a DataFrame row for export.
+        
+        Must be implemented by subclasses to format row values
+        according to report-specific requirements.
+        
+        Args:
+            row: DataFrame row as Series
+            
+        Returns:
+            List of formatted string values
+        """
+        pass
+    
+    def export_report(self, df: pd.DataFrame, base_path: str) -> None:
+        """
+        Export report to multiple formats (CSV, TXT, HTML, PDF, XLSX).
+        
+        Args:
+            df: DataFrame containing report data from calculate_report()
+            base_path: Base path for output files (e.g., 'report.csv')
+                       Other formats will use same base with different extensions
+        """
+        now = datetime.datetime.now()
+        headers = self.get_report_headers()
+        title = self.get_report_title()
+        date_range = format_mtd_date_range()
+        
+        # Build text and HTML content
+        text_lines = []
+        html_rows = []
+        pdf_data = [headers]
+        
+        for _, row in df.iterrows():
+            if row.get('is_spacer'):
+                text_lines.append('')
+                html_rows.append([''] * len(headers))
+                pdf_data.append([''] * len(headers))
+                continue
+            
+            formatted = self.format_row_for_export(row)
+            text_lines.append('\t'.join(formatted))
+            html_rows.append(formatted)
+            pdf_data.append(formatted)
+        
+        # Build text content with headers
+        text_content = '\t'.join(headers) + '\n'
+        text_content += '\n'.join(text_lines)
+        
+        # Build HTML content
+        html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>{title}</title>
+    <style>
+        table {{ border-collapse: collapse; font-family: Arial, sans-serif; font-size: 12px; }}
+        th {{ background-color: #4472C4; color: white; padding: 8px; text-align: center; }}
+        td {{ padding: 8px; border: 1px solid #ddd; }}
+        .total {{ background-color: #d9e8fb; font-weight: bold; }}
+        .grand-total {{ background-color: #b8d4f1; font-weight: bold; }}
+        tr:nth-child(even) {{ background-color: #f9f9f9; }}
+    </style>
+</head>
+<body>
+<h2>{title} (MTD: {date_range})</h2>
+<table>
+<tr>"""
+        
+        for i, header in enumerate(headers):
+            align = "left" if i == 0 else "right"
+            html_content += f'<th style="text-align: {align};">{header}</th>'
+        html_content += "</tr>\n"
+        
+        for idx, row_data in enumerate(html_rows):
+            df_row = df.iloc[idx] if idx < len(df) else None
+            is_total = df_row.get('is_total', False) if df_row is not None else False
+            is_grand_total = df_row.get('is_grand_total', False) if df_row is not None else False
+            
+            row_class = 'grand-total' if is_grand_total else ('total' if is_total else '')
+            html_content += f'<tr class="{row_class}">'
+            
+            for i, val in enumerate(row_data):
+                align = "left" if i == 0 else "right"
+                html_content += f'<td style="text-align: {align};">{val}</td>'
+            html_content += "</tr>\n"
+        
+        html_content += "</table></body></html>"
+        
+        # === Write CSV ===
+        csv_path = base_path
+        csv_df = df[~df.get('is_spacer', False)].copy() if 'is_spacer' in df.columns else df.copy()
+        # Create export columns from formatted data
+        export_rows = []
+        for _, row in df.iterrows():
+            if row.get('is_spacer'):
+                continue
+            export_rows.append(self.format_row_for_export(row))
+        
+        export_df = pd.DataFrame(export_rows, columns=headers)
+        export_df.to_csv(csv_path, index=False, sep=',')
+        print(f"Report exported to {csv_path}")
+        
+        # === Write TXT ===
+        txt_path = base_path.replace('.csv', '.txt')
+        with open(txt_path, 'w') as f:
+            f.write(text_content)
+        print(f"Report exported to {txt_path}")
+        
+        # === Write HTML ===
+        html_path = base_path.replace('.csv', '.html')
+        with open(html_path, 'w') as f:
+            f.write(html_content)
+        print(f"Report exported to {html_path} (Outlook-ready HTML table)")
+        
+        # === Write XLSX (styled Excel) ===
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+            
+            xlsx_path = base_path.replace('.csv', '.xlsx')
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Report"
+            
+            # Styles
+            header_font = Font(bold=True, color="FFFFFF")
+            header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+            total_fill = PatternFill(start_color="D9E8FB", end_color="D9E8FB", fill_type="solid")
+            grand_total_fill = PatternFill(start_color="B8D4F1", end_color="B8D4F1", fill_type="solid")
+            total_font = Font(bold=True)
+            grand_total_font = Font(bold=True)
+            thin_border = Border(
+                left=Side(style='thin'),
+                right=Side(style='thin'),
+                top=Side(style='thin'),
+                bottom=Side(style='thin')
+            )
+            header_alignment = Alignment(horizontal='center', vertical='center')
+            text_alignment = Alignment(horizontal='left', vertical='center')
+            number_alignment = Alignment(horizontal='right', vertical='center')
+            
+            # Write headers
+            for col_idx, header in enumerate(headers, 1):
+                cell = ws.cell(row=1, column=col_idx, value=header)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_alignment
+                cell.border = thin_border
+            
+            # Write data
+            row_idx = 2
+            for _, row in df.iterrows():
+                if row.get('is_spacer'):
+                    row_idx += 1
+                    continue
+                
+                formatted = self.format_row_for_export(row)
+                
+                for col_idx, val in enumerate(formatted, 1):
+                    cell = ws.cell(row=row_idx, column=col_idx, value=val)
+                    cell.alignment = text_alignment if col_idx == 1 else number_alignment
+                    cell.border = thin_border
+                
+                # Apply styling based on row type
+                is_total = row.get('is_total', False)
+                is_grand_total = row.get('is_grand_total', False)
+                
+                if is_grand_total:
+                    for col_idx in range(1, len(headers) + 1):
+                        ws.cell(row=row_idx, column=col_idx).font = grand_total_font
+                        ws.cell(row=row_idx, column=col_idx).fill = grand_total_fill
+                elif is_total:
+                    for col_idx in range(1, len(headers) + 1):
+                        ws.cell(row=row_idx, column=col_idx).font = total_font
+                        ws.cell(row=row_idx, column=col_idx).fill = total_fill
+                
+                row_idx += 1
+            
+            # Adjust column widths
+            ws.column_dimensions['A'].width = 40
+            for i in range(2, len(headers) + 1):
+                ws.column_dimensions[chr(ord('A') + i - 1)].width = 12
+            
+            wb.save(xlsx_path)
+            print(f"Report exported to {xlsx_path} (Excel format with formatting)")
+            
+        except ImportError:
+            print("[WARNING] openpyxl not installed - skipping XLSX export")
+        except Exception as e:
+            print(f"[WARNING] Failed to create XLSX: {e}")
+        
+        # === Write PDF ===
+        pdf_path = base_path.replace('.csv', '.pdf')
+        doc = SimpleDocTemplate(pdf_path, pagesize=A4)
+        styles = getSampleStyleSheet()
+        
+        pdf_title = Paragraph(f"{title} (MTD: {date_range})", styles['Heading1'])
+        
+        # Create table
+        table = Table(pdf_data)
+        
+        # Style the table
+        style = TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (0, 1), (0, -1), 'LEFT'),  # Left align first column
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ])
+        
+        # Add special styling for totals
+        row_idx = 1
+        for _, row in df.iterrows():
+            if row.get('is_spacer'):
+                row_idx += 1
+                continue
+            if row.get('is_total') or row.get('is_grand_total'):
+                style.add('BACKGROUND', (0, row_idx), (-1, row_idx), colors.lightblue)
+                style.add('FONTNAME', (0, row_idx), (-1, row_idx), 'Helvetica-Bold')
+            row_idx += 1
+        
+        table.setStyle(style)
+        
+        # Build PDF
+        elements = [pdf_title, Spacer(1, 20), table]
+        doc.build(elements)
+        print(f"Report exported to {pdf_path} (PDF format)")

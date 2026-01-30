@@ -7,6 +7,7 @@ import sys
 import time
 import logging
 from pathlib import Path
+from typing import List
 from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -18,55 +19,77 @@ from sharepoint_client import SharePointHandler, download_inputs, upload_outputs
 from qry_data_ingestion import process_qry_files
 from qry_data_mapping import apply_mappings
 from utils import print_progress, get_current_year, get_prior_year, get_current_month, format_mtd_date_range
+from base_report_generator import BaseReportGenerator
 
-class CoreMarketReportGenerator:
+class CoreMarketReportGenerator(BaseReportGenerator):
+    """
+    Core Market Report Generator for European sub-regions.
+    
+    Generates reports for Core Markets (Germany, Benelux, Switzerland, etc.)
+    with Existing vs New customer breakdowns.
+    """
+    
     def __init__(self, config_path, sales_path, budget_path, prior_path, split_summary_path=None):
-        self.config = self._load_config(config_path)
-        try:
-            self.df = pd.read_csv(sales_path)
-            self.budget_df = pd.read_csv(budget_path)
-            self.prior_df = pd.read_csv(prior_path)
-            # Load sales split summary if available
-            self.split_summary = None
-            if split_summary_path and os.path.exists(split_summary_path):
-                try:
-                    self.split_summary = pd.read_csv(split_summary_path)
-                    logging.info(f"Loaded sales split summary from {split_summary_path}")
-                except Exception as e:
-                    logging.warning(f"Could not load sales split summary: {e}")
-        except FileNotFoundError as e:
-            logging.error(f"Required data file not found: {e}")
-            raise
-        except pd.errors.EmptyDataError as e:
-            logging.error(f"Data file is empty: {e}")
-            raise
+        # Call parent constructor (loads config, data files, prepares dates)
+        super().__init__(config_path, sales_path, budget_path, prior_path)
+        
+        # Load sales split summary if available (CoreMarket-specific)
+        self.split_summary = None
+        if split_summary_path and os.path.exists(split_summary_path):
+            try:
+                self.split_summary = pd.read_csv(split_summary_path)
+                logging.info(f"Loaded sales split summary from {split_summary_path}")
+            except Exception as e:
+                logging.warning(f"Could not load sales split summary: {e}")
         
         self._prepare_data()
+    
+    def get_report_headers(self) -> List[str]:
+        """Return column headers for the Core Market report."""
+        return ['kEUR', 'Total Sales', 'Existing', 'New', 'Total Budget', 'Existing Budget', 'New Budget', 'Prior YoY', '% vs Budget']
+    
+    def get_report_title(self) -> str:
+        """Return the report title."""
+        return "Core Markets Report"
+    
+    def format_row_for_export(self, row: pd.Series) -> List[str]:
+        """Format a row for export to CSV/TXT/HTML/PDF."""
+        label = row['label']
+        sales = row['sales']
+        existing_sales = row['existing_sales']
+        new_sales = row['new_sales']
+        budget = row['budget']
+        existing_budget = row['existing_budget']
+        new_budget = row['new_budget']
+        prior = row['prior']
         
-    def _load_config(self, path):
-        try:
-            with open(path, 'r') as f:
-                return json.load(f)
-        except FileNotFoundError:
-            logging.error(f"Config file not found: {path}")
-            raise
-        except json.JSONDecodeError as e:
-            logging.error(f"Invalid JSON in config file: {e}")
-            raise
+        pct = (sales / budget * 100) if budget and budget != 0 else 0
+        
+        s_str = f"{int(round(sales))}" if abs(sales) >= 0.5 else ("-" if sales == 0 else "0")
+        ex_str = f"{int(round(existing_sales))}" if abs(existing_sales) >= 0.5 else ("-" if existing_sales == 0 else "0")
+        new_str = f"{int(round(new_sales))}" if abs(new_sales) >= 0.5 else ("-" if new_sales == 0 else "0")
+        b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
+        exb_str = f"{int(round(existing_budget))}" if abs(existing_budget) >= 0.5 else ("-" if existing_budget == 0 else "0")
+        newb_str = f"{int(round(new_budget))}" if abs(new_budget) >= 0.5 else ("-" if new_budget == 0 else "0")
+        p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
+        pct_str = f"{pct:.1f}%" if budget and budget != 0 else "-"
+        
+        return [label, s_str, ex_str, new_str, b_str, exb_str, newb_str, p_str, pct_str]
             
     def _prepare_data(self):
-        # Dates
-        now = datetime.datetime.now()
-        self.current_month = now.month
-        self.current_year = now.year
-        self.prior_year = now.year - 1
-        
-        # Filter Sales to AR (for QRY data, Document Type is 'AR', not 'AR Invoice')
-        self.df = self.df[self.df['Document Type'] == 'AR'].copy()
+        # Filter Sales to AR and CN (Credit Notes)
+        # CN values already have minus signs, so they will be subtracted from totals
+        self.df = self.df[self.df['Document Type'].isin(['AR', 'CN'])].copy()
         
         # Convert Sales to kEUR
         value_col = 'Value_in_EUR_converted' if 'Value_in_EUR_converted' in self.df.columns else 'Total Value (EUR)'
         self.df['kEUR'] = self.df[value_col].fillna(0) / 1000
+        
+        # Tag sales rows as existing or new based on "Neukd" designation in Sales Employee Name
+        if 'Sales Employee Name' in self.df.columns:
+            self.df['is_neukd'] = self.df['Sales Employee Name'].fillna('').str.lower().str.contains('neukd')
+        else:
+            self.df['is_neukd'] = False
         
         # Clean Sub_Region in budget and prior - handle both 'Sub Region' and 'Subchannel / Partner' columns
         if 'Sub Region' in self.budget_df.columns:
@@ -91,6 +114,19 @@ class CoreMarketReportGenerator:
         # Ensure budget numeric columns are parsed correctly
         if 'Value_kEUR' in self.budget_month.columns:
             self.budget_month['Value_kEUR'] = pd.to_numeric(self.budget_month['Value_kEUR'], errors='coerce').fillna(0)
+
+        def _coerce_numeric(series):
+            return pd.to_numeric(series.astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+
+        if 'Existing_Budget_kEUR' in self.budget_month.columns:
+            self.budget_month['Existing_Budget_kEUR'] = _coerce_numeric(self.budget_month['Existing_Budget_kEUR'])
+        elif 'Existing_Budget_EUR' in self.budget_month.columns:
+            self.budget_month['Existing_Budget_kEUR'] = _coerce_numeric(self.budget_month['Existing_Budget_EUR']) / 1000
+
+        if 'New_Budget_kEUR' in self.budget_month.columns:
+            self.budget_month['New_Budget_kEUR'] = _coerce_numeric(self.budget_month['New_Budget_kEUR'])
+        elif 'New_Budget_EUR' in self.budget_month.columns:
+            self.budget_month['New_Budget_kEUR'] = _coerce_numeric(self.budget_month['New_Budget_EUR']) / 1000
         
         # Filter Prior for Same Month Last Year
         # Prior Date is DD/MM/YYYY
@@ -129,6 +165,24 @@ class CoreMarketReportGenerator:
                     if sub_region not in self.budget_lookup:
                         self.budget_lookup[sub_region] = 0
                     self.budget_lookup[sub_region] += row['Value_kEUR']
+
+        self.existing_budget_lookup = {}
+        if 'Sub_Region_Cleaned' in self.budget_month.columns and 'Existing_Budget_kEUR' in self.budget_month.columns:
+            for _, row in self.budget_month.iterrows():
+                sub_region = row['Sub_Region_Cleaned']
+                if sub_region and pd.notna(sub_region) and sub_region.strip():
+                    if sub_region not in self.existing_budget_lookup:
+                        self.existing_budget_lookup[sub_region] = 0
+                    self.existing_budget_lookup[sub_region] += row['Existing_Budget_kEUR']
+
+        self.new_budget_lookup = {}
+        if 'Sub_Region_Cleaned' in self.budget_month.columns and 'New_Budget_kEUR' in self.budget_month.columns:
+            for _, row in self.budget_month.iterrows():
+                sub_region = row['Sub_Region_Cleaned']
+                if sub_region and pd.notna(sub_region) and sub_region.strip():
+                    if sub_region not in self.new_budget_lookup:
+                        self.new_budget_lookup[sub_region] = 0
+                    self.new_budget_lookup[sub_region] += row['New_Budget_kEUR']
         
         self.prior_lookup = {}
         if 'Sub_Region_Cleaned' in self.prior_month.columns and 'Value_kEUR' in self.prior_month.columns:
@@ -142,6 +196,14 @@ class CoreMarketReportGenerator:
     def _get_budget_value(self, sub_region):
         """Get budget value for a sub-region for the current month."""
         return self.budget_lookup.get(sub_region, 0)
+
+    def _get_existing_budget_value(self, sub_region):
+        """Get existing-customer budget value for a sub-region for the current month."""
+        return self.existing_budget_lookup.get(sub_region, 0)
+
+    def _get_new_budget_value(self, sub_region):
+        """Get new-customer budget value for a sub-region for the current month."""
+        return self.new_budget_lookup.get(sub_region, 0)
         
     def _get_prior_value(self, sub_region):
         """Get prior year value for a sub-region for the same month."""
@@ -175,7 +237,15 @@ class CoreMarketReportGenerator:
     def calculate_report(self):
         report_data = []
         section_totals = {}
-        grand_total = {'Sales': 0, 'Existing_Sales': 0, 'New_Sales': 0, 'Budget': 0, 'Prior': 0}
+        grand_total = {
+            'Sales': 0,
+            'Existing_Sales': 0,
+            'New_Sales': 0,
+            'Budget': 0,
+            'Existing_Budget': 0,
+            'New_Budget': 0,
+            'Prior': 0
+        }
         
         for section in self.config['sections']:
             if section.get('is_grand_total'):
@@ -185,8 +255,8 @@ class CoreMarketReportGenerator:
                     'existing_sales': grand_total['Existing_Sales'],
                     'new_sales': grand_total['New_Sales'],
                     'budget': grand_total['Budget'],
-                    'existing_budget': 0.0,
-                    'new_budget': 0.0,
+                    'existing_budget': grand_total['Existing_Budget'],
+                    'new_budget': grand_total['New_Budget'],
                     'prior': grand_total['Prior'],
                     'is_total': True,
                     'is_grand_total': True,
@@ -199,13 +269,15 @@ class CoreMarketReportGenerator:
                 
             if section.get('is_total'):
                 # Sum of other sections (e.g. Company 1 Total)
-                t_sales = t_existing_sales = t_new_sales = t_budget = t_prior = 0
+                t_sales = t_existing_sales = t_new_sales = t_budget = t_existing_budget = t_new_budget = t_prior = 0
                 for comp in section['items'] if 'items' in section else section.get('components', []):
                     if comp in section_totals:
                         t_sales += section_totals[comp]['sales']
                         t_existing_sales += section_totals[comp].get('existing_sales', 0)
                         t_new_sales += section_totals[comp].get('new_sales', 0)
                         t_budget += section_totals[comp]['budget']
+                        t_existing_budget += section_totals[comp].get('existing_budget', 0)
+                        t_new_budget += section_totals[comp].get('new_budget', 0)
                         t_prior += section_totals[comp]['prior']
                 
                 report_data.append({
@@ -214,8 +286,8 @@ class CoreMarketReportGenerator:
                     'existing_sales': t_existing_sales,
                     'new_sales': t_new_sales,
                     'budget': t_budget,
-                    'existing_budget': 0.0,
-                    'new_budget': 0.0,
+                    'existing_budget': t_existing_budget,
+                    'new_budget': t_new_budget,
                     'prior': t_prior,
                     'is_total': True,
                     'is_spacer': False,
@@ -227,12 +299,16 @@ class CoreMarketReportGenerator:
                 grand_total['Existing_Sales'] += t_existing_sales
                 grand_total['New_Sales'] += t_new_sales
                 grand_total['Budget'] += t_budget
+                grand_total['Existing_Budget'] += t_existing_budget
+                grand_total['New_Budget'] += t_new_budget
                 grand_total['Prior'] += t_prior
                 continue
 
             # Regular Section
             sec_sales = 0
             sec_budget = 0
+            sec_existing_budget = 0
+            sec_new_budget = 0
             sec_prior = 0
             
             rows = []
@@ -246,34 +322,15 @@ class CoreMarketReportGenerator:
                     if filter_val:
                         s_mask = (self.df['Sub Region'] == filter_val)
                         val_sales = self.df[s_mask]['kEUR'].sum()
+                        
+                        # Aggregate existing vs new sales separately based on is_neukd flag
+                        val_existing_sales = self.df[s_mask & ~self.df['is_neukd']]['kEUR'].sum()
+                        val_new_sales = self.df[s_mask & self.df['is_neukd']]['kEUR'].sum()
+                        
                         val_budget = self._get_budget_value(filter_val)
+                        val_existing_budget = self._get_existing_budget_value(filter_val)
+                        val_new_budget = self._get_new_budget_value(filter_val)
                         val_prior = self._get_prior_value(filter_val)
-                        
-                        # Get sales split by employee type (neukd vs regular)
-                        entity = self.sub_region_to_entity.get(filter_val)
-                        val_existing_sales = 0.0
-                        val_new_sales = 0.0
-                        
-                        if entity and self.split_summary is not None:
-                            # Get AR sales by type for this entity
-                            # regular_ar = Existing customers, neukd_ar = New customer division
-                            neukd_ar = self._get_sales_by_type(entity, 'AR', 'neukd')
-                            regular_ar = self._get_sales_by_type(entity, 'AR', 'regular')
-                            total_ar = neukd_ar + regular_ar
-                            
-                            # Calculate proportions and apply to actual sales
-                            if total_ar > 0 and val_sales > 0:
-                                existing_pct = regular_ar / total_ar  # regular = existing
-                                new_pct = neukd_ar / total_ar  # neukd = new
-                                # Use precise calculation and round at the end to avoid accumulation errors
-                                val_existing_sales = round(val_sales * existing_pct, 1)
-                                val_new_sales = round(val_sales - val_existing_sales, 1)  # Ensure sum equals total
-                            elif val_sales > 0:
-                                # If no split data, default to 100% existing
-                                val_existing_sales = val_sales
-                        else:
-                            # Default: treat as existing sales if no entity mapping
-                            val_existing_sales = val_sales
                         
                         rows.append({
                             'label': label,
@@ -281,8 +338,8 @@ class CoreMarketReportGenerator:
                             'existing_sales': val_existing_sales,
                             'new_sales': val_new_sales,
                             'budget': val_budget,
-                            'existing_budget': 0.0,
-                            'new_budget': 0.0,
+                            'existing_budget': val_existing_budget,
+                            'new_budget': val_new_budget,
                             'prior': val_prior,
                             'is_total': False,
                             'is_spacer': False
@@ -290,6 +347,8 @@ class CoreMarketReportGenerator:
                         
                         sec_sales += val_sales
                         sec_budget += val_budget
+                        sec_existing_budget += val_existing_budget
+                        sec_new_budget += val_new_budget
                         sec_prior += val_prior
             else:
                 # Fallback for sections with sub_region
@@ -298,6 +357,8 @@ class CoreMarketReportGenerator:
                     sales_mask = (self.df['Sub Region'] == sub_region)
                     sec_sales = self.df[sales_mask]['kEUR'].sum()
                     sec_budget = self._get_budget_value(sub_region)
+                    sec_existing_budget = self._get_existing_budget_value(sub_region)
+                    sec_new_budget = self._get_new_budget_value(sub_region)
                     sec_prior = 0
                     
                     rows.append({
@@ -306,8 +367,8 @@ class CoreMarketReportGenerator:
                         'existing_sales': 0.0,
                         'new_sales': 0.0,
                         'budget': sec_budget,
-                        'existing_budget': 0.0,
-                        'new_budget': 0.0,
+                        'existing_budget': sec_existing_budget,
+                        'new_budget': sec_new_budget,
                         'prior': sec_prior,
                         'is_total': False,
                         'is_spacer': False
@@ -319,6 +380,8 @@ class CoreMarketReportGenerator:
             # Calculate section totals from rows
             sec_existing_sales = sum(r.get('existing_sales', 0) for r in rows if not r.get('is_spacer'))
             sec_new_sales = sum(r.get('new_sales', 0) for r in rows if not r.get('is_spacer'))
+            sec_existing_budget = sum(r.get('existing_budget', 0) for r in rows if not r.get('is_spacer'))
+            sec_new_budget = sum(r.get('new_budget', 0) for r in rows if not r.get('is_spacer'))
             
             # Add Section Total if requested
             if section.get('show_total'):
@@ -328,8 +391,8 @@ class CoreMarketReportGenerator:
                     'existing_sales': sec_existing_sales,
                     'new_sales': sec_new_sales,
                     'budget': sec_budget,
-                    'existing_budget': 0.0,
-                    'new_budget': 0.0,
+                    'existing_budget': sec_existing_budget,
+                    'new_budget': sec_new_budget,
                     'prior': sec_prior,
                     'is_total': True,
                     'is_spacer': False
@@ -341,6 +404,8 @@ class CoreMarketReportGenerator:
                 'existing_sales': sec_existing_sales,
                 'new_sales': sec_new_sales,
                 'budget': sec_budget,
+                'existing_budget': sec_existing_budget,
+                'new_budget': sec_new_budget,
                 'prior': sec_prior
             }
             
@@ -423,219 +488,7 @@ class CoreMarketReportGenerator:
             if row.get('is_total') or row.get('is_grand_total'):
                 print("-" * 157)
     
-    def export_report(self, df, base_path):
-        """Export the report in formatted text style to CSV/TXT, HTML for Outlook, and PDF."""
-        # Define column widths for text format
-        now = datetime.datetime.now()
-        month_name = now.strftime('%b')
-        year_short = str(now.year)[2:]
-        col_curr = f"{month_name}-{year_short}A MTD"
-        col_widths = [35, 15, 12, 12, 14, 16, 12, 12, 12]
-        headers = ['kEUR', 'Total Sales', 'Existing', 'New', 'Total Budget', 'Existing Budget', 'New Budget', 'Prior YoY', '% vs Budget']
-        
-        # Create text format
-        header_line = ''.join(f"{h:<{w}}" for h, w in zip(headers, col_widths))
-        separator = '-' * len(header_line)
-        
-        formatted_lines = [header_line, separator]
-        
-        for _, row in df.iterrows():
-            if 'is_spacer' in df.columns and row.get('is_spacer') == True:
-                formatted_lines.append('')
-                continue
-                
-            label = row['label']
-            sales = row['sales']
-            existing_sales = row['existing_sales']
-            new_sales = row['new_sales']
-            budget = row['budget']
-            existing_budget = row['existing_budget']
-            new_budget = row['new_budget']
-            prior = row['prior']
-            
-            pct = (sales / budget * 100) if budget and budget != 0 else 0
-            
-            s_str = f"{int(round(sales))}" if abs(sales) >= 0.5 else ("-" if sales == 0 else "0")
-            ex_str = f"{int(round(existing_sales))}" if abs(existing_sales) >= 0.5 else ("-" if existing_sales == 0 else "0")
-            new_str = f"{int(round(new_sales))}" if abs(new_sales) >= 0.5 else ("-" if new_sales == 0 else "0")
-            b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
-            exb_str = f"{int(round(existing_budget))}" if abs(existing_budget) >= 0.5 else ("-" if existing_budget == 0 else "0")
-            newb_str = f"{int(round(new_budget))}" if abs(new_budget) >= 0.5 else ("-" if new_budget == 0 else "0")
-            p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
-            pct_str = f"{pct:.1f}%" if budget and budget != 0 else "-"
-            
-            row_line = f"{label:<{col_widths[0]}}{s_str:>{col_widths[1]}}{ex_str:>{col_widths[2]}}{new_str:>{col_widths[3]}}{b_str:>{col_widths[4]}}{exb_str:>{col_widths[5]}}{newb_str:>{col_widths[6]}}{p_str:>{col_widths[7]}}{pct_str:>{col_widths[8]}}"
-            formatted_lines.append(row_line)
-            
-            if row.get('is_total') or row.get('is_grand_total'):
-                formatted_lines.append(separator)
-        
-        text_content = '\n'.join(formatted_lines)
-        
-        # Create HTML format for Outlook
-        html_content = f"""
-        <html>
-        <body>
-        <table border="1" style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 12px;">
-        <tr style="background-color: #f0f0f0;">
-            <th style="padding: 8px; text-align: left;">{headers[0]}</th>
-            <th style="padding: 8px; text-align: right;">{headers[1]}</th>
-            <th style="padding: 8px; text-align: right;">{headers[2]}</th>
-            <th style="padding: 8px; text-align: right;">{headers[3]}</th>
-            <th style="padding: 8px; text-align: right;">{headers[4]}</th>
-            <th style="padding: 8px; text-align: right;">{headers[5]}</th>
-            <th style="padding: 8px; text-align: right;">{headers[6]}</th>
-            <th style="padding: 8px; text-align: right;">{headers[7]}</th>
-            <th style="padding: 8px; text-align: right;">{headers[8]}</th>
-        </tr>
-        """
-        
-        for _, row in df.iterrows():
-            if 'is_spacer' in df.columns and row.get('is_spacer') == True:
-                html_content += '<tr><td colspan="9" style="height: 10px;"></td></tr>\n'
-                continue
-                
-            label = row['label']
-            sales = row['sales']
-            existing_sales = row['existing_sales']
-            new_sales = row['new_sales']
-            budget = row['budget']
-            existing_budget = row['existing_budget']
-            new_budget = row['new_budget']
-            prior = row['prior']
-            
-            pct = (sales / budget * 100) if budget and budget != 0 else 0
-            
-            s_str = f"{int(round(sales))}" if abs(sales) >= 0.5 else ("-" if sales == 0 else "0")
-            ex_str = f"{int(round(existing_sales))}" if abs(existing_sales) >= 0.5 else ("-" if existing_sales == 0 else "0")
-            new_str = f"{int(round(new_sales))}" if abs(new_sales) >= 0.5 else ("-" if new_sales == 0 else "0")
-            b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
-            exb_str = f"{int(round(existing_budget))}" if abs(existing_budget) >= 0.5 else ("-" if existing_budget == 0 else "0")
-            newb_str = f"{int(round(new_budget))}" if abs(new_budget) >= 0.5 else ("-" if new_budget == 0 else "0")
-            p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
-            pct_str = f"{pct:.1f}%" if budget and budget != 0 else "-"
-            
-            # Highlight totals
-            bg_color = '#e6f3ff' if row.get('is_total') or row.get('is_grand_total') else 'white'
-            
-            html_content += f"""
-            <tr style="background-color: {bg_color};">
-                <td style="padding: 8px;">{label}</td>
-                <td style="padding: 8px; text-align: right;">{s_str}</td>
-                <td style="padding: 8px; text-align: right;">{ex_str}</td>
-                <td style="padding: 8px; text-align: right;">{new_str}</td>
-                <td style="padding: 8px; text-align: right;">{b_str}</td>
-                <td style="padding: 8px; text-align: right;">{exb_str}</td>
-                <td style="padding: 8px; text-align: right;">{newb_str}</td>
-                <td style="padding: 8px; text-align: right;">{p_str}</td>
-                <td style="padding: 8px; text-align: right;">{pct_str}</td>
-            </tr>
-            """
-        
-        html_content += "</table></body></html>"
-        
-        # Create proper CSV format with comma separators
-        csv_df = df.copy()
-        # Filter out spacer rows for CSV
-        if 'is_spacer' in csv_df.columns:
-            csv_df = csv_df[~csv_df['is_spacer'].fillna(False)]
-        csv_df['% vs Bud'] = csv_df.apply(lambda row: f"{(row['sales'] / row['budget'] * 100):.1f}%" if row['budget'] and row['budget'] != 0 else "-", axis=1)
-        csv_df['Total Sales'] = csv_df['sales'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
-        csv_df['Existing'] = csv_df['existing_sales'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
-        csv_df['New'] = csv_df['new_sales'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
-        csv_df['Total Budget'] = csv_df['budget'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
-        csv_df['Existing Budget'] = csv_df['existing_budget'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
-        csv_df['New Budget'] = csv_df['new_budget'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
-        csv_df['Prior YoY'] = csv_df['prior'].apply(lambda x: f"{int(round(x))}" if abs(x) >= 0.5 else ("-" if x == 0 else "0"))
-        csv_df = csv_df.rename(columns={'label': 'kEUR', '% vs Bud': '% vs Budget'})
-        csv_df = csv_df[['kEUR', 'Total Sales', 'Existing', 'New', 'Total Budget', 'Existing Budget', 'New Budget', 'Prior YoY', '% vs Budget']]
-        
-        # Write to CSV file (proper CSV format with commas)
-        csv_path = base_path
-        csv_df.to_csv(csv_path, index=False, sep=',')
-        print(f"Report exported to {csv_path}")
-        
-        # Write to TXT file (text format)
-        txt_path = base_path.replace('.csv', '.txt')
-        with open(txt_path, 'w') as f:
-            f.write(text_content)
-        print(f"Report exported to {txt_path}")
-        
-        # Write to HTML file (for Outlook)
-        html_path = base_path.replace('.csv', '.html')
-        with open(html_path, 'w') as f:
-            f.write(html_content)
-        print(f"Report exported to {html_path} (Outlook-ready HTML table)")
-        
-        # Create PDF format
-        pdf_path = base_path.replace('.csv', '.pdf')
-        doc = SimpleDocTemplate(pdf_path, pagesize=A4)
-        styles = getSampleStyleSheet()
-        
-        # PDF title with MTD date range
-        date_range = now.strftime('%B 1-%d, %Y')
-        title = Paragraph(f"Core Markets Report (MTD: {date_range})", styles['Heading1'])
-        
-        # Prepare table data
-        pdf_data = [headers]
-        
-        for _, row in df.iterrows():
-            if 'is_spacer' in df.columns and row.get('is_spacer') == True:
-                pdf_data.append(['', '', '', '', '', '', '', '', ''])  # Empty row for spacing
-                continue
-                
-            label = row['label']
-            sales = row['sales']
-            existing_sales = row['existing_sales']
-            new_sales = row['new_sales']
-            budget = row['budget']
-            existing_budget = row['existing_budget']
-            new_budget = row['new_budget']
-            prior = row['prior']
-            
-            pct = (sales / budget * 100) if budget and budget != 0 else 0
-            
-            s_str = f"{int(round(sales))}" if abs(sales) >= 0.5 else ("-" if sales == 0 else "0")
-            ex_str = f"{int(round(existing_sales))}" if abs(existing_sales) >= 0.5 else ("-" if existing_sales == 0 else "0")
-            new_str = f"{int(round(new_sales))}" if abs(new_sales) >= 0.5 else ("-" if new_sales == 0 else "0")
-            b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
-            exb_str = f"{int(round(existing_budget))}" if abs(existing_budget) >= 0.5 else ("-" if existing_budget == 0 else "0")
-            newb_str = f"{int(round(new_budget))}" if abs(new_budget) >= 0.5 else ("-" if new_budget == 0 else "0")
-            p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
-            pct_str = f"{pct:.1f}%" if budget and budget != 0 else "-"
-            
-            pdf_data.append([label, s_str, ex_str, new_str, b_str, exb_str, newb_str, p_str, pct_str])
-        
-        # Create table
-        table = Table(pdf_data)
-        
-        # Style the table
-        style = TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('ALIGN', (0, 1), (0, -1), 'LEFT'),  # Left align first column
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 14),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ])
-        
-        # Add special styling for totals
-        row_idx = 1
-        for _, row in df.iterrows():
-            if row.get('is_total') or row.get('is_grand_total'):
-                style.add('BACKGROUND', (0, row_idx), (-1, row_idx), colors.lightblue)
-                style.add('FONTNAME', (0, row_idx), (-1, row_idx), 'Helvetica-Bold')
-            row_idx += 1
-        
-        table.setStyle(style)
-        
-        # Build PDF
-        elements = [title, Spacer(1, 20), table]
-        doc.build(elements)
-        print(f"Report exported to {pdf_path} (PDF format)")
+    # export_report() is inherited from BaseReportGenerator
 
 if __name__ == "__main__":
     start_time = datetime.datetime.now()
@@ -747,9 +600,11 @@ if __name__ == "__main__":
             current_step += 1
             print_progress(current_step, total_steps, "Generating Core Markets report...")
             
-            # Save mapped data locally for reference/debugging
+            # Save mapped data to outputs folder for inspection
             current_year = get_current_year()
-            mapped_path = os.path.join(temp_dir, f'qry_unified_mapped_{current_year}.csv')
+            output_dir = str(project_root / 'data/outputs')
+            os.makedirs(output_dir, exist_ok=True)
+            mapped_path = os.path.join(output_dir, f'qry_unified_mapped_{current_year}.csv')
             mapped_df.to_csv(mapped_path, index=False)
             
             # Determine path to sales split summary
