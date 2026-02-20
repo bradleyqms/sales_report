@@ -28,17 +28,30 @@ def _repo_root() -> Path:
 
 def resolve_outputs_path() -> Path:
     # On Azure Consumption plan only /tmp is writable at runtime.
-    # Set REPORT_DISPATCH_OUTPUTS_PATH in App Settings to override.
-    default = "/tmp/outputs" if Path("/tmp").exists() and not (_repo_root() / "data" / "outputs").exists() else "data/outputs"
-    configured = os.getenv("REPORT_DISPATCH_OUTPUTS_PATH", default)
-    # Absolute paths (e.g. /tmp/outputs) are used as-is; relative paths are anchored to package root.
-    candidate = Path(configured) if Path(configured).is_absolute() else (_repo_root() / configured).resolve()
+    # Set REPORT_DISPATCH_OUTPUTS_PATH in App Settings to override the default.
+    configured = os.getenv("REPORT_DISPATCH_OUTPUTS_PATH")
+
+    if configured:
+        candidate = Path(configured) if Path(configured).is_absolute() else (_repo_root() / configured).resolve()
+    else:
+        # No explicit setting — prefer wwwroot/data/outputs (writable after Oryx build),
+        # but fall back to /tmp/outputs if wwwroot is read-only (cold-start on Consumption plan).
+        preferred = (_repo_root() / "data" / "outputs").resolve()
+        candidate = preferred
+
     if not candidate.exists():
-        LOG.warning(
-            "Configured outputs path %s does not exist, creating it",
-            candidate,
-        )
-        candidate.mkdir(parents=True, exist_ok=True)
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            LOG.info("Created outputs directory: %s", candidate)
+        except OSError:
+            # wwwroot is read-only — fall back to /tmp/outputs which is always writable
+            LOG.warning(
+                "Cannot create outputs path %s (read-only?), falling back to /tmp/outputs",
+                candidate,
+            )
+            candidate = Path("/tmp/outputs")
+            candidate.mkdir(parents=True, exist_ok=True)
+
     return candidate
 
 
