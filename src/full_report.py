@@ -214,8 +214,8 @@ def main():
             logging.error("Please run data ingestion and mapping first, or configure SharePoint.")
             return
     
-    # Create output directory
-    output_dir = str(project_root / 'data/outputs')
+    # Create output directory — REPORT_OUTPUT_DIR lets Azure redirect to /tmp/outputs
+    output_dir = os.environ.get('REPORT_OUTPUT_DIR', str(project_root / 'data/outputs'))
     os.makedirs(output_dir, exist_ok=True)
     
     # Generate timestamp for filenames

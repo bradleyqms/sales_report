@@ -56,7 +56,7 @@ def _build_refresh_command() -> list[str] | None:
     return shlex.split(trimmed)
 
 
-def _refresh_reports() -> bool:
+def _refresh_reports(outputs_dir: Path) -> bool:
     command = _build_refresh_command()
     if not command:
         return False
@@ -71,6 +71,10 @@ def _refresh_reports() -> bool:
     env["PYTHONPATH"] = (
         f"{inherited}{os.pathsep}{existing}".strip(os.pathsep) if existing else inherited
     )
+    # Tell full_report.py (and qry_data_mapping.py) to write output to the same
+    # directory that dispatch_reports will read from — critical on Azure where
+    # /home/site/wwwroot/data is read-only.
+    env["REPORT_OUTPUT_DIR"] = str(outputs_dir)ts_dir)
 
     try:
         result = subprocess.run(
@@ -107,7 +111,7 @@ def main(mytimer: func.TimerRequest) -> None:
         LOG.warning("No recipients configured for report dispatch")
         return
 
-    _refresh_reports()
+    _refresh_reports(outputs_dir)
 
     # HTML -> email body
     html_files = collect_html_files(outputs_dir)

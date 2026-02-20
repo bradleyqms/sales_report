@@ -222,7 +222,9 @@ def apply_mappings(sales_df, mapping_df, output_dir=None):
     # Export unmapped entities to CSV
     if unmapped_entities:
         if output_dir is None:
-            output_dir = Path(__file__).parent.parent / "data" / "outputs"
+            import os as _os
+            _env = _os.environ.get('REPORT_OUTPUT_DIR')
+            output_dir = Path(_env) if _env else Path(__file__).parent.parent / "data" / "outputs"
         else:
             output_dir = Path(output_dir)
         
