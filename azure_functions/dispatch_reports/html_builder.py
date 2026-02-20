@@ -98,7 +98,26 @@ def process_report_table(raw_html: str) -> tuple[str, str, list[str], str]:
             break
 
     if split_idx is None:
-        return title, "", [_rebuild_rows(rows)], currency
+        # No "Total Sales" row found — look for any "Total ..." row for the summary
+        # banner only (no table split, e.g. core-markets report has "Total Core Markets")
+        fallback_summary = ""
+        for row in reversed(rows):
+            cells = re.findall(r"<td[^>]*>(.*?)</td>", row, re.IGNORECASE | re.DOTALL)
+            if cells and cells[0].strip().lower().startswith("total"):
+                if len(cells) >= 2:
+                    total_val = cells[1].strip()
+                    pct_val = cells[-1].strip() if len(cells) >= 5 else ""
+                    label = cells[0].strip()
+                    fallback_summary = (
+                        f'<span style="font-size:13px;margin-right:16px;">'
+                        f"{label}: <strong>{total_val} {currency}</strong></span>"
+                    )
+                    if pct_val and pct_val not in ("-", ""):
+                        fallback_summary += (
+                            f'<span style="font-size:13px;">vs Budget: <strong>{pct_val}</strong></span>'
+                        )
+                break
+        return title, fallback_summary, [_rebuild_rows(rows)], currency
 
     main_rows = rows[: split_idx + 1]
     usa_rows_raw = [
@@ -136,7 +155,12 @@ def process_report_table(raw_html: str) -> tuple[str, str, list[str], str]:
     return title, summary_html, tables, currency
 
 
-def build_html_body(html_files: list[Path], plain_intro: str) -> tuple[str, str]:
+def build_html_body(
+    html_files: list[Path],
+    plain_intro: str,
+    banner_title: str = "Management Sales Report",
+    footer_note: str = "Full CSV data files are attached.",
+) -> tuple[str, str]:
     """Return (contentType, content) for the Graph message body.
 
     Renders each HTML report as a section in a branded email.
@@ -193,14 +217,14 @@ def build_html_body(html_files: list[Path], plain_intro: str) -> tuple[str, str]
 <body style="margin:0;padding:0;background:#f0f4f8;">
 <div style="max-width:960px;margin:24px auto;font-family:Arial,sans-serif;">
   <div style="background:#1a365d;color:#fff;padding:20px 28px;border-radius:6px 6px 0 0;">
-    <div style="font-size:20px;font-weight:bold;letter-spacing:0.3px;">QMS Medicosmetics \u2014 Sales Report</div>
+    <div style="font-size:20px;font-weight:bold;letter-spacing:0.3px;">QMS Medicosmetics \u2014 {banner_title}</div>
     <div style="font-size:12px;opacity:0.8;margin-top:4px;">Generated {generated_at} &nbsp;\u00b7&nbsp; Month-to-date figures</div>
   </div>
   <div style="background:#fff;padding:28px;border:1px solid #d1dbe8;border-top:none;border-radius:0 0 6px 6px;">
     <p style="margin:0 0 28px 0;color:#444;font-size:14px;">{plain_intro}</p>
     {"".join(sections)}
     <hr style="border:none;border-top:1px solid #e2e8f0;margin:32px 0 16px;">
-    <p style="margin:0;font-size:11px;color:#999;">This email was generated automatically from live SharePoint data. Full CSV data files are attached. Do not reply to this email.</p>
+    <p style="margin:0;font-size:11px;color:#999;">This email was generated automatically from live SharePoint data. {footer_note} Do not reply to this email.</p>
   </div>
 </div>
 </body>

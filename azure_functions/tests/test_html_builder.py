@@ -77,44 +77,44 @@ def _make_html(rows: str, title: str = "QRY Management Report") -> str:
 class TestProcessReportTable:
     def test_title_extracted(self):
         html = _make_html(_DATA_ROW, title="My Report")
-        title, _, _ = process_report_table(html)
+        title, _, _, _ = process_report_table(html)
         assert title == "My Report"
 
     def test_no_split_when_no_total_sales(self):
         html = _make_html(_DATA_ROW + _SUBTOTAL_ROW)
-        _, _, tables = process_report_table(html)
+        _, _, tables, _ = process_report_table(html)
         assert len(tables) == 1
 
     def test_splits_at_total_sales(self):
         rows = _DATA_ROW + _TOTAL_SALES_ROW + _USA_ROW
         html = _make_html(rows)
-        _, _, tables = process_report_table(html)
+        _, _, tables, _ = process_report_table(html)
         assert len(tables) == 2
 
     def test_main_table_includes_total_sales_row(self):
         rows = _DATA_ROW + _TOTAL_SALES_ROW + _USA_ROW
         html = _make_html(rows)
-        _, _, tables = process_report_table(html)
+        _, _, tables, _ = process_report_table(html)
         assert "Total Sales" in tables[0]
 
     def test_usa_table_does_not_contain_germany(self):
         rows = _DATA_ROW + _TOTAL_SALES_ROW + _USA_ROW
         html = _make_html(rows)
-        _, _, tables = process_report_table(html)
+        _, _, tables, _ = process_report_table(html)
         assert "Germany" not in tables[1]
         assert "Northeast" in tables[1]
 
     def test_usa_table_repeats_header(self):
         rows = _DATA_ROW + _TOTAL_SALES_ROW + _USA_ROW
         html = _make_html(rows)
-        _, _, tables = process_report_table(html)
+        _, _, tables, _ = process_report_table(html)
         # Header cells should appear in the USA block
         assert "Actual kEUR" in tables[1]
 
     def test_blank_spacer_rows_stripped(self):
         rows = _DATA_ROW + _BLANK_ROW + _TOTAL_SALES_ROW
         html = _make_html(rows)
-        _, _, tables = process_report_table(html)
+        _, _, tables, _ = process_report_table(html)
         # Blank rows should not become <tr> entries
         blank_trs = re.findall(r"<tr>[^<]*<td[^>]*>\s*</td>", tables[0])
         assert blank_trs == []
@@ -122,7 +122,7 @@ class TestProcessReportTable:
     def test_total_sales_row_is_bold(self):
         rows = _DATA_ROW + _TOTAL_SALES_ROW
         html = _make_html(rows)
-        _, _, tables = process_report_table(html)
+        _, _, tables, _ = process_report_table(html)
         # The Total Sales <td> should have font-weight:bold in its style
         td_matches = re.findall(
             r'<td style="[^"]*font-weight:bold[^"]*">Total Sales</td>', tables[0]
@@ -132,18 +132,18 @@ class TestProcessReportTable:
     def test_total_sales_row_has_top_border(self):
         rows = _DATA_ROW + _TOTAL_SALES_ROW
         html = _make_html(rows)
-        _, _, tables = process_report_table(html)
+        _, _, tables, _ = process_report_table(html)
         assert "border-top:2px solid #2c5282" in tables[0]
 
     def test_summary_html_contains_total_value(self):
         rows = _DATA_ROW + _TOTAL_SALES_ROW
         html = _make_html(rows)
-        _, summary, _ = process_report_table(html)
+        _, summary, _, _ = process_report_table(html)
         assert "500" in summary  # Actual kEUR column
 
     def test_no_table_returns_raw_html(self):
         html = "<h2>Title</h2><p>No table here</p>"
-        title, _, tables = process_report_table(html)
+        title, _, tables, _ = process_report_table(html)
         assert title == "Title"
         assert len(tables) == 1
         assert "No table here" in tables[0]
@@ -151,9 +151,69 @@ class TestProcessReportTable:
     def test_subtotal_rows_have_blue_background(self):
         rows = _DATA_ROW + _SUBTOTAL_ROW + _TOTAL_SALES_ROW
         html = _make_html(rows)
-        _, _, tables = process_report_table(html)
+        _, _, tables, _ = process_report_table(html)
         # Europe Total is class="total" -> should have blue background
         assert "background:#d0e4ff" in tables[0]
+
+    # --- New behaviour tests ---
+
+    def test_qry_prefix_stripped_from_title(self):
+        html = _make_html(_DATA_ROW, title="QRY Management Report")
+        title, _, _, _ = process_report_table(html)
+        assert title == "Management Report"
+        assert not title.startswith("QRY")
+
+    def test_qry_prefix_with_extra_spaces_stripped(self):
+        html = _make_html(_DATA_ROW, title="QRY  Core Markets")
+        title, _, _, _ = process_report_table(html)
+        assert title == "Core Markets"
+
+    def test_no_qry_prefix_title_unchanged(self):
+        html = _make_html(_DATA_ROW, title="Global Sales Report")
+        title, _, _, _ = process_report_table(html)
+        assert title == "Global Sales Report"
+
+    def test_currency_defaults_to_keur(self):
+        html = _make_html(_DATA_ROW)
+        _, _, _, currency = process_report_table(html)
+        assert currency == "kEUR"
+
+    def test_currency_detected_as_kusd(self):
+        # Inject 'kUSD' into the HTML (as the report generator would)
+        html = _make_html(_DATA_ROW).replace("kEUR", "kUSD")
+        _, _, _, currency = process_report_table(html)
+        assert currency == "kUSD"
+
+    def test_keur_replaced_with_kusd_in_tables(self):
+        # When the HTML contains kUSD, all kEUR labels should be replaced
+        html = _make_html(_DATA_ROW).replace("kEUR", "kUSD")
+        _, _, tables, _ = process_report_table(html)
+        assert "kEUR" not in tables[0]
+        assert "kUSD" in tables[0]
+
+    def test_keur_preserved_in_eur_report(self):
+        html = _make_html(_DATA_ROW)  # no kUSD in HTML
+        _, _, tables, _ = process_report_table(html)
+        assert "kEUR" in tables[0]
+
+    def test_fallback_summary_from_total_label(self):
+        # A row labelled "Total Core Markets" (not "Total Sales") should still
+        # produce a summary banner and NOT split the table.
+        total_core_row = (
+            '<tr class="data-row">'
+            "<td>Total Core Markets</td><td>323</td><td>300</td><td>280</td><td>55%</td></tr>"
+        )
+        html = _make_html(_DATA_ROW + total_core_row)
+        _, summary, tables, _ = process_report_table(html)
+        assert "323" in summary
+        assert "Total Core Markets" in summary
+        assert len(tables) == 1  # no split — just the one table
+
+    def test_no_total_row_gives_empty_summary(self):
+        # No row starting with "Total" → empty summary
+        html = _make_html(_DATA_ROW + _SUBTOTAL_ROW)  # "Europe Total" doesn't start with Total
+        _, summary, _, _ = process_report_table(html)
+        assert summary == ""
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +242,16 @@ class TestBuildHtmlBody:
         f.write_text(html, encoding="utf-8")
         _, body = build_html_body([f], "Intro")
         assert "QMS Medicosmetics" in body
+        assert "Management Sales Report" in body
+
+    def test_custom_banner_title(self, tmp_path):
+        rows = _DATA_ROW + _TOTAL_SALES_ROW
+        html = _make_html(rows)
+        f = tmp_path / "report.html"
+        f.write_text(html, encoding="utf-8")
+        _, body = build_html_body([f], "Intro", banner_title="Core Market Sales Report")
+        assert "Core Market Sales Report" in body
+        assert "Management Sales Report" not in body
 
     def test_usa_subheading_injected_when_split(self, tmp_path):
         rows = _DATA_ROW + _TOTAL_SALES_ROW + _USA_ROW
@@ -206,3 +276,20 @@ class TestBuildHtmlBody:
         f.write_text(html, encoding="utf-8")
         _, body = build_html_body([f], "MY CUSTOM INTRO")
         assert "MY CUSTOM INTRO" in body
+
+    def test_default_footer_note_csv(self, tmp_path):
+        rows = _DATA_ROW + _TOTAL_SALES_ROW
+        html = _make_html(rows)
+        f = tmp_path / "r.html"
+        f.write_text(html, encoding="utf-8")
+        _, body = build_html_body([f], "Intro")
+        assert "Full CSV data files are attached." in body
+
+    def test_custom_footer_note(self, tmp_path):
+        rows = _DATA_ROW + _TOTAL_SALES_ROW
+        html = _make_html(rows)
+        f = tmp_path / "r.html"
+        f.write_text(html, encoding="utf-8")
+        _, body = build_html_body([f], "Intro", footer_note="The PDF report is attached.")
+        assert "The PDF report is attached." in body
+        assert "Full CSV data files are attached." not in body

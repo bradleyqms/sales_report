@@ -150,7 +150,11 @@ def main(mytimer: func.TimerRequest) -> None:
         "CORE_MARKET_DISPATCH_BODY",
         "Please find the latest QMS core market report attached.",
     )
-    body_type, body_content = build_html_body(html_files, plain_intro)
+    body_type, body_content = build_html_body(
+        html_files, plain_intro,
+        banner_title="Core Market Sales Report",
+        footer_note="The PDF report is attached.",
+    )
 
     # PDF → attachment
     attachments = _collect_core_market_pdf(outputs_dir)
