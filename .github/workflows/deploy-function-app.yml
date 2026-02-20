@@ -32,7 +32,6 @@ env:
 
 jobs:
   build-and-deploy:
-    if: false  # Deployment handled by Azure Deployment Center — do not remove this file
     runs-on: ubuntu-latest
 
     steps:
@@ -61,10 +60,39 @@ jobs:
           echo "=== Package structure ==="
           find deploy_package -maxdepth 3 -type f | grep -v __pycache__ | head -60
 
-      - name: Deploy to Azure Functions
-        uses: Azure/functions-action@v1
-        with:
-          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
-          package: deploy_package
-          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
-          scm-do-build-during-deployment: true
+          # Zip the package — code only, no pre-installed dependencies.
+          # SCM_DO_BUILD_DURING_DEPLOYMENT=true is permanently set in the App Settings,
+          # so Oryx runs pip install on the Azure side after this zip lands.
+          cd deploy_package && zip -r ../package.zip . -x "**/__pycache__/*" -x "**/*.pyc"
+          cd .. && echo "Package size: $(du -sh package.zip | cut -f1)"
+
+      - name: Deploy via Kudu zip deploy
+        shell: bash
+        env:
+          PUBLISH_PROFILE: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+        run: |
+          # Extract Kudu credentials from publish profile XML
+          KUDU_URL=$(echo "$PUBLISH_PROFILE" | grep -oP '(?<=publishUrl=")[^"]+' | grep -i scm | head -1)
+          KUDU_USER=$(echo "$PUBLISH_PROFILE" | grep -oP '(?<=userName=")[^"]+' | head -1)
+          KUDU_PASS=$(echo "$PUBLISH_PROFILE" | grep -oP '(?<=userPWD=")[^"]+' | head -1)
+
+          echo "Deploying to: https://$KUDU_URL"
+
+          # Direct zip deploy — no settings manipulation, no 409 race.
+          # SCM_DO_BUILD_DURING_DEPLOYMENT=true (set in Portal) means Oryx
+          # runs pip install automatically after the zip is extracted.
+          HTTP=$(curl -s -o /tmp/deploy_response.txt -w "%{http_code}" \
+            -X POST "https://${KUDU_URL}/api/zipdeploy?isAsync=false" \
+            -u "${KUDU_USER}:${KUDU_PASS}" \
+            --data-binary @package.zip \
+            -H "Content-Type: application/zip" \
+            --max-time 600)
+
+          echo "Kudu response HTTP $HTTP:"
+          cat /tmp/deploy_response.txt || true
+
+          if [[ "$HTTP" != "200" && "$HTTP" != "202" ]]; then
+            echo "ERROR: Deploy failed with HTTP $HTTP"
+            exit 1
+          fi
+          echo "Deploy succeeded."
