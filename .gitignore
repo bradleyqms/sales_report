@@ -36,6 +36,10 @@ venv.bak/
 *.swo
 *~
 
+# Azure Functions local settings (contains secrets)
+local.settings.json
+.python_packages/
+
 # OS
 .DS_Store
 Thumbs.db

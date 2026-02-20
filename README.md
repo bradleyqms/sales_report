@@ -134,6 +134,33 @@ Territory-level sales breakdown for USA market with regional performance metrics
 ### Full Report
 Comprehensive report combining all metrics with executive summary.
 
+## Automated Report Dispatch
+
+- **Function:** `dispatch_reports` runs on a timer (07:00 UTC by default) and ensures the latest HTML exports for both the combined management report and the core markets report are fresh before sending.
+- **Refresh Step:** The function executes `src/full_report.py` (configurable via `REPORT_DISPATCH_REFRESH_COMMAND`) so every dispatch reflects the newest data, then uploads any required exports to `data/outputs`.
+- **Attachment Selection:** Two dedicated glob patterns can optionally pin the files that always get attached (`REPORT_DISPATCH_ATTACHMENT_PATTERNS`), while the legacy `REPORT_DISPATCH_ATTACHMENT_GLOB`/`REPORT_DISPATCH_MAX_ATTACHMENTS` pair remains available as a fallback.
+- **Transport:** Graph client credentials using MSAL (`GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`, `GRAPH_TENANT_ID`).
+
+### Required Settings
+
+Add these keys to your Azure Function configuration or to `azure_functions/local.settings.json` when testing locally:
+
+| Variable | Description |
+|---|---|
+| `REPORT_DISPATCH_RECIPIENTS` | Comma/semicolon-separated recipient list (e.g., `sales-team@qms.com`). |
+| `REPORT_DISPATCH_GRAPH_SENDER` | User principal name that will send the mail (must match the Graph service principal permission). |
+| `REPORT_DISPATCH_ATTACHMENT_PATTERNS` | Semicolon-delimited globs for key files (default `combined_management_report_*.html;management_report_core_markets_*.html`). |
+| `REPORT_DISPATCH_ATTACHMENTS_PER_PATTERN` | Max matches to include per pattern (default `1`). |
+| `REPORT_DISPATCH_ATTACHMENT_GLOB` | Legacy glob for more general attachments (still used when `REPORT_DISPATCH_ATTACHMENT_PATTERNS` is unset; default `management_report_*.html`). |
+| `REPORT_DISPATCH_MAX_ATTACHMENTS` | Limits attachments when relying on the legacy glob (default `3`). |
+| `REPORT_DISPATCH_REFRESH_COMMAND` | Command that refreshes reports before dispatch (empty string disables it; default uses the current Python interpreter to run `src/full_report.py`). |
+| `REPORT_DISPATCH_REFRESH_TIMEOUT_SECONDS` | Time limit for the refresh command (default `1800`). |
+| `REPORT_DISPATCH_BODY` | Body text for the dispatch email. |
+| `REPORT_DISPATCH_SUBJECT` | Subject template for dispatched emails. |
+
+The function also relies on the Microsoft Graph credentials already required elsewhere in the project (`GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`).
+
+Override `REPORT_DISPATCH_OUTPUTS_PATH` if your reports live outside `data/outputs`; the function logs a warning and falls back to `data/outputs` if the directory is missing.
 ## License
 
 Proprietary - QMS Medicosmetics
