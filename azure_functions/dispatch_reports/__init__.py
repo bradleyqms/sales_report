@@ -74,7 +74,7 @@ def _refresh_reports(outputs_dir: Path) -> bool:
     # Tell full_report.py (and qry_data_mapping.py) to write output to the same
     # directory that dispatch_reports will read from — critical on Azure where
     # /home/site/wwwroot/data is read-only.
-    env["REPORT_OUTPUT_DIR"] = str(outputs_dir)ts_dir)
+    env["REPORT_OUTPUT_DIR"] = str(outputs_dir)
 
     try:
         result = subprocess.run(
