@@ -124,7 +124,7 @@ def main(mytimer: func.TimerRequest) -> None:
 
     plain_intro = os.getenv(
         "REPORT_DISPATCH_BODY",
-        "Please find the latest QMS sales data attached.",
+        "QMS Medicosmetics \u2014 Management Sales Report",
     )
     body_type, body_content = build_html_body(html_files, plain_intro)
 

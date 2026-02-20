@@ -148,7 +148,7 @@ def main(mytimer: func.TimerRequest) -> None:
 
     plain_intro = os.getenv(
         "CORE_MARKET_DISPATCH_BODY",
-        "Please find the latest QMS core market report attached.",
+        "QMS Medicosmetics \u2014 Core Market Sales Report",
     )
     body_type, body_content = build_html_body(html_files, plain_intro)
 

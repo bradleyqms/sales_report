@@ -14,9 +14,8 @@ KEY_HTML_PATTERNS = [
 KEY_REPORT_PATTERNS = KEY_HTML_PATTERNS  # backwards-compat alias
 
 KEY_CSV_PATTERNS = [
+    "combined_management_report_*.csv",
     "management_report_core_markets_*.csv",
-    "management_report_qry_*.csv",
-    "germany_gap_analysis.csv",
 ]
 
 # Core-market-only function patterns
