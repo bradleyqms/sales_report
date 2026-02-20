@@ -60,19 +60,22 @@ def _rebuild_rows(rows: list[str]) -> str:
     return f"<table {_TABLE_STYLE}>{''.join(rebuilt)}</table>"
 
 
-def process_report_table(raw_html: str) -> tuple[str, str, list[str]]:
+def process_report_table(raw_html: str) -> tuple[str, str, list[str], str]:
     """Extract title and one or more cleaned tables from raw report HTML.
 
-    Returns (title, summary_html, list_of_table_html_blocks).
-    The QRY management report is split into two blocks at 'Total Sales':
-    the main global table and a separate USA Spa regional breakdown.
+    Returns:
+        (title, summary_html, tables, currency)
+        currency is 'kUSD' when the report signals USD values (USA SPA), else 'kEUR'.
     """
     title_match = re.search(r"<h2[^>]*>(.*?)</h2>", raw_html, re.IGNORECASE | re.DOTALL)
     title = title_match.group(1).strip() if title_match else "Report"
 
+    # Detect currency from content (generator writes 'kUSD' in the HTML when converting)
+    currency = "kUSD" if "kusd" in raw_html.lower() else "kEUR"
+
     tbl_match = re.search(r"(<table.*?</table>)", raw_html, re.IGNORECASE | re.DOTALL)
     if not tbl_match:
-        return title, "", [raw_html]
+        return title, "", [raw_html], currency
 
     rows = re.findall(
         r"<tr[^>]*>.*?</tr>", tbl_match.group(1), re.IGNORECASE | re.DOTALL
@@ -90,7 +93,7 @@ def process_report_table(raw_html: str) -> tuple[str, str, list[str]]:
             break
 
     if split_idx is None:
-        return title, "", [_rebuild_rows(rows)]
+        return title, "", [_rebuild_rows(rows)], currency
 
     main_rows = rows[: split_idx + 1]
     usa_rows_raw = [
@@ -115,7 +118,7 @@ def process_report_table(raw_html: str) -> tuple[str, str, list[str]]:
         pct_val = ts_cells[-1].strip() if len(ts_cells) >= 5 else ""
         summary_html = (
             f'<span style="font-size:13px;margin-right:16px;">'
-            f"Total Sales: <strong>{total_val} kEUR</strong></span>"
+            f"Total Sales: <strong>{total_val} {currency}</strong></span>"
         )
         if pct_val and pct_val not in ("-", ""):
             summary_html += (
@@ -125,7 +128,7 @@ def process_report_table(raw_html: str) -> tuple[str, str, list[str]]:
     tables = [_rebuild_rows(main_rows)]
     if usa_rows:
         tables.append(_rebuild_rows(usa_rows))
-    return title, summary_html, tables
+    return title, summary_html, tables, currency
 
 
 def build_html_body(html_files: list[Path], plain_intro: str) -> tuple[str, str]:
@@ -148,7 +151,7 @@ def build_html_body(html_files: list[Path], plain_intro: str) -> tuple[str, str]
             LOG.warning("Could not read HTML body file %s: %s", path, exc)
             continue
 
-        title, summary_html, tables = process_report_table(raw)
+        title, summary_html, tables, currency = process_report_table(raw)
 
         summary_block = (
             f"<p style='margin:0 0 12px 0;font-family:Arial,sans-serif;'>{summary_html}</p>"
@@ -163,7 +166,7 @@ def build_html_body(html_files: list[Path], plain_intro: str) -> tuple[str, str]
             body_blocks.append(
                 '<h3 style="margin:8px 0 8px 0;font-size:14px;color:#1a365d;'
                 'font-family:Arial,sans-serif;border-top:2px solid #e2e8f0;padding-top:16px;">'
-                "USA Spa \u2014 Regional Breakdown</h3>"
+                f"USA Spa — Regional Breakdown ({currency})</h3>"
                 f'<div style="overflow-x:auto;margin-bottom:24px;">{tables[1]}</div>'
             )
 

@@ -19,6 +19,10 @@ KEY_CSV_PATTERNS = [
     "germany_gap_analysis.csv",
 ]
 
+# Core-market-only function patterns
+CORE_MARKET_HTML_PATTERNS = ["management_report_core_markets_*.html"]
+CORE_MARKET_PDF_PATTERNS = ["management_report_core_markets_*.pdf"]
+
 
 def parse_int_env(name: str, default: int) -> int:
     raw = os.getenv(name)

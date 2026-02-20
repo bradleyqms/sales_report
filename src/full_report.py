@@ -306,10 +306,9 @@ def main():
         core_market_df = core_market_gen.calculate_report()
         core_market_gen.render_report(core_market_df)
         
-        # Export Core Market Report to separate CSV
+        # Export Core Market Report — all formats (CSV, TXT, HTML, PDF, XLSX)
         core_market_base = os.path.join(output_dir, f'management_report_core_markets_{get_current_year()}_{timestamp}')
         core_market_gen.export_report(core_market_df, core_market_base + '.csv')
-        
     except Exception as e:
         logging.error(f"Error generating Core Market report: {e}")
         print(f"[ERROR] Failed to generate Core Market report: {e}")

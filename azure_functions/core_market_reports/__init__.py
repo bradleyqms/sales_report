@@ -1,4 +1,14 @@
-"""Timer-triggered Azure Function -- thin entrypoint delegating to submodules."""
+"""Timer-triggered Azure Function — core market report dispatch.
+
+Sends the core markets HTML report (inline) and PDF (attachment) to the
+recipients configured via CORE_MARKET_DISPATCH_RECIPIENTS.
+
+Shares all submodules with dispatch_reports but:
+  - reads CORE_MARKET_DISPATCH_RECIPIENTS (not REPORT_DISPATCH_RECIPIENTS)
+  - collects only management_report_core_markets_*.html for the email body
+  - attaches only management_report_core_markets_*.pdf
+  - subject: "QMS Core Market Report DD.MM.YYYY"
+"""
 from __future__ import annotations
 
 import logging
@@ -12,31 +22,28 @@ from pathlib import Path
 import azure.functions as func
 from dotenv import load_dotenv
 
-from .config import parse_int_env, parse_recipients
-from .graph_client import acquire_graph_token, send_via_graph
-from .html_builder import build_html_body
-from .report_collector import collect_csv_attachments, collect_html_files, resolve_outputs_path
+# Import shared submodules from the sibling dispatch_reports package.
+# On Azure: both functions live under /home/site/wwwroot/ so the relative
+# import resolves correctly via the package name.
+from dispatch_reports.config import (
+    CORE_MARKET_HTML_PATTERNS,
+    CORE_MARKET_PDF_PATTERNS,
+    parse_int_env,
+    parse_recipients,
+)
+from dispatch_reports.graph_client import send_via_graph
+from dispatch_reports.html_builder import build_html_body
+from dispatch_reports.report_collector import find_files, resolve_outputs_path
 
 load_dotenv()
 
 LOG = logging.getLogger(__name__)
 LOG.setLevel(logging.INFO)
 
-# On Azure: __file__ = /home/site/wwwroot/dispatch_reports/__init__.py
-# parents[0] = dispatch_reports/,  parents[1] = wwwroot/  ← package root
-# Locally:   parents[1] = azure_functions/, parents[2] = repo root
-# REPORT_DISPATCH_REFRESH_COMMAND overrides this entirely if set.
+# On Azure: __file__ = /home/site/wwwroot/core_market_reports/__init__.py
+# parents[0] = core_market_reports/,  parents[1] = wwwroot/ (package root)
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REFRESH_SCRIPT = REPO_ROOT / "src" / "full_report.py"
-
-# Backwards-compatible shims used by test_dispatch_local.py and tests
-_resolve_outputs_path = resolve_outputs_path
-_parse_recipients = parse_recipients
-_collect_html_files = collect_html_files
-_collect_csv_attachments = collect_csv_attachments
-_build_html_body = build_html_body
-_send_via_graph = send_via_graph
-_acquire_graph_token = acquire_graph_token
 
 
 def _build_refresh_command() -> list[str] | None:
@@ -63,17 +70,12 @@ def _refresh_reports(outputs_dir: Path) -> bool:
     timeout = max(30, parse_int_env("REPORT_DISPATCH_REFRESH_TIMEOUT_SECONDS", 1800))
     LOG.info("Refreshing reports with command: %s", " ".join(command))
 
-    # Propagate the current sys.path so the subprocess sees Oryx-installed
-    # packages (pandas etc.) which live outside the default site-packages.
     env = os.environ.copy()
     inherited = os.pathsep.join(p for p in sys.path if p)
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = (
         f"{inherited}{os.pathsep}{existing}".strip(os.pathsep) if existing else inherited
     )
-    # Tell full_report.py (and qry_data_mapping.py) to write output to the same
-    # directory that dispatch_reports will read from — critical on Azure where
-    # /home/site/wwwroot/data is read-only.
     env["REPORT_OUTPUT_DIR"] = str(outputs_dir)
 
     try:
@@ -102,48 +104,68 @@ def _refresh_reports(outputs_dir: Path) -> bool:
     return True
 
 
+def _collect_core_market_html(outputs_dir: Path) -> list[Path]:
+    seen: set[Path] = set()
+    result: list[Path] = []
+    for pattern in CORE_MARKET_HTML_PATTERNS:
+        for f in find_files(outputs_dir, pattern, 1):
+            resolved = f.resolve()
+            if resolved not in seen:
+                result.append(f)
+                seen.add(resolved)
+    return result
+
+
+def _collect_core_market_pdf(outputs_dir: Path) -> list[Path]:
+    seen: set[Path] = set()
+    result: list[Path] = []
+    for pattern in CORE_MARKET_PDF_PATTERNS:
+        for f in find_files(outputs_dir, pattern, 1):
+            resolved = f.resolve()
+            if resolved not in seen:
+                result.append(f)
+                seen.add(resolved)
+    return result
+
+
 # ---- Azure Functions entry point ----------------------------------------
 
 def main(mytimer: func.TimerRequest) -> None:
     outputs_dir = resolve_outputs_path()
-    recipients = parse_recipients(os.getenv("REPORT_DISPATCH_RECIPIENTS"))
+    recipients = parse_recipients(os.getenv("CORE_MARKET_DISPATCH_RECIPIENTS"))
     if not recipients:
-        LOG.warning("No recipients configured for report dispatch")
+        LOG.warning("No recipients configured (CORE_MARKET_DISPATCH_RECIPIENTS is empty)")
         return
 
     _refresh_reports(outputs_dir)
 
-    # HTML -> email body
-    html_files = collect_html_files(outputs_dir)
+    # HTML → email body
+    html_files = _collect_core_market_html(outputs_dir)
     if not html_files:
-        LOG.warning("No HTML report files found in %s", outputs_dir)
+        LOG.warning("No core market HTML files found in %s", outputs_dir)
         return
-    LOG.info(
-        "HTML body files (%d): %s", len(html_files), [p.name for p in html_files]
-    )
+    LOG.info("Core market HTML files (%d): %s", len(html_files), [p.name for p in html_files])
 
     plain_intro = os.getenv(
-        "REPORT_DISPATCH_BODY",
-        "Please find the latest QMS sales data attached.",
+        "CORE_MARKET_DISPATCH_BODY",
+        "Please find the latest QMS core market report attached.",
     )
     body_type, body_content = build_html_body(html_files, plain_intro)
 
-    # CSVs -> attachments
-    attachments = collect_csv_attachments(outputs_dir)
+    # PDF → attachment
+    attachments = _collect_core_market_pdf(outputs_dir)
     if not attachments:
-        LOG.warning("No CSV files found to attach from %s", outputs_dir)
+        LOG.warning("No core market PDF files found in %s — sending without attachment", outputs_dir)
     else:
-        LOG.info(
-            "CSV attachments (%d): %s", len(attachments), [p.name for p in attachments]
-        )
+        LOG.info("Core market PDF attachments (%d): %s", len(attachments), [p.name for p in attachments])
 
     subject = os.getenv(
-        "REPORT_DISPATCH_SUBJECT",
-        f"QMS Sales Report {datetime.utcnow():%d.%m.%Y}",
+        "CORE_MARKET_DISPATCH_SUBJECT",
+        f"QMS Core Market Report {datetime.utcnow():%d.%m.%Y}",
     )
 
     try:
         send_via_graph(recipients, attachments, body_content, subject, body_type)
     except Exception as exc:  # pylint: disable=broad-except
-        LOG.exception("Graph report dispatch failed: %s", exc)
+        LOG.exception("Graph core market dispatch failed: %s", exc)
         raise
