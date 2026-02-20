@@ -27,7 +27,7 @@ jobs:
       - name: Build deployment package
         shell: bash
         run: |
-          mkdir -p deploy_package
+          mkdir -p deploy_package/.python_packages/lib/site-packages
 
           # Azure Functions host files (host.json must be at package root)
           cp azure_functions/host.json         deploy_package/
@@ -43,8 +43,17 @@ jobs:
           # Empty .env so load_dotenv() doesn't crash; real values come from App Settings
           touch deploy_package/.env
 
+          # Pre-install dependencies into .python_packages so they're available
+          # when running under WEBSITE_RUN_FROM_PACKAGE (Oryx does not run in this mode)
+          pip install \
+            --target deploy_package/.python_packages/lib/site-packages \
+            --requirement azure_functions/requirements.txt \
+            --no-cache-dir \
+            --quiet
+
           echo "=== Package structure ==="
-          find deploy_package -maxdepth 3 -type f | grep -v __pycache__ | head -60
+          find deploy_package -maxdepth 3 -type f | grep -v __pycache__ | head -80
+          echo "Total size: $(du -sh deploy_package | cut -f1)"
 
       - name: Zip artifact for deployment
         run: |
