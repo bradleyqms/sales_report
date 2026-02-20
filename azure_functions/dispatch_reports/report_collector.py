@@ -21,18 +21,24 @@ _REPO_ROOT: Path | None = None
 def _repo_root() -> Path:
     if _REPO_ROOT is not None:
         return _REPO_ROOT
-    return Path(__file__).resolve().parents[2]
+    # __file__ = .../dispatch_reports/report_collector.py
+    # parents[0] = dispatch_reports/, parents[1] = package root (wwwroot on Azure)
+    return Path(__file__).resolve().parents[1]
 
 
 def resolve_outputs_path() -> Path:
-    configured = os.getenv("REPORT_DISPATCH_OUTPUTS_PATH", "data/outputs")
-    candidate = (_repo_root() / configured).resolve()
+    # On Azure Consumption plan only /tmp is writable at runtime.
+    # Set REPORT_DISPATCH_OUTPUTS_PATH in App Settings to override.
+    default = "/tmp/outputs" if Path("/tmp").exists() and not (_repo_root() / "data" / "outputs").exists() else "data/outputs"
+    configured = os.getenv("REPORT_DISPATCH_OUTPUTS_PATH", default)
+    # Absolute paths (e.g. /tmp/outputs) are used as-is; relative paths are anchored to package root.
+    candidate = Path(configured) if Path(configured).is_absolute() else (_repo_root() / configured).resolve()
     if not candidate.exists():
         LOG.warning(
-            "Configured outputs path %s does not exist, falling back to data/outputs",
+            "Configured outputs path %s does not exist, creating it",
             candidate,
         )
-        candidate = (_repo_root() / "data" / "outputs").resolve()
+        candidate.mkdir(parents=True, exist_ok=True)
     return candidate
 
 

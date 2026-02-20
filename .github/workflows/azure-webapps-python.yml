@@ -23,6 +23,12 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'fastapi_web_app/**'
+      - 'src/**'
+      - 'requirements.txt'
+      - 'runtime.txt'
+      - 'startup.sh'
   workflow_dispatch:
 
 env:
