@@ -69,6 +69,8 @@ def process_report_table(raw_html: str) -> tuple[str, str, list[str], str]:
     """
     title_match = re.search(r"<h2[^>]*>(.*?)</h2>", raw_html, re.IGNORECASE | re.DOTALL)
     title = title_match.group(1).strip() if title_match else "Report"
+    # Strip leading "QRY " prefix that the generator adds to internal report names
+    title = re.sub(r"^QRY\s+", "", title)
 
     # Detect currency from content (generator writes 'kUSD' in the HTML when converting)
     currency = "kUSD" if "kusd" in raw_html.lower() else "kEUR"
