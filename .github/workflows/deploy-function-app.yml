@@ -38,11 +38,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Build deployment package
         shell: bash
         run: |
@@ -62,17 +57,8 @@ jobs:
           # Empty .env so load_dotenv() doesn't crash; real values come from App Settings
           touch deploy_package/.env
 
-          # Pre-install packages into .python_packages — Azure Functions Python worker
-          # adds this directory to sys.path automatically, so no Oryx build needed.
-          # Ubuntu runner (x86_64) is binary-compatible with Azure Linux runtime.
-          pip install -r deploy_package/requirements.txt \
-              --target="deploy_package/.python_packages/lib/site-packages" \
-              --quiet
-
           echo "=== Package structure ==="
-          find deploy_package -maxdepth 3 -type f | grep -v __pycache__ | grep -v ".python_packages" | head -60
-          echo "=== Installed packages ==="
-          ls deploy_package/.python_packages/lib/site-packages | head -20
+          find deploy_package -maxdepth 3 -type f | grep -v __pycache__ | head -60
 
       - name: Deploy to Azure Functions
         uses: Azure/functions-action@v1
@@ -80,4 +66,4 @@ jobs:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
           package: deploy_package
           publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
-          scm-do-build-during-deployment: false
+          scm-do-build-during-deployment: true
