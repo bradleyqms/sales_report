@@ -1,0 +1,208 @@
+"""Tests for dispatch_reports.html_builder — process_report_table and build_html_body."""
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+import pytest
+
+# ---------------------------------------------------------------------------
+# The dispatch_reports package uses relative imports, so we import the module
+# directly rather than going through the package __init__.
+# ---------------------------------------------------------------------------
+import importlib.util, sys
+
+_HERE = Path(__file__).parent
+_PKG = _HERE.parent / ".python_packages" / "lib" / "site-packages"
+if _PKG.exists() and str(_PKG) not in sys.path:
+    sys.path.insert(0, str(_PKG))
+
+# Load html_builder as a standalone module (avoids needing the full package)
+_spec = importlib.util.spec_from_file_location(
+    "html_builder",
+    _HERE.parent / "dispatch_reports" / "html_builder.py",
+)
+_mod = importlib.util.module_from_spec(_spec)  # type: ignore[arg-type]
+_spec.loader.exec_module(_mod)                  # type: ignore[union-attr]
+
+process_report_table = _mod.process_report_table
+build_html_body = _mod.build_html_body
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+_HEADER_ROW = (
+    '<tr><th class="left">Market</th>'
+    "<th>Actual kEUR</th>"
+    "<th>Budget kEUR</th>"
+    "<th>LY kEUR</th>"
+    "<th>% vs Bdg</th></tr>"
+)
+
+_DATA_ROW = (
+    '<tr class="data-row">'
+    "<td>Germany</td><td>100</td><td>90</td><td>85</td><td>11%</td></tr>"
+)
+
+_SUBTOTAL_ROW = (
+    '<tr class="total">'
+    "<td>Europe Total</td><td>200</td><td>180</td><td>170</td><td>11%</td></tr>"
+)
+
+_TOTAL_SALES_ROW = (
+    '<tr class="data-row">'
+    "<td>Total Sales</td><td>500</td><td>450</td><td>420</td><td>11%</td></tr>"
+)
+
+_USA_ROW = (
+    '<tr class="data-row">'
+    "<td>Northeast</td><td>50</td><td>45</td><td>40</td><td>11%</td></tr>"
+)
+
+_BLANK_ROW = "<tr><td></td><td>-</td><td></td><td></td><td></td></tr>"
+
+
+def _make_html(rows: str, title: str = "QRY Management Report") -> str:
+    return (
+        f"<h2>{title}</h2>"
+        f"<table>{_HEADER_ROW}{rows}</table>"
+    )
+
+
+# ---------------------------------------------------------------------------
+# process_report_table tests
+# ---------------------------------------------------------------------------
+
+class TestProcessReportTable:
+    def test_title_extracted(self):
+        html = _make_html(_DATA_ROW, title="My Report")
+        title, _, _ = process_report_table(html)
+        assert title == "My Report"
+
+    def test_no_split_when_no_total_sales(self):
+        html = _make_html(_DATA_ROW + _SUBTOTAL_ROW)
+        _, _, tables = process_report_table(html)
+        assert len(tables) == 1
+
+    def test_splits_at_total_sales(self):
+        rows = _DATA_ROW + _TOTAL_SALES_ROW + _USA_ROW
+        html = _make_html(rows)
+        _, _, tables = process_report_table(html)
+        assert len(tables) == 2
+
+    def test_main_table_includes_total_sales_row(self):
+        rows = _DATA_ROW + _TOTAL_SALES_ROW + _USA_ROW
+        html = _make_html(rows)
+        _, _, tables = process_report_table(html)
+        assert "Total Sales" in tables[0]
+
+    def test_usa_table_does_not_contain_germany(self):
+        rows = _DATA_ROW + _TOTAL_SALES_ROW + _USA_ROW
+        html = _make_html(rows)
+        _, _, tables = process_report_table(html)
+        assert "Germany" not in tables[1]
+        assert "Northeast" in tables[1]
+
+    def test_usa_table_repeats_header(self):
+        rows = _DATA_ROW + _TOTAL_SALES_ROW + _USA_ROW
+        html = _make_html(rows)
+        _, _, tables = process_report_table(html)
+        # Header cells should appear in the USA block
+        assert "Actual kEUR" in tables[1]
+
+    def test_blank_spacer_rows_stripped(self):
+        rows = _DATA_ROW + _BLANK_ROW + _TOTAL_SALES_ROW
+        html = _make_html(rows)
+        _, _, tables = process_report_table(html)
+        # Blank rows should not become <tr> entries
+        blank_trs = re.findall(r"<tr>[^<]*<td[^>]*>\s*</td>", tables[0])
+        assert blank_trs == []
+
+    def test_total_sales_row_is_bold(self):
+        rows = _DATA_ROW + _TOTAL_SALES_ROW
+        html = _make_html(rows)
+        _, _, tables = process_report_table(html)
+        # The Total Sales <td> should have font-weight:bold in its style
+        td_matches = re.findall(
+            r'<td style="[^"]*font-weight:bold[^"]*">Total Sales</td>', tables[0]
+        )
+        assert td_matches, "Total Sales cell must have font-weight:bold"
+
+    def test_total_sales_row_has_top_border(self):
+        rows = _DATA_ROW + _TOTAL_SALES_ROW
+        html = _make_html(rows)
+        _, _, tables = process_report_table(html)
+        assert "border-top:2px solid #2c5282" in tables[0]
+
+    def test_summary_html_contains_total_value(self):
+        rows = _DATA_ROW + _TOTAL_SALES_ROW
+        html = _make_html(rows)
+        _, summary, _ = process_report_table(html)
+        assert "500" in summary  # Actual kEUR column
+
+    def test_no_table_returns_raw_html(self):
+        html = "<h2>Title</h2><p>No table here</p>"
+        title, _, tables = process_report_table(html)
+        assert title == "Title"
+        assert len(tables) == 1
+        assert "No table here" in tables[0]
+
+    def test_subtotal_rows_have_blue_background(self):
+        rows = _DATA_ROW + _SUBTOTAL_ROW + _TOTAL_SALES_ROW
+        html = _make_html(rows)
+        _, _, tables = process_report_table(html)
+        # Europe Total is class="total" -> should have blue background
+        assert "background:#d0e4ff" in tables[0]
+
+
+# ---------------------------------------------------------------------------
+# build_html_body tests
+# ---------------------------------------------------------------------------
+
+class TestBuildHtmlBody:
+    def test_no_files_returns_plain_text(self):
+        content_type, body = build_html_body([], "Hello")
+        assert content_type == "Text"
+        assert body == "Hello"
+
+    def test_with_files_returns_html(self, tmp_path):
+        rows = _DATA_ROW + _TOTAL_SALES_ROW
+        html = _make_html(rows)
+        f = tmp_path / "report.html"
+        f.write_text(html, encoding="utf-8")
+        content_type, body = build_html_body([f], "Intro")
+        assert content_type == "HTML"
+        assert "<!DOCTYPE html>" in body
+
+    def test_header_banner_present(self, tmp_path):
+        rows = _DATA_ROW + _TOTAL_SALES_ROW
+        html = _make_html(rows)
+        f = tmp_path / "report.html"
+        f.write_text(html, encoding="utf-8")
+        _, body = build_html_body([f], "Intro")
+        assert "QMS Medicosmetics" in body
+
+    def test_usa_subheading_injected_when_split(self, tmp_path):
+        rows = _DATA_ROW + _TOTAL_SALES_ROW + _USA_ROW
+        html = _make_html(rows)
+        f = tmp_path / "combined_management_report.html"
+        f.write_text(html, encoding="utf-8")
+        _, body = build_html_body([f], "Intro")
+        assert "USA Spa" in body
+
+    def test_missing_file_logged_and_skipped(self, tmp_path, caplog):
+        missing = tmp_path / "does_not_exist.html"
+        import logging
+        with caplog.at_level(logging.WARNING):
+            content_type, body = build_html_body([missing], "Intro")
+        assert content_type == "Text"  # falls back to plain
+        assert "Could not read" in caplog.text
+
+    def test_intro_appears_in_body(self, tmp_path):
+        rows = _DATA_ROW + _TOTAL_SALES_ROW
+        html = _make_html(rows)
+        f = tmp_path / "r.html"
+        f.write_text(html, encoding="utf-8")
+        _, body = build_html_body([f], "MY CUSTOM INTRO")
+        assert "MY CUSTOM INTRO" in body

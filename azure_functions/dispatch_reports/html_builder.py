@@ -1,0 +1,201 @@
+"""HTML email body builder for the dispatch_reports function."""
+from __future__ import annotations
+
+import logging
+import re
+from datetime import datetime
+from pathlib import Path
+
+LOG = logging.getLogger(__name__)
+
+_TABLE_STYLE = (
+    'style="border-collapse:collapse;font-family:Arial,sans-serif;'
+    'font-size:13px;width:100%;max-width:900px;"'
+)
+
+
+def _rebuild_rows(rows: list[str]) -> str:
+    """Convert raw <tr> HTML rows into a clean, styled <table>."""
+    rebuilt: list[str] = []
+    for row in rows:
+        cells = re.findall(r"<td[^>]*>(.*?)</td>", row, re.IGNORECASE | re.DOTALL)
+        # Skip blank / spacer rows
+        if cells and all(c.strip() in ("", "-") for c in cells):
+            continue
+
+        cls_match = re.search(r'class="([^"]*)"', row, re.IGNORECASE)
+        row_class = cls_match.group(1) if cls_match else ""
+
+        is_total_sales = bool(cells) and cells[0].strip().lower() == "total sales"
+        if is_total_sales:
+            row_style = "font-weight:bold;border-top:2px solid #2c5282;"
+        elif "total" in row_class and "grand" not in row_class:
+            row_style = "background:#d0e4ff;font-weight:bold;"
+        elif "grand-total" in row_class:
+            row_style = "background:#f2f2f2;"
+        else:
+            row_style = ""
+
+        if "<th" in row:
+            rebuilt_hdr = re.sub(
+                r"<th([^>]*)>(.*?)</th>",
+                lambda m: (
+                    f'<th{m.group(1)} style="padding:8px 10px;background:#2c5282;color:#fff;'
+                    f'{"text-align:left" if "left" in m.group(1) else "text-align:right"}'
+                    f';white-space:nowrap;">{m.group(2)}</th>'
+                ),
+                row,
+                flags=re.IGNORECASE | re.DOTALL,
+            )
+            rebuilt.append(f"<tr>{rebuilt_hdr}</tr>")
+            continue
+
+        new_tds = [
+            f'<td style="text-align:{"left" if i == 0 else "right"};padding:7px 10px;'
+            f'border:1px solid #ddd;{row_style}">{cell.strip()}</td>'
+            for i, cell in enumerate(cells)
+        ]
+        rebuilt.append(f"<tr>{''.join(new_tds)}</tr>")
+
+    return f"<table {_TABLE_STYLE}>{''.join(rebuilt)}</table>"
+
+
+def process_report_table(raw_html: str) -> tuple[str, str, list[str]]:
+    """Extract title and one or more cleaned tables from raw report HTML.
+
+    Returns (title, summary_html, list_of_table_html_blocks).
+    The QRY management report is split into two blocks at 'Total Sales':
+    the main global table and a separate USA Spa regional breakdown.
+    """
+    title_match = re.search(r"<h2[^>]*>(.*?)</h2>", raw_html, re.IGNORECASE | re.DOTALL)
+    title = title_match.group(1).strip() if title_match else "Report"
+
+    tbl_match = re.search(r"(<table.*?</table>)", raw_html, re.IGNORECASE | re.DOTALL)
+    if not tbl_match:
+        return title, "", [raw_html]
+
+    rows = re.findall(
+        r"<tr[^>]*>.*?</tr>", tbl_match.group(1), re.IGNORECASE | re.DOTALL
+    )
+
+    # Find split point at "Total Sales" and the header row
+    split_idx: int | None = None
+    header_row_idx: int | None = None
+    for i, row in enumerate(rows):
+        if "<th" in row:
+            header_row_idx = i
+        cells = re.findall(r"<td[^>]*>(.*?)</td>", row, re.IGNORECASE | re.DOTALL)
+        if cells and cells[0].strip().lower() == "total sales":
+            split_idx = i
+            break
+
+    if split_idx is None:
+        return title, "", [_rebuild_rows(rows)]
+
+    main_rows = rows[: split_idx + 1]
+    usa_rows_raw = [
+        r
+        for r in rows[split_idx + 1 :]
+        if not all(
+            c.strip() in ("", "-")
+            for c in re.findall(r"<td[^>]*>(.*?)</td>", r, re.IGNORECASE | re.DOTALL)
+        )
+    ]
+    usa_rows = (
+        ([rows[header_row_idx]] if header_row_idx is not None else []) + usa_rows_raw
+    )
+
+    # KPI banner from Total Sales row
+    ts_cells = re.findall(
+        r"<td[^>]*>(.*?)</td>", rows[split_idx], re.IGNORECASE | re.DOTALL
+    )
+    summary_html = ""
+    if len(ts_cells) >= 2:
+        total_val = ts_cells[1].strip()
+        pct_val = ts_cells[-1].strip() if len(ts_cells) >= 5 else ""
+        summary_html = (
+            f'<span style="font-size:13px;margin-right:16px;">'
+            f"Total Sales: <strong>{total_val} kEUR</strong></span>"
+        )
+        if pct_val and pct_val not in ("-", ""):
+            summary_html += (
+                f'<span style="font-size:13px;">vs Budget: <strong>{pct_val}</strong></span>'
+            )
+
+    tables = [_rebuild_rows(main_rows)]
+    if usa_rows:
+        tables.append(_rebuild_rows(usa_rows))
+    return title, summary_html, tables
+
+
+def build_html_body(html_files: list[Path], plain_intro: str) -> tuple[str, str]:
+    """Return (contentType, content) for the Graph message body.
+
+    Renders each HTML report as a section in a branded email.
+    If the QRY report has a USA regional breakdown it is separated into
+    its own sub-section with a repeated column header.
+    """
+    if not html_files:
+        return "Text", plain_intro
+
+    generated_at = datetime.utcnow().strftime("%d %b %Y, %H:%M UTC")
+    sections: list[str] = []
+
+    for path in html_files:
+        try:
+            raw = path.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            LOG.warning("Could not read HTML body file %s: %s", path, exc)
+            continue
+
+        title, summary_html, tables = process_report_table(raw)
+
+        summary_block = (
+            f"<p style='margin:0 0 12px 0;font-family:Arial,sans-serif;'>{summary_html}</p>"
+            if summary_html
+            else ""
+        )
+
+        body_blocks = [
+            f'<div style="overflow-x:auto;margin-bottom:24px;">{tables[0]}</div>'
+        ]
+        if len(tables) > 1:
+            body_blocks.append(
+                '<h3 style="margin:8px 0 8px 0;font-size:14px;color:#1a365d;'
+                'font-family:Arial,sans-serif;border-top:2px solid #e2e8f0;padding-top:16px;">'
+                "USA Spa \u2014 Regional Breakdown</h3>"
+                f'<div style="overflow-x:auto;margin-bottom:24px;">{tables[1]}</div>'
+            )
+
+        sections.append(
+            f"""
+<div style="margin-bottom:40px;">
+  <h2 style="margin:0 0 6px 0;font-size:16px;color:#1a365d;font-family:Arial,sans-serif;">{title}</h2>
+  {summary_block}
+  {"".join(body_blocks)}
+</div>"""
+        )
+
+    if not sections:
+        return "Text", plain_intro
+
+    body = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f0f4f8;">
+<div style="max-width:960px;margin:24px auto;font-family:Arial,sans-serif;">
+  <div style="background:#1a365d;color:#fff;padding:20px 28px;border-radius:6px 6px 0 0;">
+    <div style="font-size:20px;font-weight:bold;letter-spacing:0.3px;">QMS Medicosmetics \u2014 Sales Report</div>
+    <div style="font-size:12px;opacity:0.8;margin-top:4px;">Generated {generated_at} &nbsp;\u00b7&nbsp; Month-to-date figures in kEUR</div>
+  </div>
+  <div style="background:#fff;padding:28px;border:1px solid #d1dbe8;border-top:none;border-radius:0 0 6px 6px;">
+    <p style="margin:0 0 28px 0;color:#444;font-size:14px;">{plain_intro}</p>
+    {"".join(sections)}
+    <hr style="border:none;border-top:1px solid #e2e8f0;margin:32px 0 16px;">
+    <p style="margin:0;font-size:11px;color:#999;">This email was generated automatically from live SharePoint data. Full CSV data files are attached. Do not reply to this email.</p>
+  </div>
+</div>
+</body>
+</html>"""
+
+    return "HTML", body
