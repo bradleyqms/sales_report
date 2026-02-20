@@ -72,6 +72,9 @@ def process_report_table(raw_html: str) -> tuple[str, str, list[str], str]:
 
     # Detect currency from content (generator writes 'kUSD' in the HTML when converting)
     currency = "kUSD" if "kusd" in raw_html.lower() else "kEUR"
+    # Replace all kEUR labels in the table with kUSD when the report is USD-denominated
+    if currency == "kUSD":
+        raw_html = re.sub(r"\bkEUR\b", "kUSD", raw_html)
 
     tbl_match = re.search(r"(<table.*?</table>)", raw_html, re.IGNORECASE | re.DOTALL)
     if not tbl_match:
@@ -189,7 +192,7 @@ def build_html_body(html_files: list[Path], plain_intro: str) -> tuple[str, str]
 <div style="max-width:960px;margin:24px auto;font-family:Arial,sans-serif;">
   <div style="background:#1a365d;color:#fff;padding:20px 28px;border-radius:6px 6px 0 0;">
     <div style="font-size:20px;font-weight:bold;letter-spacing:0.3px;">QMS Medicosmetics \u2014 Sales Report</div>
-    <div style="font-size:12px;opacity:0.8;margin-top:4px;">Generated {generated_at} &nbsp;\u00b7&nbsp; Month-to-date figures in kEUR</div>
+    <div style="font-size:12px;opacity:0.8;margin-top:4px;">Generated {generated_at} &nbsp;\u00b7&nbsp; Month-to-date figures</div>
   </div>
   <div style="background:#fff;padding:28px;border:1px solid #d1dbe8;border-top:none;border-radius:0 0 6px 6px;">
     <p style="margin:0 0 28px 0;color:#444;font-size:14px;">{plain_intro}</p>
