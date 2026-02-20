@@ -22,7 +22,11 @@ load_dotenv()
 LOG = logging.getLogger(__name__)
 LOG.setLevel(logging.INFO)
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# On Azure: __file__ = /home/site/wwwroot/dispatch_reports/__init__.py
+# parents[0] = dispatch_reports/,  parents[1] = wwwroot/  ← package root
+# Locally:   parents[1] = azure_functions/, parents[2] = repo root
+# REPORT_DISPATCH_REFRESH_COMMAND overrides this entirely if set.
+REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REFRESH_SCRIPT = REPO_ROOT / "src" / "full_report.py"
 
 # Backwards-compatible shims used by test_dispatch_local.py and tests
