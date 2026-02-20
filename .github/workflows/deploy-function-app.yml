@@ -1,0 +1,80 @@
+name: Deploy — Dispatch Reports Function App
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Deploys: qms-dispatch-reports  (Consumption plan, Python 3.11, Linux)
+# Triggers: push to main that touches azure_functions/ or src/, or manual run
+#
+# What the package contains:
+#   dispatch_reports/   ← the timer-triggered function + submodules
+#   host.json
+#   requirements.txt
+#   src/                ← full_report.py + SharePoint/report modules
+#   .env                ← empty placeholder (real values come from App Settings)
+#
+# Auth: Publish Profile stored in GitHub secret AZURE_FUNCTIONAPP_PUBLISH_PROFILE
+#   Download from: Portal → Function App → Overview → Get publish profile
+# ──────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'azure_functions/**'
+      - 'src/**'
+  workflow_dispatch:
+
+env:
+  AZURE_FUNCTIONAPP_NAME: qms-dispatch-reports
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Build deployment package
+        shell: bash
+        run: |
+          mkdir -p deploy_package
+
+          # Azure Functions host files (host.json must be at root)
+          cp azure_functions/host.json        deploy_package/
+          cp azure_functions/requirements.txt deploy_package/
+
+          # The timer-triggered function and its submodules
+          cp -r azure_functions/dispatch_reports/ deploy_package/dispatch_reports/
+
+          # src/ — full_report.py and all its imports (sharepoint_client, etc.)
+          cp -r src/ deploy_package/src/
+
+          # Empty .env so load_dotenv() doesn't crash; real values come from App Settings
+          touch deploy_package/.env
+
+          # Pre-install all packages (Consumption plan uses remote build by default,
+          # but pre-installing ensures the correct versions regardless of build mode)
+          cd deploy_package
+          pip install -r requirements.txt \
+              --target=".python_packages/lib/site-packages" \
+              --quiet
+          cd ..
+
+          echo "=== Package structure ==="
+          find deploy_package -maxdepth 3 -type f | grep -v __pycache__ | head -60
+          echo "=== host.json at root ==="
+          ls -la deploy_package/host.json
+
+      - name: Deploy to Azure Functions
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+          package: deploy_package
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+          scm-do-build-during-deployment: false
