@@ -62,11 +62,21 @@ def _refresh_reports() -> bool:
         return False
     timeout = max(30, parse_int_env("REPORT_DISPATCH_REFRESH_TIMEOUT_SECONDS", 1800))
     LOG.info("Refreshing reports with command: %s", " ".join(command))
+
+    # Propagate the current sys.path so the subprocess sees Oryx-installed
+    # packages (pandas etc.) which live outside the default site-packages.
+    env = os.environ.copy()
+    inherited = os.pathsep.join(p for p in sys.path if p)
+    existing = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = (
+        f"{inherited}{os.pathsep}{existing}".strip(os.pathsep) if existing else inherited
+    )
+
     try:
         result = subprocess.run(
             command,
             cwd=REPO_ROOT,
-            env=os.environ.copy(),
+            env=env,
             capture_output=True,
             text=True,
             check=True,
