@@ -18,12 +18,9 @@ name: Deploy — Dispatch Reports Function App
 # on the correct Linux/Python runtime — avoids "no module 'pandas'" cold-start errors.
 # ──────────────────────────────────────────────────────────────────────────────
 
+# Disabled — superseded by main_qms-dispatch-reports.yml (OIDC / Deployment Center)
+# Push trigger removed; manual dispatch only as fallback.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'azure_functions/**'
-      - 'src/**'
   workflow_dispatch:
 
 env:

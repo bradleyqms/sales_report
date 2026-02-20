@@ -11,44 +11,53 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.' # set this to the path to your web app project, defaults to the repository root
-  PYTHON_VERSION: '3.11' # set this to the python version to use (supports 3.6, 3.7, 3.8)
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.'
+  PYTHON_VERSION: '3.11'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python version
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Create and start virtual environment
+      - name: Build deployment package
+        shell: bash
         run: |
-          python -m venv venv
-          source venv/bin/activate
+          mkdir -p deploy_package
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+          # Azure Functions host files (host.json must be at package root)
+          cp azure_functions/host.json         deploy_package/
+          cp azure_functions/requirements.txt  deploy_package/
 
-      # Optional: Add step to run tests here
+          # Timer-triggered functions
+          cp -r azure_functions/dispatch_reports/    deploy_package/dispatch_reports/
+          cp -r azure_functions/core_market_reports/  deploy_package/core_market_reports/
+
+          # src/ — full_report.py and all its imports
+          cp -r src/ deploy_package/src/
+
+          # Empty .env so load_dotenv() doesn't crash; real values come from App Settings
+          touch deploy_package/.env
+
+          echo "=== Package structure ==="
+          find deploy_package -maxdepth 3 -type f | grep -v __pycache__ | head -60
 
       - name: Zip artifact for deployment
-        run: zip release.zip ./* -r
+        run: |
+          cd deploy_package
+          zip -r ../release.zip . -x "**/__pycache__/*" -x "**/*.pyc"
+          cd ..
+          echo "Package size: $(du -sh release.zip | cut -f1)"
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: python-app
-          path: |
-            release.zip
-            !venv/
+          path: release.zip
 
   deploy:
     runs-on: ubuntu-latest
