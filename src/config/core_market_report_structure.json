@@ -42,6 +42,7 @@
       "title": "France",
       "show_total": true,
       "items": [
+        {"label": "France North", "filter_value": "France North"},
         {"label": "France South", "filter_value": "France South"}
       ]
     },
