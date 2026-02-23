@@ -31,6 +31,19 @@ from dispatch_reports.config import (
     parse_int_env,
     parse_recipients,
 )
+
+
+def _parse_pattern_env(env_var: str, default_patterns: list[str]) -> list[str]:
+    """Read a semicolon-separated pattern list from *env_var*.
+
+    - Env var absent  → use *default_patterns*
+    - Env var empty   → return [] (disables the feature)
+    - Env var set     → split on ';', strip whitespace, drop blanks
+    """
+    raw = os.getenv(env_var)
+    if raw is None:
+        return default_patterns
+    return [p.strip() for p in raw.split(";") if p.strip()]
 from dispatch_reports.graph_client import send_via_graph
 from dispatch_reports.html_builder import build_html_body
 from dispatch_reports.report_collector import find_files, resolve_outputs_path
@@ -105,9 +118,10 @@ def _refresh_reports(outputs_dir: Path) -> bool:
 
 
 def _collect_core_market_html(outputs_dir: Path) -> list[Path]:
+    patterns = _parse_pattern_env("CORE_MARKET_HTML_PATTERNS", CORE_MARKET_HTML_PATTERNS)
     seen: set[Path] = set()
     result: list[Path] = []
-    for pattern in CORE_MARKET_HTML_PATTERNS:
+    for pattern in patterns:
         for f in find_files(outputs_dir, pattern, 1):
             resolved = f.resolve()
             if resolved not in seen:
@@ -117,9 +131,10 @@ def _collect_core_market_html(outputs_dir: Path) -> list[Path]:
 
 
 def _collect_core_market_pdf(outputs_dir: Path) -> list[Path]:
+    patterns = _parse_pattern_env("CORE_MARKET_PDF_PATTERNS", CORE_MARKET_PDF_PATTERNS)
     seen: set[Path] = set()
     result: list[Path] = []
-    for pattern in CORE_MARKET_PDF_PATTERNS:
+    for pattern in patterns:
         for f in find_files(outputs_dir, pattern, 1):
             resolved = f.resolve()
             if resolved not in seen:
