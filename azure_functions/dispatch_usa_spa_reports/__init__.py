@@ -26,6 +26,7 @@ from dispatch_reports.config import (
     USA_SPA_HTML_PATTERNS,
     parse_int_env,
     parse_recipients,
+    report_date_str,
 )
 from dispatch_reports.graph_client import send_via_graph
 from dispatch_reports.html_builder import build_html_body
@@ -154,7 +155,7 @@ def main(mytimer: func.TimerRequest) -> None:
 
     subject = os.getenv(
         "USA_SPA_DISPATCH_SUBJECT",
-        f"QMS USA Spa Sales Report {datetime.utcnow():%d.%m.%Y}",
+        f"QMS USA Spa Sales Report {report_date_str()}",
     )
 
     try:

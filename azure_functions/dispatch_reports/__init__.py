@@ -144,7 +144,7 @@ def main(mytimer: func.TimerRequest) -> None:
 
     subject = os.getenv(
         "REPORT_DISPATCH_SUBJECT",
-        f"QMS Management Sales Report {datetime.utcnow():%d.%m.%Y}",
+        f"QMS Management Sales Report {report_date_str()}",
     )
 
     try:

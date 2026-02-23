@@ -26,6 +26,7 @@ from dotenv import load_dotenv
 # On Azure: both functions live under /home/site/wwwroot/ so the relative
 # import resolves correctly via the package name.
 from dispatch_reports.config import (
+    report_date_str,
     CORE_MARKET_HTML_PATTERNS,
     CORE_MARKET_PDF_PATTERNS,
     parse_int_env,
@@ -197,7 +198,7 @@ def main(mytimer: func.TimerRequest) -> None:
 
     subject = os.getenv(
         "CORE_MARKET_DISPATCH_SUBJECT",
-        f"QMS Core Market Sales Report {datetime.utcnow():%d.%m.%Y}",
+        f"QMS Core Market Sales Report {report_date_str()}",
     )
 
     try:

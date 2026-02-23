@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime, timedelta
 
 LOG = logging.getLogger(__name__)
 
@@ -24,6 +25,14 @@ CORE_MARKET_PDF_PATTERNS = ["management_report_core_markets_*.pdf"]
 
 # USA SPA dispatch function patterns
 USA_SPA_HTML_PATTERNS = ["management_report_usa_spa_*.html"]
+
+
+def report_date_str() -> str:
+    """Return the last working day before today formatted as DD.MM.YYYY."""
+    d = (datetime.utcnow() - timedelta(days=1)).date()
+    while d.weekday() >= 5:  # 5=Saturday, 6=Sunday
+        d -= timedelta(days=1)
+    return d.strftime("%d.%m.%Y")
 
 
 def parse_int_env(name: str, default: int) -> int:
