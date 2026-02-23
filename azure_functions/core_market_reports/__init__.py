@@ -131,7 +131,19 @@ def _collect_core_market_html(outputs_dir: Path) -> list[Path]:
 
 
 def _collect_core_market_pdf(outputs_dir: Path) -> list[Path]:
+    # CORE_MARKET_SEND_PDF=false|0|no disables the attachment entirely.
+    # Defaults to enabled when the setting is absent.
+    send_pdf_raw = os.getenv("CORE_MARKET_SEND_PDF", "true").strip().lower()
+    LOG.info("CORE_MARKET_SEND_PDF raw env = %r", send_pdf_raw)
+    if send_pdf_raw in ("false", "0", "no"):
+        LOG.info("PDF attachment disabled via CORE_MARKET_SEND_PDF=%s", send_pdf_raw)
+        return []
+
+    patterns_raw = os.getenv("CORE_MARKET_PDF_PATTERNS")
+    LOG.info("CORE_MARKET_PDF_PATTERNS raw env = %r", patterns_raw)
     patterns = _parse_pattern_env("CORE_MARKET_PDF_PATTERNS", CORE_MARKET_PDF_PATTERNS)
+    LOG.info("CORE_MARKET_PDF_PATTERNS resolved = %r", patterns)
+
     seen: set[Path] = set()
     result: list[Path] = []
     for pattern in patterns:
