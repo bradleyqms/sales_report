@@ -196,6 +196,25 @@ class TestProcessReportTable:
         _, _, tables, _ = process_report_table(html)
         assert "kEUR" in tables[0]
 
+    def test_keur_replaced_with_kusd_in_title(self):
+        # Title like "USA Spa — Regional Breakdown (kEUR)" must become kUSD
+        # when the report body contains kUSD values.
+        html = _make_html(_DATA_ROW, title="USA Spa — Regional Breakdown (kEUR)").replace(
+            "kEUR", "kUSD"  # simulate report generator writing kUSD into the HTML body
+        )
+        # The title itself was replaced by `.replace("kEUR","kUSD")` above in the raw HTML,
+        # so let's construct the case where only the *body* has kUSD but the title still
+        # says kEUR — which is what happens when the generator puts kUSD in column headers
+        # but the <h2> tag still says (kEUR).
+        raw = (
+            '<h2>USA Spa \u2014 Regional Breakdown (kEUR)</h2>'
+            f'<table>{_HEADER_ROW.replace("kEUR", "kUSD")}{_DATA_ROW}</table>'
+        )
+        title, _, _, currency = process_report_table(raw)
+        assert currency == "kUSD"
+        assert "kEUR" not in title
+        assert "kUSD" in title
+
     def test_fallback_summary_from_total_label(self):
         # A row labelled "Total Core Markets" (not "Total Sales") should still
         # produce a summary banner and NOT split the table.

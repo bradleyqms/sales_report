@@ -74,9 +74,10 @@ def process_report_table(raw_html: str) -> tuple[str, str, list[str], str]:
 
     # Detect currency from content (generator writes 'kUSD' in the HTML when converting)
     currency = "kUSD" if "kusd" in raw_html.lower() else "kEUR"
-    # Replace all kEUR labels in the table with kUSD when the report is USD-denominated
+    # Replace all kEUR labels in the table and title with kUSD when the report is USD-denominated
     if currency == "kUSD":
         raw_html = re.sub(r"\bkEUR\b", "kUSD", raw_html)
+        title = re.sub(r"\bkEUR\b", "kUSD", title)
 
     tbl_match = re.search(r"(<table.*?</table>)", raw_html, re.IGNORECASE | re.DOTALL)
     if not tbl_match:
