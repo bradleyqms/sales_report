@@ -153,10 +153,7 @@ def main(mytimer: func.TimerRequest) -> None:
         footer_note="",
     )
 
-    subject = os.getenv(
-        "USA_SPA_DISPATCH_SUBJECT",
-        f"QMS USA Spa Sales Report {report_date_str()}",
-    )
+    subject = os.getenv("USA_SPA_DISPATCH_SUBJECT") or f"QMS USA Spa Sales Report {report_date_str()}"
 
     try:
         send_via_graph(recipients, [], body_content, subject, body_type)

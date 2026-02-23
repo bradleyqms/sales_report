@@ -142,10 +142,7 @@ def main(mytimer: func.TimerRequest) -> None:
             "CSV attachments (%d): %s", len(attachments), [p.name for p in attachments]
         )
 
-    subject = os.getenv(
-        "REPORT_DISPATCH_SUBJECT",
-        f"QMS Management Sales Report {report_date_str()}",
-    )
+    subject = os.getenv("REPORT_DISPATCH_SUBJECT") or f"QMS Management Sales Report {report_date_str()}"
 
     try:
         send_via_graph(recipients, attachments, body_content, subject, body_type)
