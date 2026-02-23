@@ -22,6 +22,9 @@ KEY_CSV_PATTERNS = [
 CORE_MARKET_HTML_PATTERNS = ["management_report_core_markets_*.html"]
 CORE_MARKET_PDF_PATTERNS = ["management_report_core_markets_*.pdf"]
 
+# USA SPA dispatch function patterns
+USA_SPA_HTML_PATTERNS = ["management_report_usa_spa_*.html"]
+
 
 def parse_int_env(name: str, default: int) -> int:
     raw = os.getenv(name)

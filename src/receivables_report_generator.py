@@ -362,7 +362,7 @@ class ManagementReportGenerator(BaseReportGenerator):
             # Add Section Total if requested or if it's a component
             if section.get('show_total') or section.get('title') in ['Core Markets', 'UK', 'USA', 'Export']:
                 report_data.append({
-                    'label': section['title'], # or "Total " + section['title']
+                    'label': f"Total {section['title']}",
                     'sales': section_total_sales,
                     'budget': section_total_budget,
                     'prior': section_total_prior,

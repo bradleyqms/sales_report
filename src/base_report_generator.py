@@ -481,7 +481,8 @@ class BaseReportGenerator(ABC):
             
             for i, val in enumerate(row_data):
                 align = "left" if i == 0 else "right"
-                html_content += f'<td style="text-align: {align};">{val}</td>'
+                weight = "font-weight:bold;" if (is_grand_total or is_total) else ""
+                html_content += f'<td style="text-align:{align};{weight}">{val}</td>'
             html_content += "</tr>\n"
         
         html_content += "</table></body></html>"

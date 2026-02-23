@@ -272,7 +272,11 @@ def main():
         )
         usa_spa_df = usa_spa_gen.calculate_report()
         usa_spa_gen.render_report(usa_spa_df)
-        
+
+        # Export USA Spa Report as standalone files (HTML/CSV/TXT) for dispatch
+        usa_spa_base = os.path.join(output_dir, f'management_report_usa_spa_{get_current_year()}_{timestamp}')
+        usa_spa_gen.export_report(usa_spa_df, usa_spa_base + '.csv')
+
         # Rename columns to match other reports (actual -> sales)
         usa_spa_df = usa_spa_df.rename(columns={'actual': 'sales'})
         

@@ -75,23 +75,49 @@ def get_current_month() -> int:
     return datetime.datetime.now().month
 
 
+def get_last_working_day(reference: Optional[datetime.datetime] = None) -> datetime.date:
+    """
+    Return the last working day (Mon-Fri) strictly before *reference*.
+
+    Args:
+        reference: Optional datetime. If None, uses current datetime.
+
+    Returns:
+        A datetime.date representing the most recent weekday before today.
+
+    Example:
+        >>> # If today is Monday 2026-02-23, returns Friday 2026-02-20
+        >>> get_last_working_day(datetime.datetime(2026, 2, 23))
+        datetime.date(2026, 2, 20)
+    """
+    if reference is None:
+        reference = datetime.datetime.now()
+    day = reference.date() - datetime.timedelta(days=1)
+    while day.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
+        day -= datetime.timedelta(days=1)
+    return day
+
+
 def format_mtd_date_range(now: Optional[datetime.datetime] = None) -> str:
     """
-    Format a Month-to-Date (MTD) date range string.
-    
+    Format a Month-to-Date (MTD) date range string ending on the last
+    working day before *now* (so that a report run on a Monday shows
+    Friday's data, not today's incomplete data).
+
     Args:
         now: Optional datetime object. If None, uses current datetime.
-        
+
     Returns:
-        Formatted string like "December 1-2, 2025"
-        
+        Formatted string like "February 1-20, 2026"
+
     Example:
-        >>> format_mtd_date_range()
-        'December 1-2, 2025'
+        >>> format_mtd_date_range(datetime.datetime(2026, 2, 23))
+        'February 1-20, 2026'
     """
     if now is None:
         now = datetime.datetime.now()
-    return now.strftime('%B 1-%d, %Y')
+    end = get_last_working_day(now)
+    return end.strftime(f'%B 1-{end.day}, %Y')
 
 
 def format_column_header(now: Optional[datetime.datetime] = None, include_mtd: bool = True) -> str:
