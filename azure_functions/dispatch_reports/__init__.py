@@ -12,7 +12,7 @@ from pathlib import Path
 import azure.functions as func
 from dotenv import load_dotenv
 
-from .config import parse_int_env, parse_recipients
+from .config import parse_int_env, parse_recipients, report_date_str
 from .graph_client import acquire_graph_token, send_via_graph
 from .html_builder import build_html_body
 from .report_collector import collect_csv_attachments, collect_html_files, resolve_outputs_path
