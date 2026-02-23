@@ -46,6 +46,10 @@ report_status = {
     "xlsx_url": "",
     "pdf_url": "",
     "zip_url": "",
+    "unmapped_url": "",
+    "core_market_csv_url": "",
+    "core_market_html_url": "",
+    "usa_spa_html_url": "",
     "last_run": None,
     "metrics": {
         "timestamp": None,
@@ -226,6 +230,7 @@ def execute_report():
     report_status["unmapped_url"] = ""
     report_status["core_market_csv_url"] = ""
     report_status["core_market_html_url"] = ""
+    report_status["usa_spa_html_url"] = ""
 
     try:
         # Path to the full_report.py script
@@ -264,7 +269,7 @@ def execute_report():
                 static_dir.mkdir(exist_ok=True)
 
                 # Find generated files (now combined and core_market)
-                generated_files = [f for f in os.listdir(output_dir) if timestamp in f and ('combined' in f or 'core_market' in f)]
+                generated_files = [f for f in os.listdir(output_dir) if timestamp in f and ('combined' in f or 'core_market' in f or 'usa_spa' in f)]
 
                 if generated_files:
                     # Create zip file
@@ -292,6 +297,10 @@ def execute_report():
                                 shutil.copy(output_dir / file, static_dir / file)
                             elif file.endswith('.pdf'):
                                 shutil.copy(output_dir / file, static_dir / file)
+                        elif 'usa_spa' in file:
+                            shutil.copy(output_dir / file, static_dir / file)
+                            if file.endswith('.html'):
+                                report_status["usa_spa_html_url"] = f'/download/{file}'
                         elif file.endswith('.csv'):
                             shutil.copy(output_dir / file, static_dir / file)
                             report_status["csv_url"] = f'/download/{file}'

@@ -127,6 +127,11 @@
                         </a>
                     </div>
                     <div class="download-item">
+                        <a id="usaSpaHtmlLink" href="#" class="download-link disabled">
+                            <span class="icon">🌐</span> USA Spa Report (HTML)
+                        </a>
+                    </div>
+                    <div class="download-item">
                         <a id="zipLink" href="#" class="download-link disabled">
                             <span class="icon">📦</span> All Files (ZIP)
                         </a>
@@ -220,6 +225,7 @@
                 'unmappedLink': status.unmapped_url,
                 'coreMarketCsvLink': status.core_market_csv_url,
                 'coreMarketHtmlLink': status.core_market_html_url,
+                'usaSpaHtmlLink': status.usa_spa_html_url,
                 'zipLink': status.zip_url
             };
 
@@ -315,6 +321,9 @@
             rows.forEach(row => {
                 if (row.length < 2) return;
                 const tr = document.createElement('tr');
+                const label = (row[0] || '').trim();
+                const isTotalRow = label.startsWith('Total ') || label.endsWith(' Sales');
+                if (isTotalRow) tr.style.fontWeight = 'bold';
                 row.forEach(cell => {
                     const td = document.createElement('td');
                     td.textContent = cell.trim();
