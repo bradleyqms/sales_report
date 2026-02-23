@@ -38,8 +38,9 @@ jobs:
           cp azure_functions/requirements.txt  deploy_package/
 
           # Timer-triggered functions
-          cp -r azure_functions/dispatch_reports/    deploy_package/dispatch_reports/
-          cp -r azure_functions/core_market_reports/  deploy_package/core_market_reports/
+          cp -r azure_functions/dispatch_reports/         deploy_package/dispatch_reports/
+          cp -r azure_functions/core_market_reports/      deploy_package/core_market_reports/
+          cp -r azure_functions/dispatch_usa_spa_reports/  deploy_package/dispatch_usa_spa_reports/
 
           # src/ — full_report.py and all its imports
           cp -r src/ deploy_package/src/
