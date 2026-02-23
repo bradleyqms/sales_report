@@ -27,7 +27,6 @@ on:
       - 'fastapi_web_app/**'
       - 'src/**'
       - 'requirements.txt'
-      - 'runtime.txt'
       - 'startup.sh'
       - '.github/workflows/azure-webapps-python.yml'
   workflow_dispatch:
@@ -48,7 +47,8 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-        
+        cache: 'pip' # Speeds up future builds
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
