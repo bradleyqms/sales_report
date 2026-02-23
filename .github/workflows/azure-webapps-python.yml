@@ -29,6 +29,7 @@ on:
       - 'requirements.txt'
       - 'runtime.txt'
       - 'startup.sh'
+      - '.github/workflows/azure-webapps-python.yml'
   workflow_dispatch:
 
 env:

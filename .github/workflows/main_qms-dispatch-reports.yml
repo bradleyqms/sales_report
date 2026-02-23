@@ -8,6 +8,10 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'azure_functions/**'
+      - 'src/**'
+      - '.github/workflows/main_qms-dispatch-reports.yml'
   workflow_dispatch:
 
 env:
