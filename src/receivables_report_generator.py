@@ -366,7 +366,9 @@ class ManagementReportGenerator(BaseReportGenerator):
                     'sales': section_total_sales,
                     'budget': section_total_budget,
                     'prior': section_total_prior,
-                    'is_total': True
+                    'is_total': True,
+                    'is_spacer': False,
+                    'is_grand_total': False
                 })
                 
             # Store for aggregation

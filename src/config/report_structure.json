@@ -66,8 +66,7 @@
                 {"label": "Distributor - Middle East", "filter_value": "Distributor - Middle East"},
                 {"label": "Distributor - APAC", "filter_value": "Distributor - APAC"},
                 {"label": "Other Company 2", "is_fallback": true}
-            ],
-            "show_total": true
+            ]
         },
         {
             "title": "Company 2 Sales",
@@ -99,8 +98,7 @@
                     "filter_value": "Global etailers",
                     "budget_region_map": "Global eTailers"
                 }
-            ],
-            "show_total": true
+            ]
         },
         {
             "title": "Company 3 Sales",
