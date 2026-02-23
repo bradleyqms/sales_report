@@ -159,7 +159,12 @@ def _collect_core_market_pdf(outputs_dir: Path) -> list[Path]:
 
 def main(mytimer: func.TimerRequest) -> None:
     outputs_dir = resolve_outputs_path()
-    recipients = parse_recipients(os.getenv("CORE_MARKET_DISPATCH_RECIPIENTS"))
+    _test_recip = os.getenv("TEST_CORE_MARKETS_RECIPIENTS", "").strip()
+    if _test_recip:
+        LOG.info("TEST mode: overriding recipients with TEST_CORE_MARKETS_RECIPIENTS")
+        recipients = parse_recipients(_test_recip)
+    else:
+        recipients = parse_recipients(os.getenv("CORE_MARKET_DISPATCH_RECIPIENTS"))
     if not recipients:
         LOG.warning("No recipients configured (CORE_MARKET_DISPATCH_RECIPIENTS is empty)")
         return

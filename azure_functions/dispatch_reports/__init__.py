@@ -106,7 +106,12 @@ def _refresh_reports(outputs_dir: Path) -> bool:
 
 def main(mytimer: func.TimerRequest) -> None:
     outputs_dir = resolve_outputs_path()
-    recipients = parse_recipients(os.getenv("REPORT_DISPATCH_RECIPIENTS"))
+    _test_recip = os.getenv("TEST_REPORT_DISPATCH_RECIPIENTS", "").strip()
+    if _test_recip:
+        LOG.info("TEST mode: overriding recipients with TEST_REPORT_DISPATCH_RECIPIENTS")
+        recipients = parse_recipients(_test_recip)
+    else:
+        recipients = parse_recipients(os.getenv("REPORT_DISPATCH_RECIPIENTS"))
     if not recipients:
         LOG.warning("No recipients configured for report dispatch")
         return
