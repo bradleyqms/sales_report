@@ -3,31 +3,21 @@ from __future__ import annotations
 
 import logging
 import os
-import shlex
-import subprocess
-import sys
 from datetime import datetime
 from pathlib import Path
 
 import azure.functions as func
 from dotenv import load_dotenv
 
-from .config import parse_int_env, parse_recipients, report_date_str
+from .config import parse_recipients, report_date_str, report_mtd_banner
 from .graph_client import acquire_graph_token, send_via_graph
 from .html_builder import build_html_body
-from .report_collector import collect_csv_attachments, collect_html_files, resolve_outputs_path
+from .report_collector import collect_csv_attachments, collect_html_files, refresh_reports, resolve_outputs_path
 
 load_dotenv()
 
 LOG = logging.getLogger(__name__)
 LOG.setLevel(logging.INFO)
-
-# On Azure: __file__ = /home/site/wwwroot/dispatch_reports/__init__.py
-# parents[0] = dispatch_reports/,  parents[1] = wwwroot/  ← package root
-# Locally:   parents[1] = azure_functions/, parents[2] = repo root
-# REPORT_DISPATCH_REFRESH_COMMAND overrides this entirely if set.
-REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_REFRESH_SCRIPT = REPO_ROOT / "src" / "full_report.py"
 
 # Backwards-compatible shims used by test_dispatch_local.py and tests
 _resolve_outputs_path = resolve_outputs_path
@@ -37,69 +27,7 @@ _collect_csv_attachments = collect_csv_attachments
 _build_html_body = build_html_body
 _send_via_graph = send_via_graph
 _acquire_graph_token = acquire_graph_token
-
-
-def _build_refresh_command() -> list[str] | None:
-    raw = os.getenv("REPORT_DISPATCH_REFRESH_COMMAND")
-    if raw is None:
-        if not DEFAULT_REFRESH_SCRIPT.exists():
-            LOG.warning(
-                "Default refresh script %s is missing; skipping report refresh",
-                DEFAULT_REFRESH_SCRIPT,
-            )
-            return None
-        return [sys.executable, str(DEFAULT_REFRESH_SCRIPT)]
-    trimmed = raw.strip()
-    if not trimmed:
-        LOG.info("REPORT_DISPATCH_REFRESH_COMMAND is empty; skipping report refresh")
-        return None
-    return shlex.split(trimmed)
-
-
-def _refresh_reports(outputs_dir: Path) -> bool:
-    command = _build_refresh_command()
-    if not command:
-        return False
-    timeout = max(30, parse_int_env("REPORT_DISPATCH_REFRESH_TIMEOUT_SECONDS", 1800))
-    LOG.info("Refreshing reports with command: %s", " ".join(command))
-
-    # Propagate the current sys.path so the subprocess sees Oryx-installed
-    # packages (pandas etc.) which live outside the default site-packages.
-    env = os.environ.copy()
-    inherited = os.pathsep.join(p for p in sys.path if p)
-    existing = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = (
-        f"{inherited}{os.pathsep}{existing}".strip(os.pathsep) if existing else inherited
-    )
-    # Tell full_report.py (and qry_data_mapping.py) to write output to the same
-    # directory that dispatch_reports will read from — critical on Azure where
-    # /home/site/wwwroot/data is read-only.
-    env["REPORT_OUTPUT_DIR"] = str(outputs_dir)
-
-    try:
-        result = subprocess.run(
-            command,
-            cwd=REPO_ROOT,
-            env=env,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=timeout,
-        )
-    except subprocess.TimeoutExpired:
-        LOG.error("Report refresh command timed out after %s seconds", timeout)
-        return False
-    except subprocess.CalledProcessError as exc:
-        LOG.error(
-            "Report refresh failed (exit %s). stderr=%s",
-            exc.returncode,
-            (exc.stderr or "").strip(),
-        )
-        return False
-    snippet = (result.stdout or "").strip().splitlines()[-5:]
-    if snippet:
-        LOG.info("Report refresh output:\n%s", "\n".join(snippet))
-    return True
+_refresh_reports = refresh_reports
 
 
 # ---- Azure Functions entry point ----------------------------------------
@@ -116,7 +44,7 @@ def main(mytimer: func.TimerRequest) -> None:
         LOG.warning("No recipients configured for report dispatch")
         return
 
-    _refresh_reports(outputs_dir)
+    refresh_reports(outputs_dir)
 
     # HTML -> email body
     html_files = collect_html_files(outputs_dir)
@@ -131,7 +59,10 @@ def main(mytimer: func.TimerRequest) -> None:
         "REPORT_DISPATCH_BODY",
         "Please find the latest QMS sales data attached.",
     )
-    body_type, body_content = build_html_body(html_files, plain_intro)
+    body_type, body_content = build_html_body(
+        html_files, plain_intro,
+        banner_title=report_mtd_banner(),
+    )
 
     # CSVs -> attachments
     attachments = collect_csv_attachments(outputs_dir)

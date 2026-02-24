@@ -6,7 +6,16 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+from .config import report_date_str
+
 LOG = logging.getLogger(__name__)
+
+
+def _patch_mtd_day(title: str) -> str:
+    """Replace the end-day in 'MTD: Month 1-XX, YYYY' with the preceding workday."""
+    d_str = report_date_str()          # e.g. '23.02.2026'
+    day = int(d_str.split(".")[0])     # 23
+    return re.sub(r'(MTD:\s*\w+\s+1-)(\d+)(,\s*\d{4})', lambda m: f"{m.group(1)}{day}{m.group(3)}", title)
 
 _TABLE_STYLE = (
     'style="border-collapse:collapse;font-family:Arial,sans-serif;'
@@ -14,7 +23,12 @@ _TABLE_STYLE = (
 )
 
 
-def _rebuild_rows(rows: list[str]) -> str:
+_CORE_MARKET_COUNTRY_LABELS = {
+    "germany", "benelux", "switzerland", "spain", "france", "italy"
+}
+
+
+def _rebuild_rows(rows: list[str], bold_country_rows: bool = False) -> str:
     """Convert raw <tr> HTML rows into a clean, styled <table>."""
     rebuilt: list[str] = []
     for row in rows:
@@ -26,13 +40,17 @@ def _rebuild_rows(rows: list[str]) -> str:
         cls_match = re.search(r'class="([^"]*)"', row, re.IGNORECASE)
         row_class = cls_match.group(1) if cls_match else ""
 
-        is_total_sales = bool(cells) and cells[0].strip().lower() == "total sales"
+        first_label = cells[0].strip().lower() if cells else ""
+        is_total_sales = first_label == "total sales"
         if is_total_sales:
             row_style = "font-weight:bold;border-top:2px solid #2c5282;"
         elif "total" in row_class and "grand" not in row_class:
-            row_style = "background:#d0e4ff;font-weight:bold;"
+            row_style = "background:#f2f2f2;font-weight:bold;"
         elif "grand-total" in row_class:
-            row_style = "background:#f2f2f2;"
+            if bold_country_rows and first_label in _CORE_MARKET_COUNTRY_LABELS:
+                row_style = "background:#f2f2f2;font-weight:bold;"
+            else:
+                row_style = "background:#f2f2f2;"
         else:
             row_style = ""
 
@@ -60,12 +78,13 @@ def _rebuild_rows(rows: list[str]) -> str:
     return f"<table {_TABLE_STYLE}>{''.join(rebuilt)}</table>"
 
 
-def process_report_table(raw_html: str) -> tuple[str, str, list[str], str]:
+def process_report_table(raw_html: str, bold_country_rows: bool = False) -> tuple[str, str, list[str], str]:
     """Extract title and one or more cleaned tables from raw report HTML.
 
     Returns:
         (title, summary_html, tables, currency)
         currency is 'kUSD' when the report signals USD values (USA SPA), else 'kEUR'.
+        bold_country_rows: if True, bold the core-market country subtotal rows.
     """
     title_match = re.search(r"<h2[^>]*>(.*?)</h2>", raw_html, re.IGNORECASE | re.DOTALL)
     title = title_match.group(1).strip() if title_match else "Report"
@@ -118,7 +137,7 @@ def process_report_table(raw_html: str) -> tuple[str, str, list[str], str]:
                             f'<span style="font-size:13px;">vs Budget: <strong>{pct_val}</strong></span>'
                         )
                 break
-        return title, fallback_summary, [_rebuild_rows(rows)], currency
+        return title, fallback_summary, [_rebuild_rows(rows, bold_country_rows)], currency
 
     main_rows = rows[: split_idx + 1]
     usa_rows_raw = [
@@ -150,16 +169,16 @@ def process_report_table(raw_html: str) -> tuple[str, str, list[str], str]:
                 f'<span style="font-size:13px;">vs Budget: <strong>{pct_val}</strong></span>'
             )
 
-    tables = [_rebuild_rows(main_rows)]
+    tables = [_rebuild_rows(main_rows, bold_country_rows)]
     if usa_rows:
-        tables.append(_rebuild_rows(usa_rows))
+        tables.append(_rebuild_rows(usa_rows, bold_country_rows))
     return title, summary_html, tables, currency
 
 
 def build_html_body(
     html_files: list[Path],
     plain_intro: str,
-    banner_title: str = "Management Sales Report",
+    banner_title: str | None = None,
     footer_note: str = "Full CSV data files are attached.",
 ) -> tuple[str, str]:
     """Return (contentType, content) for the Graph message body.
@@ -167,12 +186,14 @@ def build_html_body(
     Renders each HTML report as a section in a branded email.
     If the QRY report has a USA regional breakdown it is separated into
     its own sub-section with a repeated column header.
+    banner_title defaults to the <h2> title extracted from the first HTML file.
     """
     if not html_files:
         return "Text", plain_intro
 
     generated_at = datetime.utcnow().strftime("%d %b %Y, %H:%M UTC")
     sections: list[str] = []
+    _derived_banner: str | None = None
 
     for path in html_files:
         try:
@@ -181,7 +202,11 @@ def build_html_body(
             LOG.warning("Could not read HTML body file %s: %s", path, exc)
             continue
 
-        title, summary_html, tables, currency = process_report_table(raw)
+        is_core_market = "core_market" in path.name.lower() or "core-market" in path.name.lower()
+        title, summary_html, tables, currency = process_report_table(raw, bold_country_rows=is_core_market)
+        title = _patch_mtd_day(title)
+        if _derived_banner is None:
+            _derived_banner = title
 
         summary_block = (
             f"<p style='margin:0 0 12px 0;font-family:Arial,sans-serif;'>{summary_html}</p>"
@@ -196,7 +221,7 @@ def build_html_body(
             body_blocks.append(
                 '<h3 style="margin:8px 0 8px 0;font-size:14px;color:#1a365d;'
                 'font-family:Arial,sans-serif;border-top:2px solid #e2e8f0;padding-top:16px;">'
-                f"USA Spa — Regional Breakdown ({currency})</h3>"
+                "USA Spa — Regional Breakdown (kUSD)</h3>"
                 f'<div style="overflow-x:auto;margin-bottom:24px;">{tables[1]}</div>'
             )
 
@@ -212,13 +237,15 @@ def build_html_body(
     if not sections:
         return "Text", plain_intro
 
+    effective_banner = banner_title if banner_title is not None else (_derived_banner or "Management Sales Report")
+
     body = f"""<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#f0f4f8;">
 <div style="max-width:960px;margin:24px auto;font-family:Arial,sans-serif;">
   <div style="background:#1a365d;color:#fff;padding:20px 28px;border-radius:6px 6px 0 0;">
-    <div style="font-size:20px;font-weight:bold;letter-spacing:0.3px;">QMS Medicosmetics \u2014 {banner_title}</div>
+    <div style="font-size:20px;font-weight:bold;letter-spacing:0.3px;">QMS Medicosmetics \u2014 {effective_banner}</div>
     <div style="font-size:12px;opacity:0.8;margin-top:4px;">Generated {generated_at} &nbsp;\u00b7&nbsp; Month-to-date figures</div>
   </div>
   <div style="background:#fff;padding:28px;border:1px solid #d1dbe8;border-top:none;border-radius:0 0 6px 6px;">

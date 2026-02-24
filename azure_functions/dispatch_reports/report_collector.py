@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import logging
 import os
+import shlex
+import subprocess
+import sys
 from pathlib import Path
 
 from .config import (
@@ -53,6 +56,76 @@ def resolve_outputs_path() -> Path:
             candidate.mkdir(parents=True, exist_ok=True)
 
     return candidate
+
+
+_DEFAULT_REFRESH_SCRIPT = Path(__file__).resolve().parents[1] / "src" / "full_report.py"
+
+
+def build_refresh_command() -> list[str] | None:
+    """Return the shell command to regenerate reports, or None to skip.
+
+    Reads REPORT_DISPATCH_REFRESH_COMMAND:
+    - absent → run the default full_report.py (if it exists)
+    - empty  → skip refresh
+    - set    → shell-split and use as-is
+    """
+    raw = os.getenv("REPORT_DISPATCH_REFRESH_COMMAND")
+    if raw is None:
+        if not _DEFAULT_REFRESH_SCRIPT.exists():
+            LOG.warning(
+                "Default refresh script %s is missing; skipping report refresh",
+                _DEFAULT_REFRESH_SCRIPT,
+            )
+            return None
+        return [sys.executable, str(_DEFAULT_REFRESH_SCRIPT)]
+    trimmed = raw.strip()
+    if not trimmed:
+        LOG.info("REPORT_DISPATCH_REFRESH_COMMAND is empty; skipping report refresh")
+        return None
+    return shlex.split(trimmed)
+
+
+def refresh_reports(outputs_dir: Path) -> bool:
+    """Run the report generation command and return True on success."""
+    command = build_refresh_command()
+    if not command:
+        return False
+    timeout = max(30, parse_int_env("REPORT_DISPATCH_REFRESH_TIMEOUT_SECONDS", 1800))
+    LOG.info("Refreshing reports with command: %s", " ".join(command))
+
+    env = os.environ.copy()
+    inherited = os.pathsep.join(p for p in sys.path if p)
+    existing = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = (
+        f"{inherited}{os.pathsep}{existing}".strip(os.pathsep) if existing else inherited
+    )
+    env["REPORT_OUTPUT_DIR"] = str(outputs_dir)
+
+    repo_root = Path(__file__).resolve().parents[1]
+    try:
+        result = subprocess.run(
+            command,
+            cwd=repo_root,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        LOG.error("Report refresh command timed out after %s seconds", timeout)
+        return False
+    except subprocess.CalledProcessError as exc:
+        LOG.error(
+            "Report refresh failed (exit %s). stderr=%s",
+            exc.returncode,
+            (exc.stderr or "").strip(),
+        )
+        return False
+    snippet = (result.stdout or "").strip().splitlines()[-5:]
+    if snippet:
+        LOG.info("Report refresh output:\n%s", "\n".join(snippet))
+    return True
 
 
 def find_files(outputs_dir: Path, pattern: str, limit: int) -> list[Path]:

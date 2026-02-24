@@ -35,6 +35,27 @@ def report_date_str() -> str:
     return d.strftime("%d.%m.%Y")
 
 
+def report_mtd_banner() -> str:
+    """Return e.g. 'Management Report (MTD: February 1-23, 2026)'."""
+    d = (datetime.utcnow() - timedelta(days=1)).date()
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return f"Management Report (MTD: {d.strftime('%B')} 1-{d.day}, {d.year})"
+
+
+def parse_pattern_env(env_var: str, default_patterns: list[str]) -> list[str]:
+    """Read a semicolon-separated glob pattern list from *env_var*.
+
+    - Env var absent  → use *default_patterns*
+    - Env var empty   → return [] (disables the feature)
+    - Env var set     → split on ';', strip whitespace, drop blanks
+    """
+    raw = os.getenv(env_var)
+    if raw is None:
+        return default_patterns
+    return [p.strip() for p in raw.split(";") if p.strip()]
+
+
 def parse_int_env(name: str, default: int) -> int:
     raw = os.getenv(name)
     if raw is None:

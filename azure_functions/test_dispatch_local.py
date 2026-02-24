@@ -72,9 +72,14 @@ def run_test(skip_refresh: bool, skip_send: bool, dry_run: bool) -> None:
     # ── 1. Config ──────────────────────────────────────────────────────────
     section("1 / CONFIG")
     outputs_dir = _resolve_outputs_path()
-    recipients  = _parse_recipients(os.getenv("REPORT_DISPATCH_RECIPIENTS"))
-    sender      = os.getenv("REPORT_DISPATCH_GRAPH_SENDER")
-    subject     = os.getenv("REPORT_DISPATCH_SUBJECT", "QMS Sales Report [local test]")
+    _test_recip = os.getenv("TEST_REPORT_DISPATCH_RECIPIENTS", "").strip()
+    if _test_recip:
+        LOG.info("TEST mode — overriding recipients with TEST_REPORT_DISPATCH_RECIPIENTS")
+        recipients = _parse_recipients(_test_recip)
+    else:
+        recipients = _parse_recipients(os.getenv("REPORT_DISPATCH_RECIPIENTS"))
+    sender  = os.getenv("REPORT_DISPATCH_GRAPH_SENDER")
+    subject = os.getenv("REPORT_DISPATCH_SUBJECT") or f"QMS Management Sales Report {_mod.report_date_str()}"
 
     LOG.info("outputs_dir : %s", outputs_dir)
     LOG.info("recipients  : %s", recipients)
@@ -90,7 +95,7 @@ def run_test(skip_refresh: bool, skip_send: bool, dry_run: bool) -> None:
     if skip_refresh:
         LOG.info("Skipping refresh (--skip-refresh)")
     else:
-        ok = _refresh_reports()
+        ok = _refresh_reports(outputs_dir)
         LOG.info("Refresh %s", "succeeded" if ok else "skipped / failed (non-fatal)")
 
     # ── 3. Attachments ────────────────────────────────────────────────────
@@ -104,7 +109,10 @@ def run_test(skip_refresh: bool, skip_send: bool, dry_run: bool) -> None:
             LOG.info("  %s  (%d KB)", p.name, p.stat().st_size // 1024)
 
     plain_intro = os.getenv("REPORT_DISPATCH_BODY", "Please find the latest QMS sales data attached.")
-    body_type, body_content = _build_html_body(html_files, plain_intro)
+    body_type, body_content = _build_html_body(
+        html_files, plain_intro,
+        banner_title=_mod.report_mtd_banner(),
+    )
     LOG.info("Email body contentType: %s  (%d chars)", body_type, len(body_content))
 
     section("3b / COLLECT CSV ATTACHMENTS")
