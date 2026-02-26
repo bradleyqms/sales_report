@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.pagesizes import letter, A4, landscape
+from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 
@@ -273,6 +274,70 @@ class BaseReportGenerator(ABC):
             pct = (numerator / denominator * 100) - 100
             return f"{pct:.1f}%"
         return zero_placeholder
+    
+    def _calculate_pdf_layout(self, pdf_data: List[List], margin: float = 1 * inch) -> Tuple:
+        """
+        Calculate optimal page size and scaling factor for PDF table.
+        
+        Dynamically determines whether portrait or landscape orientation is needed,
+        and calculates a scaling factor to ensure the table fits within the page width.
+        
+        Args:
+            pdf_data: 2D list of table data (rows x columns)
+            margin: Page margin in points (default 1 inch = 72 points)
+            
+        Returns:
+            Tuple of (pagesize, col_widths, scale_factor)
+            - pagesize: ReportLab page size tuple (width, height)
+            - col_widths: List of column widths for the table
+            - scale_factor: Factor to scale font sizes if needed
+        """
+        # Calculate approximate column widths based on content
+        num_cols = len(pdf_data[0]) if pdf_data else 0
+        if num_cols == 0:
+            return A4, [], 1.0
+        
+        # Estimate column widths based on max content length
+        col_widths = []
+        for col_idx in range(num_cols):
+            max_len = max(len(str(row[col_idx])) if col_idx < len(row) else 0 for row in pdf_data)
+            # Approximate width: ~7 points per character for Helvetica 10pt, with padding
+            col_width = max(max_len * 7, 50)  # Minimum 50 points per column
+            col_widths.append(col_width)
+        
+        total_table_width = sum(col_widths)
+        
+        # Calculate available width for different page sizes
+        a4_portrait_available = A4[0] - (2 * margin)  # ~446 points
+        a4_landscape_available = A4[1] - (2 * margin)  # ~743 points
+        letter_portrait_available = letter[0] - (2 * margin)  # ~468 points
+        letter_landscape_available = letter[1] - (2 * margin)  # ~648 points
+        
+        # Choose page orientation and size based on content width
+        if total_table_width <= a4_portrait_available:
+            pagesize = A4
+            available_width = a4_portrait_available
+        elif total_table_width <= a4_landscape_available:
+            pagesize = landscape(A4)
+            available_width = a4_landscape_available
+        else:
+            # Use landscape A4 and scale content to fit
+            pagesize = landscape(A4)
+            available_width = a4_landscape_available
+        
+        # Calculate scaling factor to fit content
+        if total_table_width > available_width:
+            scale_factor = available_width / total_table_width
+            # Scale column widths proportionally
+            col_widths = [w * scale_factor for w in col_widths]
+        else:
+            scale_factor = 1.0
+            # Distribute extra space proportionally
+            extra_space = available_width - total_table_width
+            per_col_extra = extra_space / num_cols
+            col_widths = [w + per_col_extra for w in col_widths]
+        
+        return pagesize, col_widths, scale_factor
     
     def export_to_csv(self, df: pd.DataFrame, path: str, headers: List[str]) -> None:
         """
@@ -592,23 +657,48 @@ class BaseReportGenerator(ABC):
         
         # === Write PDF ===
         pdf_path = base_path.replace('.csv', '.pdf')
-        doc = SimpleDocTemplate(pdf_path, pagesize=A4)
+        
+        # Define explicit margins (1 inch = 72 points)
+        pdf_margin = 1 * inch
+        
+        # Calculate optimal page size and column widths dynamically
+        pagesize, col_widths, scale_factor = self._calculate_pdf_layout(pdf_data, margin=pdf_margin)
+        
+        # Create document with explicit margins
+        doc = SimpleDocTemplate(
+            pdf_path, 
+            pagesize=pagesize,
+            leftMargin=pdf_margin,
+            rightMargin=pdf_margin,
+            topMargin=pdf_margin,
+            bottomMargin=pdf_margin
+        )
         styles = getSampleStyleSheet()
         
         pdf_title = Paragraph(f"{title} (MTD: {date_range})", styles['Heading1'])
         
-        # Create table
-        table = Table(pdf_data)
+        # Create table with calculated column widths
+        table = Table(pdf_data, colWidths=col_widths)
         
-        # Style the table
+        # Calculate font sizes based on scale factor (minimum 8pt)
+        header_font_size = max(int(14 * scale_factor), 10)
+        data_font_size = max(int(10 * scale_factor), 8)
+        padding = max(int(12 * scale_factor), 6)
+        
+        # Style the table with scaled font sizes
         style = TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('ALIGN', (0, 1), (0, -1), 'LEFT'),  # Left align first column
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 14),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('FONTSIZE', (0, 0), (-1, 0), header_font_size),
+            ('FONTSIZE', (0, 1), (-1, -1), data_font_size),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), padding),
+            ('TOPPADDING', (0, 0), (-1, -1), padding // 2),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), padding // 2),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
             ('GRID', (0, 0), (-1, -1), 1, colors.black),
         ])
@@ -629,4 +719,4 @@ class BaseReportGenerator(ABC):
         # Build PDF
         elements = [pdf_title, Spacer(1, 20), table]
         doc.build(elements)
-        print(f"Report exported to {pdf_path} (PDF format)")
+        print(f"Report exported to {pdf_path} (PDF format, {pagesize[0]:.0f}x{pagesize[1]:.0f} pts)")
