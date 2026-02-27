@@ -105,7 +105,34 @@ class CoreMarketReportGenerator(BaseReportGenerator):
             self.prior_df['Sub_Region_Cleaned'] = self.prior_df['Subchannel / Partner'].fillna('').str.strip()
         else:
             self.prior_df['Sub_Region_Cleaned'] = ''
-        
+
+        # Fallback: populate Sub_Region_Cleaned from py25_regional_mappings.csv for PY rows where it is empty.
+        # Needed because prior_sales_2025_gvl.csv has empty 'Subchannel / Partner' column;
+        # employee names changed between 2025 and 2026, so entity_mappings.csv alone is insufficient.
+        repo_root = Path(__file__).parent.parent
+        py_mapping_path = repo_root / 'data/inputs/mappings/py25_regional_mappings.csv'
+        if py_mapping_path.exists() and self.prior_df['Sub_Region_Cleaned'].eq('').any():
+            try:
+                py_map_df = pd.read_csv(py_mapping_path)
+                py_map_df['Sales_Employee_Cleaned'] = py_map_df['Sales_Employee_Cleaned'].fillna('').str.strip()
+                py_map_df['Sub_Region'] = py_map_df['Sub_Region'].fillna('').str.strip()
+
+                employee_subregion_map = dict(
+                    zip(py_map_df['Sales_Employee_Cleaned'], py_map_df['Sub_Region'])
+                )
+
+                emp_col = 'Sales Employee / Account'
+                if emp_col in self.prior_df.columns:
+                    prior_emp = self.prior_df[emp_col].fillna('').str.strip()
+                    mapped_subregion = prior_emp.map(employee_subregion_map).fillna('')
+                    empty_mask = self.prior_df['Sub_Region_Cleaned'] == ''
+                    self.prior_df.loc[empty_mask, 'Sub_Region_Cleaned'] = mapped_subregion[empty_mask]
+                    logging.info(
+                        f"PY sub-region fallback: populated {empty_mask.sum()} rows from {py_mapping_path.name}"
+                    )
+            except Exception as e:
+                logging.warning(f"Could not apply PY sub-region fallback mapping: {e}")
+
         # Filter Budget for Current Month
         # Budget Date is DD/MM/YYYY
         self.budget_df['Date'] = pd.to_datetime(self.budget_df['Date'], format='%d/%m/%Y')
