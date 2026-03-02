@@ -27,17 +27,25 @@ CORE_MARKET_PDF_PATTERNS = ["management_report_core_markets_*.pdf"]
 USA_SPA_HTML_PATTERNS = ["management_report_usa_spa_*.html"]
 
 
-def report_date_str() -> str:
-    """Return the last working day before today formatted as DD.MM.YYYY."""
-    d = (datetime.utcnow() - timedelta(days=1)).date()
+def report_date_str(reference_date: datetime | None = None) -> str:
+    """Return the last working day before *reference_date* formatted as DD.MM.YYYY.
+
+    Args:
+        reference_date: Optional datetime anchor. If None, falls back to datetime.utcnow().
+    """
+    d = ((reference_date or datetime.utcnow()) - timedelta(days=1)).date()
     while d.weekday() >= 5:  # 5=Saturday, 6=Sunday
         d -= timedelta(days=1)
     return d.strftime("%d.%m.%Y")
 
 
-def report_mtd_banner() -> str:
-    """Return e.g. 'Management Report (MTD: February 1-23, 2026)'."""
-    d = (datetime.utcnow() - timedelta(days=1)).date()
+def report_mtd_banner(reference_date: datetime | None = None) -> str:
+    """Return e.g. 'Management Report (MTD: February 1-23, 2026)'.
+
+    Args:
+        reference_date: Optional datetime anchor. If None, falls back to datetime.utcnow().
+    """
+    d = ((reference_date or datetime.utcnow()) - timedelta(days=1)).date()
     while d.weekday() >= 5:
         d -= timedelta(days=1)
     return f"Management Report (MTD: {d.strftime('%B')} 1-{d.day}, {d.year})"

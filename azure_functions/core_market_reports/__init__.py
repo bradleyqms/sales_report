@@ -32,7 +32,7 @@ from dispatch_reports.config import (
 
 from dispatch_reports.graph_client import send_via_graph
 from dispatch_reports.html_builder import build_html_body
-from dispatch_reports.report_collector import find_files, refresh_reports, resolve_outputs_path
+from dispatch_reports.report_collector import find_files, refresh_reports, resolve_outputs_path, derive_report_date
 
 load_dotenv()
 
@@ -92,6 +92,7 @@ def main(mytimer: func.TimerRequest) -> None:
         return
 
     refresh_reports(outputs_dir)
+    report_date = derive_report_date(outputs_dir)
 
     # HTML → email body
     html_files = _collect_core_market_html(outputs_dir)
@@ -117,7 +118,7 @@ def main(mytimer: func.TimerRequest) -> None:
     else:
         LOG.info("Core market PDF attachments (%d): %s", len(attachments), [p.name for p in attachments])
 
-    subject = os.getenv("CORE_MARKET_DISPATCH_SUBJECT") or f"QMS Core Market Sales Report {report_date_str()}"
+    subject = os.getenv("CORE_MARKET_DISPATCH_SUBJECT") or f"QMS Core Market Sales Report {report_date_str(reference_date=report_date)}"
 
     try:
         send_via_graph(recipients, attachments, body_content, subject, body_type)
