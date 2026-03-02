@@ -7,11 +7,9 @@ system clock.
 """
 
 import datetime
-import io
 import logging
 import os
 import sys
-import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -58,8 +56,10 @@ def test_get_current_year_with_reference():
 
 def test_get_current_month_no_reference_uses_now():
     """Without a reference, get_current_month() returns the real current month."""
-    expected = datetime.datetime.now().month
-    assert get_current_month() == expected
+    with patch("utils.datetime.datetime") as mock_dt:
+        mock_dt.now.return_value = REF_MAR
+        result = get_current_month()
+    assert result == 3
 
 
 # ============================================================

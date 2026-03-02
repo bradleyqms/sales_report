@@ -73,8 +73,6 @@ def run_test(skip_refresh: bool, skip_send: bool, dry_run: bool) -> None:
     # ── 1. Config ──────────────────────────────────────────────────────────
     section("1 / CONFIG")
     outputs_dir = _resolve_outputs_path()
-    report_date = _derive_report_date(outputs_dir)
-    LOG.info("report_date : %s (derived from Extract_Date)", report_date.strftime("%Y-%m-%d"))
     _test_recip = os.getenv("TEST_REPORT_DISPATCH_RECIPIENTS", "").strip()
     if _test_recip:
         LOG.info("TEST mode — overriding recipients with TEST_REPORT_DISPATCH_RECIPIENTS")
@@ -82,12 +80,10 @@ def run_test(skip_refresh: bool, skip_send: bool, dry_run: bool) -> None:
     else:
         recipients = _parse_recipients(os.getenv("REPORT_DISPATCH_RECIPIENTS"))
     sender  = os.getenv("REPORT_DISPATCH_GRAPH_SENDER")
-    subject = os.getenv("REPORT_DISPATCH_SUBJECT") or f"QMS Management Sales Report {_mod.report_date_str(reference_date=report_date)}"
 
     LOG.info("outputs_dir : %s", outputs_dir)
     LOG.info("recipients  : %s", recipients)
     LOG.info("sender      : %s", sender)
-    LOG.info("subject     : %s", subject)
 
     if not recipients:
         LOG.error("REPORT_DISPATCH_RECIPIENTS is not set – cannot continue")
@@ -100,6 +96,15 @@ def run_test(skip_refresh: bool, skip_send: bool, dry_run: bool) -> None:
     else:
         ok = _refresh_reports(outputs_dir)
         LOG.info("Refresh %s", "succeeded" if ok else "skipped / failed (non-fatal)")
+
+    # Derive AFTER refresh so we read the freshest CSV
+    report_date = _derive_report_date(outputs_dir)
+    LOG.info("report_date : %s (derived from Extract_Date)", report_date.strftime("%Y-%m-%d"))
+    subject = os.getenv("REPORT_DISPATCH_SUBJECT") or (
+        f"QMS Management Sales Report {report_date.strftime('%d.%m.%Y')}"
+        if report_date else f"QMS Management Sales Report {_mod.report_date_str()}"
+    )
+    LOG.info("subject     : %s", subject)
 
     # ── 3. Attachments ────────────────────────────────────────────────────
     section("3 / COLLECT HTML BODY FILES")
@@ -114,7 +119,11 @@ def run_test(skip_refresh: bool, skip_send: bool, dry_run: bool) -> None:
     plain_intro = os.getenv("REPORT_DISPATCH_BODY", "Please find the latest QMS sales data attached.")
     body_type, body_content = _build_html_body(
         html_files, plain_intro,
-        banner_title=_mod.report_mtd_banner(reference_date=report_date),
+        banner_title=(
+            f"Management Report (MTD: {report_date.strftime('%B')} 1-{report_date.day}, {report_date.year})"
+            if report_date else
+            _mod.report_mtd_banner()
+        ),
     )
     LOG.info("Email body contentType: %s  (%d chars)", body_type, len(body_content))
 

@@ -62,7 +62,11 @@ def main(mytimer: func.TimerRequest) -> None:
     )
     body_type, body_content = build_html_body(
         html_files, plain_intro,
-        banner_title=report_mtd_banner(reference_date=report_date),
+        banner_title=(
+            f"Management Report (MTD: {report_date.strftime('%B')} 1-{report_date.day}, {report_date.year})"
+            if report_date else
+            report_mtd_banner()
+        ),
     )
 
     # CSVs -> attachments
@@ -74,7 +78,11 @@ def main(mytimer: func.TimerRequest) -> None:
             "CSV attachments (%d): %s", len(attachments), [p.name for p in attachments]
         )
 
-    subject = os.getenv("REPORT_DISPATCH_SUBJECT") or f"QMS Management Sales Report {report_date_str(reference_date=report_date)}"
+    subject = os.getenv("REPORT_DISPATCH_SUBJECT") or (
+        f"QMS Management Sales Report {report_date.strftime('%d.%m.%Y')}"
+        if report_date else
+        f"QMS Management Sales Report {report_date_str()}"
+    )
 
     try:
         send_via_graph(recipients, attachments, body_content, subject, body_type)

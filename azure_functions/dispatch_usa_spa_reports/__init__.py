@@ -82,7 +82,11 @@ def main(mytimer: func.TimerRequest) -> None:
         footer_note="",
     )
 
-    subject = os.getenv("USA_SPA_DISPATCH_SUBJECT") or f"QMS USA Spa Sales Report {report_date_str(reference_date=report_date)}"
+    subject = os.getenv("USA_SPA_DISPATCH_SUBJECT") or (
+        f"QMS USA Spa Sales Report {report_date.strftime('%d.%m.%Y')}"
+        if report_date else
+        f"QMS USA Spa Sales Report {report_date_str()}"
+    )
 
     try:
         send_via_graph(recipients, [], body_content, subject, body_type)

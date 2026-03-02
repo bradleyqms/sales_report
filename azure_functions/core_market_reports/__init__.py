@@ -118,7 +118,11 @@ def main(mytimer: func.TimerRequest) -> None:
     else:
         LOG.info("Core market PDF attachments (%d): %s", len(attachments), [p.name for p in attachments])
 
-    subject = os.getenv("CORE_MARKET_DISPATCH_SUBJECT") or f"QMS Core Market Sales Report {report_date_str(reference_date=report_date)}"
+    subject = os.getenv("CORE_MARKET_DISPATCH_SUBJECT") or (
+        f"QMS Core Market Sales Report {report_date.strftime('%d.%m.%Y')}"
+        if report_date else
+        f"QMS Core Market Sales Report {report_date_str()}"
+    )
 
     try:
         send_via_graph(recipients, attachments, body_content, subject, body_type)

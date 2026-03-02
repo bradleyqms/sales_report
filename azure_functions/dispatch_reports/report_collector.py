@@ -144,10 +144,16 @@ def find_files(outputs_dir: Path, pattern: str, limit: int) -> list[Path]:
 def derive_report_date(outputs_dir: Path):
     """Derive the business-date anchor from the unified mapped CSV in *outputs_dir*.
 
+    Returns the SAP ``Extract_Date`` value as-is (a ``datetime.datetime``).
+    This is the date of the last completed SAP extract — already the effective
+    business date. Callers must format it directly (e.g. ``report_date.strftime('%d.%m.%Y')``).
+    Do NOT pass the return value into ``report_date_str()`` — that helper subtracts
+    an extra working day which causes an off-by-one error.
+
     Priority:
     1. ``Extract_Date`` column  — set by the SAP Extract_Date_Int ingestion fix
-    2. ``Load_Timestamp`` column — Azure blob write timestamp
-    3. ``datetime.now()``       — last-resort fallback (logs a warning)
+    2. ``Load_Timestamp`` column — Azure blob write timestamp (fallback, logs WARNING)
+    3. ``datetime.now()``       — last-resort fallback (logs WARNING)
 
     Returns a ``datetime.datetime`` in all cases.
     """

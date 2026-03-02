@@ -429,7 +429,7 @@ class BaseReportGenerator(ABC):
         now = self.now
         headers = self.get_report_headers()
         title = self.get_report_title()
-        date_range = format_mtd_date_range(self.now)
+        date_range = format_mtd_date_range()  # always real datetime.now()
         
         # Build text and HTML content
         text_lines = []
