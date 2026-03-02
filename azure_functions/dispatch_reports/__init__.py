@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from .config import parse_recipients, report_date_str, report_mtd_banner
 from .graph_client import acquire_graph_token, send_via_graph
 from .html_builder import build_html_body
-from .report_collector import collect_csv_attachments, collect_html_files, refresh_reports, resolve_outputs_path
+from .report_collector import collect_csv_attachments, collect_html_files, refresh_reports, resolve_outputs_path, derive_report_date
 
 load_dotenv()
 
@@ -45,6 +45,7 @@ def main(mytimer: func.TimerRequest) -> None:
         return
 
     refresh_reports(outputs_dir)
+    report_date = derive_report_date(outputs_dir)
 
     # HTML -> email body
     html_files = collect_html_files(outputs_dir)
@@ -61,7 +62,11 @@ def main(mytimer: func.TimerRequest) -> None:
     )
     body_type, body_content = build_html_body(
         html_files, plain_intro,
-        banner_title=report_mtd_banner(),
+        banner_title=(
+            f"Management Report (MTD: {report_date.strftime('%B')} 1-{report_date.day}, {report_date.year})"
+            if report_date else
+            report_mtd_banner()
+        ),
     )
 
     # CSVs -> attachments
@@ -73,7 +78,11 @@ def main(mytimer: func.TimerRequest) -> None:
             "CSV attachments (%d): %s", len(attachments), [p.name for p in attachments]
         )
 
-    subject = os.getenv("REPORT_DISPATCH_SUBJECT") or f"QMS Management Sales Report {report_date_str()}"
+    subject = os.getenv("REPORT_DISPATCH_SUBJECT") or (
+        f"QMS Management Sales Report {report_date.strftime('%d.%m.%Y')}"
+        if report_date else
+        f"QMS Management Sales Report {report_date_str()}"
+    )
 
     try:
         send_via_graph(recipients, attachments, body_content, subject, body_type)

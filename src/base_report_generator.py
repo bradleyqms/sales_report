@@ -40,16 +40,21 @@ class BaseReportGenerator(ABC):
     - render_report(df): Display report to console
     """
     
-    def __init__(self, config_path: str, sales_path: str, budget_path: str, prior_path: str):
+    def __init__(self, config_path: str, sales_path: str, budget_path: str, prior_path: str,
+                 report_date: Optional[datetime.datetime] = None):
         """
         Initialize the report generator.
-        
+
         Args:
             config_path: Path to JSON configuration file
             sales_path: Path to sales data CSV
             budget_path: Path to budget data CSV
             prior_path: Path to prior year data CSV
+            report_date: Optional business-date anchor derived from SAP Extract_Date.
+                         When provided, all date logic (headers, budget/prior filtering)
+                         derives from this value instead of the system clock.
         """
+        self._report_date = report_date
         self.config = self._load_config(config_path)
         self._load_data_files(sales_path, budget_path, prior_path)
         self._prepare_dates()
@@ -105,17 +110,17 @@ class BaseReportGenerator(ABC):
     def _prepare_dates(self) -> None:
         """
         Calculate and store commonly used date values.
-        
+
         Sets instance variables:
-        - current_year: Current year (int)
-        - prior_year: Prior year (int)
-        - current_month: Current month (int, 1-12)
-        - now: Current datetime object
+        - now: Report datetime anchor (from report_date if provided, else current datetime)
+        - current_year: Year from anchor (int)
+        - prior_year: Prior year from anchor (int)
+        - current_month: Month from anchor (int, 1-12)
         """
-        self.now = datetime.datetime.now()
-        self.current_year = get_current_year()
-        self.prior_year = get_prior_year()
-        self.current_month = get_current_month()
+        self.now = self._report_date or datetime.datetime.now()
+        self.current_year = get_current_year(self.now)
+        self.prior_year = get_prior_year(self.now)
+        self.current_month = get_current_month(self.now)
     
     def _filter_budget_for_month(self, date_format: str = '%d/%m/%Y') -> pd.DataFrame:
         """
@@ -486,10 +491,10 @@ class BaseReportGenerator(ABC):
             base_path: Base path for output files (e.g., 'report.csv')
                        Other formats will use same base with different extensions
         """
-        now = datetime.datetime.now()
+        now = self.now
         headers = self.get_report_headers()
         title = self.get_report_title()
-        date_range = format_mtd_date_range()
+        date_range = format_mtd_date_range()  # always real datetime.now()
         
         # Build text and HTML content
         text_lines = []

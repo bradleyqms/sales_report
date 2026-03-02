@@ -33,46 +33,55 @@ def print_progress(current: int, total: int, message: str = "") -> None:
         print()  # New line when complete
 
 
-def get_current_year() -> int:
+def get_current_year(reference: Optional[datetime.datetime] = None) -> int:
     """
     Get the current year dynamically.
-    
+
+    Args:
+        reference: Optional datetime anchor. If None, uses datetime.datetime.now().
+
     Returns:
         Current year as integer
-        
+
     Example:
         >>> get_current_year()
         2025
     """
-    return datetime.datetime.now().year
+    return (reference or datetime.datetime.now()).year
 
 
-def get_prior_year() -> int:
+def get_prior_year(reference: Optional[datetime.datetime] = None) -> int:
     """
     Get the prior year (current year - 1) dynamically.
-    
+
+    Args:
+        reference: Optional datetime anchor. If None, uses datetime.datetime.now().
+
     Returns:
         Prior year as integer
-        
+
     Example:
         >>> get_prior_year()
         2024
     """
-    return datetime.datetime.now().year - 1
+    return (reference or datetime.datetime.now()).year - 1
 
 
-def get_current_month() -> int:
+def get_current_month(reference: Optional[datetime.datetime] = None) -> int:
     """
     Get the current month dynamically.
-    
+
+    Args:
+        reference: Optional datetime anchor. If None, uses datetime.datetime.now().
+
     Returns:
         Current month as integer (1-12)
-        
+
     Example:
         >>> get_current_month()
         12
     """
-    return datetime.datetime.now().month
+    return (reference or datetime.datetime.now()).month
 
 
 def get_last_working_day(reference: Optional[datetime.datetime] = None) -> datetime.date:

@@ -59,20 +59,48 @@ def parse_qry_file_batch(file_paths):
             # Read entire file at once
             with open(path, 'r', encoding='utf-8') as f:
                 content = f.read()
-            
-            # Use findall with compiled regex to extract all entity=value pairs
+
+            extract_date = None
+            date_col_idx = None
+
             for line in content.splitlines():
                 line = line.strip()
                 if not line:
                     continue
-                
+
+                # Try regex on unmodified line first
                 match = QRY_LINE_PATTERN.match(line)
+
+                if match is None:
+                    # Header row — locate Extract_Date_Int column position
+                    parts = line.split('=')
+                    for i, col in enumerate(parts):
+                        if col.strip().lower() == 'extract_date_int':
+                            date_col_idx = i
+                            break
+                    continue  # skip header row
+
+                # Data row — strip date column if header was detected
+                if date_col_idx is not None:
+                    parts = line.split('=')
+                    if len(parts) > date_col_idx:
+                        date_str = parts[date_col_idx].strip()
+                        if extract_date is None and re.match(r'^\d{8}$', date_str):
+                            try:
+                                extract_date = pd.to_datetime(date_str, format='%Y%m%d')
+                            except Exception:
+                                pass
+                        # Rebuild line without the date column then re-match
+                        clean_parts = [p for i, p in enumerate(parts) if i != date_col_idx]
+                        line = '='.join(clean_parts)
+                    match = QRY_LINE_PATTERN.match(line)
+
                 if match:
                     entity = match.group(1)
                     value_str = match.group(2).replace(',', '.')
                     try:
                         value = float(value_str)
-                        all_data.append((entity, value, category, timeframe, region, filename))
+                        all_data.append((entity, value, category, timeframe, region, filename, extract_date))
                     except ValueError:
                         pass
         except Exception as e:
@@ -102,7 +130,7 @@ def process_qry_files(folder):
         return pd.DataFrame()
     
     # Create DataFrame directly from tuples (more efficient than list of dicts)
-    df = pd.DataFrame(all_data, columns=['entity', 'value', 'category', 'timeframe', 'region', 'file'])
+    df = pd.DataFrame(all_data, columns=['entity', 'value', 'category', 'timeframe', 'region', 'file', 'Extract_Date'])
 
     # Vectorized: Separate entity into sales_employee and customer based on region
     # Use np.where instead of apply(lambda)
@@ -133,9 +161,9 @@ def process_qry_files(folder):
         return pd.DataFrame()
     
     # Create formatted DataFrame for mapping compatibility
-    qry_df = df[['sales_employee', 'customer', 'value', 'category', 'Company Entity', 'Currency', 'file']].copy()
-    qry_df.columns = ['Sales Employee Name', 'Customer Name', 'Total Value (EUR)', 'Document Type', 
-                      'Company Entity', 'Currency', 'Source_File']
+    qry_df = df[['sales_employee', 'customer', 'value', 'category', 'Company Entity', 'Currency', 'file', 'Extract_Date']].copy()
+    qry_df.columns = ['Sales Employee Name', 'Customer Name', 'Total Value (EUR)', 'Document Type',
+                      'Company Entity', 'Currency', 'Source_File', 'Extract_Date']
     
     qry_df['Metric'] = 'Receivables'
     qry_df['Load_Timestamp'] = pd.Timestamp.now()

@@ -29,9 +29,11 @@ class CoreMarketReportGenerator(BaseReportGenerator):
     with Existing vs New customer breakdowns.
     """
     
-    def __init__(self, config_path, sales_path, budget_path, prior_path, split_summary_path=None):
+    def __init__(self, config_path, sales_path, budget_path, prior_path, split_summary_path=None,
+                 report_date=None):
         # Call parent constructor (loads config, data files, prepares dates)
-        super().__init__(config_path, sales_path, budget_path, prior_path)
+        super().__init__(config_path, sales_path, budget_path, prior_path,
+                         report_date=report_date)
         
         # Load sales split summary if available (CoreMarket-specific)
         self.split_summary = None
@@ -444,7 +446,7 @@ class CoreMarketReportGenerator(BaseReportGenerator):
 
     def render_report(self, df):
         # Print Header
-        now = datetime.datetime.now()
+        now = self.now
         month_name = now.strftime('%b')
         year_short = str(now.year)[2:]
         col_curr = f"{month_name}-{year_short}A MTD"

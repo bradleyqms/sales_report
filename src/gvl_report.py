@@ -29,14 +29,16 @@ class GVLReportGenerator(BaseReportGenerator):
     with budget and prior year comparisons.
     """
     
-    def __init__(self, config_path, sales_path, budget_path, prior_path):
+    def __init__(self, config_path, sales_path, budget_path, prior_path,
+                 report_date=None):
         # Call parent constructor (loads config, data files, prepares dates)
-        super().__init__(config_path, sales_path, budget_path, prior_path)
+        super().__init__(config_path, sales_path, budget_path, prior_path,
+                         report_date=report_date)
         self._prepare_data()
     
     def get_report_headers(self) -> List[str]:
         """Return column headers for the GVL report."""
-        now = datetime.datetime.now()
+        now = self.now
         month_name = now.strftime('%b')
         year_short = str(now.year)[2:]
         return ['kEUR', f'{month_name}-{year_short}A MTD', 'Budget', 'Prior', '% vs Bud']
@@ -323,7 +325,7 @@ class GVLReportGenerator(BaseReportGenerator):
 
     def render_report(self, df):
         # Print Header
-        now = datetime.datetime.now()
+        now = self.now
         month_name = now.strftime('%b')
         year_short = str(now.year)[2:]
         col_curr = f"{month_name}-{year_short}A MTD"

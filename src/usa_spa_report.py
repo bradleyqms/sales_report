@@ -29,14 +29,16 @@ class USASpaReportGenerator(BaseReportGenerator):
     with budget and prior year comparisons in USD.
     """
     
-    def __init__(self, config_path, sales_path, budget_path, prior_path):
+    def __init__(self, config_path, sales_path, budget_path, prior_path,
+                 report_date=None):
         # Call parent constructor (loads config, data files, prepares dates)
-        super().__init__(config_path, sales_path, budget_path, prior_path)
+        super().__init__(config_path, sales_path, budget_path, prior_path,
+                         report_date=report_date)
         self._prepare_data()
     
     def get_report_headers(self) -> List[str]:
         """Return column headers for the USA Spa report."""
-        now = datetime.datetime.now()
+        now = self.now
         month_name = now.strftime('%b')
         year_short = str(now.year)[2:]
         prior_year_short = str(self.prior_year)[2:]
@@ -75,8 +77,7 @@ class USASpaReportGenerator(BaseReportGenerator):
         return [label, a_str, b_str, db_str, pb_str, p_str, pp_str]
             
     def _prepare_data(self):
-        # Dates (use dynamic calculation from utils)
-        now = datetime.datetime.now()
+        # Dates are already set on self.now via _prepare_dates() in base class
         
         # Filter Sales to AR (for QRY data, Document Type is 'AR', not 'AR Invoice')
         self.df = self.df[self.df['Document Type'] == 'AR'].copy()
@@ -417,7 +418,7 @@ class USASpaReportGenerator(BaseReportGenerator):
 
     def render_report(self, df):
         # Print Header
-        now = datetime.datetime.now()
+        now = self.now
         month_name = now.strftime('%b')
         year_short = str(now.year)[2:]
         prior_year_short = str(self.prior_year)[2:]
@@ -425,7 +426,7 @@ class USASpaReportGenerator(BaseReportGenerator):
         col_budget = f"{month_name}-{year_short}B"
         col_prior = f"{month_name}-{prior_year_short}A"
         
-        print(f"USA Spa Report (Month-to-Date: {format_mtd_date_range(now)})")
+        print(f"USA Spa Report (Month-to-Date: {format_mtd_date_range()})")
         print(f"{self.unit:<30} {col_curr:>14} {col_budget:>10} {f'{year_short}A vs {year_short}B':>12} {f'% {year_short}A vs {year_short}B':>14} {col_prior:>10} {f'% {year_short}A vs {prior_year_short}A':>14}")
         print("-" * 114)
         

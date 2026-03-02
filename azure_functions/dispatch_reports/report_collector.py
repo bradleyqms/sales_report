@@ -141,6 +141,58 @@ def find_files(outputs_dir: Path, pattern: str, limit: int) -> list[Path]:
     return candidates[:limit]
 
 
+def derive_report_date(outputs_dir: Path):
+    """Derive the business-date anchor from the unified mapped CSV in *outputs_dir*.
+
+    Returns the SAP ``Extract_Date`` value as-is (a ``datetime.datetime``).
+    This is the date of the last completed SAP extract — already the effective
+    business date. Callers must format it directly (e.g. ``report_date.strftime('%d.%m.%Y')``).
+    Do NOT pass the return value into ``report_date_str()`` — that helper subtracts
+    an extra working day which causes an off-by-one error.
+
+    Priority:
+    1. ``Extract_Date`` column  — set by the SAP Extract_Date_Int ingestion fix
+    2. ``Load_Timestamp`` column — Azure blob write timestamp (fallback, logs WARNING)
+    3. ``datetime.now()``       — last-resort fallback (logs WARNING)
+
+    Returns a ``datetime.datetime`` in all cases.
+    """
+    import datetime as _dt
+
+    try:
+        import pandas as pd
+    except ImportError:  # pragma: no cover
+        LOG.warning("pandas not available; falling back to datetime.now() for report_date")
+        return _dt.datetime.now()
+
+    csvs = sorted(
+        outputs_dir.glob("qry_unified_mapped_*.csv"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if not csvs:
+        LOG.warning("No unified CSV found in %s; falling back to datetime.now()", outputs_dir)
+        return _dt.datetime.now()
+
+    try:
+        df = pd.read_csv(csvs[0])
+        if "Extract_Date" in df.columns:
+            ts = pd.to_datetime(df["Extract_Date"], errors="coerce").max()
+            if pd.notna(ts):
+                LOG.info("report_date derived from Extract_Date: %s", ts)
+                return ts.to_pydatetime()
+        if "Load_Timestamp" in df.columns:
+            LOG.warning("Extract_Date not found; falling back to Load_Timestamp for report_date")
+            ts = pd.to_datetime(df["Load_Timestamp"], errors="coerce").max()
+            if pd.notna(ts):
+                return ts.to_pydatetime()
+    except Exception as exc:  # pragma: no cover
+        LOG.warning("Could not derive report_date from %s: %s", csvs[0].name, exc)
+
+    LOG.warning("No valid date column found in unified CSV; falling back to datetime.now()")
+    return _dt.datetime.now()
+
+
 def collect_html_files(outputs_dir: Path) -> list[Path]:
     """Return the newest HTML file for each KEY_HTML_PATTERNS entry."""
     seen: set[Path] = set()
