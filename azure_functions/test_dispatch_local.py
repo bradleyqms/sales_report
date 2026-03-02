@@ -52,6 +52,7 @@ _acquire_graph_token  = _mod._acquire_graph_token
 _send_via_graph       = _mod._send_via_graph
 _resolve_outputs_path = _mod._resolve_outputs_path
 _parse_recipients     = _mod._parse_recipients
+_derive_report_date   = _mod.derive_report_date
 
 # ---------------------------------------------------------------------------
 logging.basicConfig(
@@ -72,6 +73,8 @@ def run_test(skip_refresh: bool, skip_send: bool, dry_run: bool) -> None:
     # ── 1. Config ──────────────────────────────────────────────────────────
     section("1 / CONFIG")
     outputs_dir = _resolve_outputs_path()
+    report_date = _derive_report_date(outputs_dir)
+    LOG.info("report_date : %s (derived from Extract_Date)", report_date.strftime("%Y-%m-%d"))
     _test_recip = os.getenv("TEST_REPORT_DISPATCH_RECIPIENTS", "").strip()
     if _test_recip:
         LOG.info("TEST mode — overriding recipients with TEST_REPORT_DISPATCH_RECIPIENTS")
@@ -79,7 +82,7 @@ def run_test(skip_refresh: bool, skip_send: bool, dry_run: bool) -> None:
     else:
         recipients = _parse_recipients(os.getenv("REPORT_DISPATCH_RECIPIENTS"))
     sender  = os.getenv("REPORT_DISPATCH_GRAPH_SENDER")
-    subject = os.getenv("REPORT_DISPATCH_SUBJECT") or f"QMS Management Sales Report {_mod.report_date_str()}"
+    subject = os.getenv("REPORT_DISPATCH_SUBJECT") or f"QMS Management Sales Report {_mod.report_date_str(reference_date=report_date)}"
 
     LOG.info("outputs_dir : %s", outputs_dir)
     LOG.info("recipients  : %s", recipients)
@@ -111,7 +114,7 @@ def run_test(skip_refresh: bool, skip_send: bool, dry_run: bool) -> None:
     plain_intro = os.getenv("REPORT_DISPATCH_BODY", "Please find the latest QMS sales data attached.")
     body_type, body_content = _build_html_body(
         html_files, plain_intro,
-        banner_title=_mod.report_mtd_banner(),
+        banner_title=_mod.report_mtd_banner(reference_date=report_date),
     )
     LOG.info("Email body contentType: %s  (%d chars)", body_type, len(body_content))
 
