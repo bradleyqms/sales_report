@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sales Report Generator</title>
     <link rel="icon" href="/static/images/qms-favicon.ico">
-    <link rel="stylesheet" href="/static/styles.css?v=7">
+    <link rel="stylesheet" href="/static/styles.css?v=8">
 </head>
 <body>
     <!-- Splash Screen -->
@@ -27,13 +27,13 @@
         </div>
         <nav>
             <a href="/" class="nav-drawer-item {% if view == 'management' %}nav-drawer-item--active{% endif %}">
-                <span class="nav-drawer-icon">📊</span> Management
+                <img src="/static/images/globe_icon.png" class="nav-drawer-flag" alt="Management" /> Management
             </a>
             <a href="/coremarkets" class="nav-drawer-item {% if view == 'coremarkets' %}nav-drawer-item--active{% endif %}">
-                <span class="nav-drawer-icon">🌍</span> Core Markets
+                <img src="/static/images/eu_flag.png" class="nav-drawer-flag" alt="Core Markets" /> Core Markets
             </a>
             <a href="/usaspa" class="nav-drawer-item {% if view == 'usaspa' %}nav-drawer-item--active{% endif %}">
-                <span class="nav-drawer-icon">🇺🇸</span> USA Spa
+                <img src="/static/images/us_flag.png" class="nav-drawer-flag" alt="USA Spa" /> USA Spa
             </a>
         </nav>
         <div class="nav-drawer-footer">
@@ -187,17 +187,17 @@
 
         // ── Stage indicator matchers ──────────────────────────────────────────
         const PIPELINE_STAGES = [
-            { match: /Using SharePoint/i,                 label: 'Connecting to SharePoint...' },
-            { match: /Downloading.*QRY|sp\.download/i,    label: 'Fetching QRY files...' },
-            { match: /Downloaded.*QRY files/i,            label: 'Fetching SharePoint files...' },
-            { match: /Downloaded support files/i,          label: 'Downloading support files...' },
-            { match: /Mapped \d+ records/i,               label: 'Mapping regions...' },
-            { match: /GENERATING REPORTS/i,               label: 'Generating reports...' },
-            { match: /REPORT 1.*MANAGEMENT/i,             label: 'Building Management Report...' },
-            { match: /REPORT 2.*USA SPA/i,                label: 'Building USA Spa Report...' },
-            { match: /REPORT 3.*CORE MARKET/i,            label: 'Building Core Market Report...' },
-            { match: /COMBINING REPORTS/i,                label: 'Combining outputs...' },
-            { match: /Timestamp:/i,                       label: 'Wrapping up...' },
+            { match: /Using SharePoint/i,                 label: 'Getting started...' },
+            { match: /Downloading.*QRY|sp\.download/i,    label: 'Gathering info...' },
+            { match: /Downloaded.*QRY files/i,            label: 'Finishing download...' },
+            { match: /Downloaded support files/i,          label: 'Getting things ready...' },
+            { match: /Mapped \d+ records/i,               label: 'Sorting data...' },
+            { match: /GENERATING REPORTS/i,               label: 'Making reports...' },
+            { match: /REPORT 1.*MANAGEMENT/i,             label: 'Making Management view...' },
+            { match: /REPORT 2.*USA SPA/i,                label: 'Making USA Spa view...' },
+            { match: /REPORT 3.*CORE MARKET/i,            label: 'Making Core Market view...' },
+            { match: /COMBINING REPORTS/i,                label: 'Finishing up...' },
+            { match: /Timestamp:/i,                       label: 'Almost there...' },
         ];
 
         function updateStageLabel(logLine) {
@@ -691,7 +691,7 @@
             eventSource.addEventListener('complete', async (e) => {
                 if (outputEl) outputEl.value += '\n\n' + e.data;
                 const stageEl = document.getElementById('stageLabel');
-                if (stageEl) stageEl.textContent = 'Complete ✓';
+                if (stageEl) stageEl.textContent = 'All Done! ✓';
                 await refreshStatus(); // Fetch final results
             });
 

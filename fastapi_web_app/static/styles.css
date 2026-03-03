@@ -897,6 +897,21 @@ main {
     flex-shrink: 0;
 }
 
+.nav-drawer-flag {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    opacity: 0.85;
+    transition: opacity 0.15s;
+}
+
+.nav-drawer-item:hover .nav-drawer-flag,
+.nav-drawer-item--active .nav-drawer-flag {
+    opacity: 1;
+}
+
 .nav-drawer-footer {
     padding: 14px 20px;
     border-top: 1px solid #374151;
