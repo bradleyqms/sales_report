@@ -39,6 +39,7 @@ PRE_RUN_OUTLINE = """Pipeline outline:
 
 report_status = {
     "running": False,
+    "error": False,
     "output": "",
     "csv_url": "",
     "txt_url": "",
@@ -225,6 +226,7 @@ def execute_report():
     global report_status
 
     report_status["running"] = True
+    report_status["error"] = False
     report_status["output"] = ""
     report_status["csv_url"] = ""
     report_status["txt_url"] = ""
@@ -335,9 +337,11 @@ def execute_report():
             else:
                 report_status["output"] += "\n\nCould not parse timestamp from output."
         else:
+            report_status["error"] = True
             report_status["output"] += f"\n\nScript failed with return code {returncode}"
 
     except Exception as e:
+        report_status["error"] = True
         report_status["output"] = f"Error running report: {str(e)}"
 
     report_status["running"] = False

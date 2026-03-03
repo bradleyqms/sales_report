@@ -666,7 +666,6 @@
 
             // Reset UI for running state
             runButton.disabled = true;
-            toggleLogs(true);
             loadingIndicator.style.display = 'flex';
             setStatusRole('running');
             updateSummaryState(false);
@@ -760,6 +759,8 @@
                     if (!eventSource) startStreaming();
                 } else {
                     endRun();
+                    // Smart expand: only auto-open logs if the pipeline returned an error
+                    if (status.error) toggleLogs(true);
                     if (status.last_run) {
                         setStatusRole('results');
                         updateSummaryState(true);
