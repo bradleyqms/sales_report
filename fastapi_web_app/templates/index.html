@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sales Report Generator</title>
     <link rel="icon" href="/static/images/qms-favicon.ico">
-    <link rel="stylesheet" href="/static/styles.css?v=2">
+    <link rel="stylesheet" href="/static/styles.css?v=3">
 </head>
 <body>
     <!-- Splash Screen -->
@@ -56,14 +56,17 @@
                     </div>
                 </div>
 
-                <div class="pipeline-connector">
-                    <span>Action → Streaming → Insight</span>
-                    <div class="connector-line"></div>
-                </div>
-
-                <div class="terminal-window">
-                    <div class="terminal-content">
-                        <textarea id="output" readonly class="terminal-output" placeholder="> Click &quot;Start analysis&quot; to begin."></textarea>
+                <div class="log-accordion">
+                    <button class="log-toggle" id="logToggle" onclick="toggleLogs()" aria-expanded="false">
+                        <span class="log-toggle-label">Process Logs</span>
+                        <span class="log-toggle-icon">▼</span>
+                    </button>
+                    <div class="log-panel" id="logPanel">
+                        <div class="terminal-window">
+                            <div class="terminal-content">
+                                <textarea id="output" readonly class="terminal-output" placeholder="> Click &quot;Start analysis&quot; to begin."></textarea>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -81,6 +84,17 @@
                     <!-- Metrics will be populated by JavaScript, ordered largest to smallest -->
                 </div>
                 <div id="metricsTimestamp" class="metrics-timestamp">Refreshed: Never</div>
+            </div>
+
+            <div class="card export-strip">
+                <div class="export-strip-actions">
+                    <a id="exportPdfBtn" href="#" class="export-btn export-btn--primary disabled">
+                        <span>📑</span> Export PDF
+                    </a>
+                    <button class="export-btn export-btn--secondary" onclick="shareReport()">
+                        <span>🔗</span> Share Report
+                    </button>
+                </div>
             </div>
 
             <div class="card recent-runs-card">
@@ -242,6 +256,18 @@
                 }
             }
             
+            // Sync export strip PDF button
+            const exportPdfBtn = document.getElementById('exportPdfBtn');
+            if (exportPdfBtn) {
+                if (status.pdf_url) {
+                    exportPdfBtn.href = status.pdf_url;
+                    exportPdfBtn.classList.remove('disabled');
+                } else {
+                    exportPdfBtn.href = '#';
+                    exportPdfBtn.classList.add('disabled');
+                }
+            }
+
             // Load table data if CSV is available
             if (status.csv_url) {
                 loadTableData(status.csv_url);
@@ -303,39 +329,92 @@
 
             const responsiveDiv = document.createElement('div');
             responsiveDiv.className = 'table-responsive';
-            
+
             const table = document.createElement('table');
-            table.className = 'data-table';
-            
+            table.className = 'data-table sortable-table';
+
+            // --- Sticky + sortable thead ---
             const thead = document.createElement('thead');
             const headerRow = document.createElement('tr');
-            headers.forEach(text => {
+            let sortColIndex = null;
+            let sortAsc = true;
+
+            headers.forEach((text, idx) => {
                 const th = document.createElement('th');
-                th.textContent = text.trim();
+                const trimmed = text.trim();
+                th.innerHTML = `<span class="th-text">${trimmed}</span><span class="sort-indicator"></span>`;
+                if (idx > 0) {
+                    th.classList.add('sortable-col');
+                    th.title = `Sort by ${trimmed}`;
+                    th.addEventListener('click', () => {
+                        if (sortColIndex === idx) {
+                            sortAsc = !sortAsc;
+                        } else {
+                            sortColIndex = idx;
+                            sortAsc = false; // default: highest first
+                        }
+                        sortTableBody(tbody, sortColIndex, sortAsc);
+                        headerRow.querySelectorAll('th').forEach((el, i) => {
+                            const ind = el.querySelector('.sort-indicator');
+                            if (!ind) return;
+                            ind.textContent = (i === sortColIndex) ? (sortAsc ? ' ↑' : ' ↓') : '';
+                        });
+                    });
+                }
                 headerRow.appendChild(th);
             });
             thead.appendChild(headerRow);
             table.appendChild(thead);
 
-            const tbody = document.createElement('tbody');
-            rows.forEach(row => {
-                if (row.length < 2) return;
+            // --- Helpers ---
+            function parseVal(str) {
+                const s = (str || '').trim().replace('%', '').replace(/,/g, '');
+                const n = parseFloat(s);
+                return isNaN(n) ? null : n;
+            }
+
+            function sortTableBody(tbodyEl, colIdx, asc) {
+                const dataTrs = Array.from(tbodyEl.querySelectorAll('tr[data-row-type="data"]'));
+                dataTrs.sort((a, b) => {
+                    const aVal = parseVal(a.cells[colIdx]?.textContent);
+                    const bVal = parseVal(b.cells[colIdx]?.textContent);
+                    if (aVal === null && bVal === null) return 0;
+                    if (aVal === null) return 1;
+                    if (bVal === null) return -1;
+                    return asc ? aVal - bVal : bVal - aVal;
+                });
+                const totalTrs = Array.from(tbodyEl.querySelectorAll('tr[data-row-type="total"]'));
+                dataTrs.forEach(tr => tbodyEl.insertBefore(tr, totalTrs[0] || null));
+            }
+
+            function buildRow(row, rowType) {
                 const tr = document.createElement('tr');
-                const label = (row[0] || '').trim();
-                const isTotalRow = label.startsWith('Total ') || label.endsWith(' Sales');
-                if (isTotalRow) tr.style.fontWeight = 'bold';
+                tr.setAttribute('data-row-type', rowType);
+                if (rowType === 'total') tr.style.fontWeight = 'bold';
                 row.forEach(cell => {
                     const td = document.createElement('td');
                     td.textContent = cell.trim();
                     tr.appendChild(td);
                 });
-                tbody.appendChild(tr);
+                return tr;
+            }
+
+            // --- Tbody: separate data rows from total rows ---
+            const tbody = document.createElement('tbody');
+            const dataRows = [];
+            const totalRows = [];
+            rows.forEach(row => {
+                if (row.length < 2) return;
+                const label = (row[0] || '').trim();
+                const isTotalRow = label.startsWith('Total ') || label.endsWith(' Sales');
+                (isTotalRow ? totalRows : dataRows).push(row);
             });
+            dataRows.forEach(row => tbody.appendChild(buildRow(row, 'data')));
+            totalRows.forEach(row => tbody.appendChild(buildRow(row, 'total')));
             table.appendChild(tbody);
-            
+
             responsiveDiv.appendChild(table);
             card.appendChild(responsiveDiv);
-            
             return card;
         }
 
@@ -425,11 +504,38 @@
             }
         }
 
+        function toggleLogs(forceOpen) {
+            const panel = document.getElementById('logPanel');
+            const toggle = document.getElementById('logToggle');
+            const isOpen = toggle.getAttribute('aria-expanded') === 'true';
+            const shouldOpen = forceOpen !== undefined ? forceOpen : !isOpen;
+            toggle.setAttribute('aria-expanded', String(shouldOpen));
+            panel.style.display = shouldOpen ? 'block' : 'none';
+            toggle.querySelector('.log-toggle-icon').textContent = shouldOpen ? '▲' : '▼';
+        }
+
+        function shareReport() {
+            navigator.clipboard.writeText(window.location.href).then(() => {
+                const toast = document.createElement('div');
+                toast.className = 'share-toast';
+                toast.textContent = '✓ Link copied to clipboard';
+                document.body.appendChild(toast);
+                requestAnimationFrame(() => toast.classList.add('visible'));
+                setTimeout(() => {
+                    toast.classList.remove('visible');
+                    setTimeout(() => toast.remove(), 300);
+                }, 2500);
+            }).catch(() => {
+                prompt('Copy this link:', window.location.href);
+            });
+        }
+
         function startStreaming() {
             if (eventSource) eventSource.close();
             
             // Reset UI for running state
             runButton.disabled = true;
+            toggleLogs(true);
             loadingIndicator.style.display = 'flex';
             setStatusRole('running');
             updateSummaryState(false);
