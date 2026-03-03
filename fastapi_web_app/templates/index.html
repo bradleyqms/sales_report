@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sales Report Generator</title>
     <link rel="icon" href="/static/images/qms-favicon.ico">
-    <link rel="stylesheet" href="/static/styles.css?v=2">
+    <link rel="stylesheet" href="/static/styles.css?v=8">
 </head>
 <body>
     <!-- Splash Screen -->
@@ -18,8 +18,36 @@
         </div>
     </div>
 
+    <!-- Nav overlay + drawer (outside .app-container so it covers full viewport) -->
+    <div class="nav-overlay" id="navOverlay" onclick="closeDrawer()"></div>
+    <aside class="nav-drawer" id="navDrawer" aria-label="Navigation">
+        <div class="nav-drawer-header">
+            <span class="nav-drawer-title">Views</span>
+            <button class="nav-drawer-close" onclick="closeDrawer()" aria-label="Close navigation">&times;</button>
+        </div>
+        <nav>
+            <a href="/" class="nav-drawer-item {% if view == 'management' %}nav-drawer-item--active{% endif %}">
+                <img src="/static/images/globe_icon.png" class="nav-drawer-flag" alt="Management" /> Management
+            </a>
+            <a href="/coremarkets" class="nav-drawer-item {% if view == 'coremarkets' %}nav-drawer-item--active{% endif %}">
+                <img src="/static/images/eu_flag.png" class="nav-drawer-flag" alt="Core Markets" /> Core Markets
+            </a>
+            <a href="/usaspa" class="nav-drawer-item {% if view == 'usaspa' %}nav-drawer-item--active{% endif %}">
+                <img src="/static/images/us_flag.png" class="nav-drawer-flag" alt="USA Spa" /> USA Spa
+            </a>
+        </nav>
+        <div class="nav-drawer-footer">
+            <span class="nav-drawer-current">Current view: <strong>{% if view == 'management' %}Management{% elif view == 'coremarkets' %}Core Markets{% else %}USA Spa{% endif %}</strong></span>
+        </div>
+    </aside>
+
     <div class="app-container">
         <header class="top-bar">
+            <button class="hamburger-btn" id="hamburgerBtn" onclick="openDrawer()" aria-label="Open navigation">
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+            </button>
             <div class="brand-section">
                 <img class="brand-logo" src="/static/images/qms-logo.png" alt="QMS Medicosmetics" />
                 <div class="divider"></div>
@@ -52,18 +80,21 @@
                     </button>
                     <div id="loading" class="loading-indicator" style="display: none;">
                         <div class="spinner"></div>
-                        <span>Processing...</span>
+                        <span id="stageLabel">Starting...</span>
                     </div>
                 </div>
 
-                <div class="pipeline-connector">
-                    <span>Action → Streaming → Insight</span>
-                    <div class="connector-line"></div>
-                </div>
-
-                <div class="terminal-window">
-                    <div class="terminal-content">
-                        <textarea id="output" readonly class="terminal-output" placeholder="> Click &quot;Start analysis&quot; to begin."></textarea>
+                <div class="log-accordion">
+                    <button class="log-toggle" id="logToggle" onclick="toggleLogs()" aria-expanded="false">
+                        <span class="log-toggle-label">Process Logs</span>
+                        <span class="log-toggle-icon">▼</span>
+                    </button>
+                    <div class="log-panel" id="logPanel">
+                        <div class="terminal-window">
+                            <div class="terminal-content">
+                                <textarea id="output" readonly class="terminal-output" placeholder="> Click &quot;Start analysis&quot; to begin."></textarea>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -73,9 +104,15 @@
                     <h3>Summary Metrics (MTD)</h3>
                     <span id="summaryState" class="summary-state">Awaiting fresh run</span>
                 </div>
-                <div class="total-sales-box">
-                    <div class="total-label">TOTAL SALES</div>
-                    <div class="total-value" id="totalSalesValue">0 kEUR</div>
+                <div class="kpi-row">
+                    <div class="kpi-card kpi-card--sales">
+                        <div class="kpi-label" id="kpiSalesLabel">TOTAL SALES</div>
+                        <div class="kpi-value" id="totalSalesValue">— kEUR</div>
+                    </div>
+                    <div class="kpi-card kpi-card--budget">
+                        <div class="kpi-label">% VS BUDGET</div>
+                        <div class="kpi-value" id="budgetPctValue">— %</div>
+                    </div>
                 </div>
                 <div id="metricsContainer" class="metrics-grid">
                     <!-- Metrics will be populated by JavaScript, ordered largest to smallest -->
@@ -83,62 +120,37 @@
                 <div id="metricsTimestamp" class="metrics-timestamp">Refreshed: Never</div>
             </div>
 
-            <div class="card recent-runs-card">
-                <h3>Recent runs / Exports</h3>
-                <div class="downloads-grid">
-                    <div class="download-item">
-                        <a id="csvLink" href="#" class="download-link disabled">
-                            <span class="icon">📄</span> CSV Report
-                        </a>
+            <div class="card export-strip">
+                <div class="export-strip-actions">
+                    {% if view == 'management' %}
+                    <div class="export-dropdown" id="exportDropdown">
+                        <button class="export-btn export-btn--primary" id="exportMenuBtn" onclick="toggleExportMenu(event)">
+                            <span>📊</span> Export Reports <span class="dropdown-arrow">▼</span>
+                        </button>
+                        <div class="export-menu" id="exportMenu">
+                            <a id="exportCombinedXlsxBtn" href="#" class="export-menu-item disabled">
+                                <span>📊</span> Combined Management Report (XLSX)
+                            </a>
+                            <a id="exportCoreMarketXlsxBtn" href="#" class="export-menu-item disabled">
+                                <span>📊</span> Core Market Report (XLSX)
+                            </a>
+                            <a id="exportUsaSpaXlsxBtn" href="#" class="export-menu-item disabled">
+                                <span>📊</span> USA Spa Report (XLSX)
+                            </a>
+                            <div class="export-menu-divider"></div>
+                            <a id="exportZipBtn" href="#" class="export-menu-item disabled">
+                                <span>📦</span> All Files (ZIP)
+                            </a>
+                        </div>
                     </div>
-                    <div class="download-item">
-                        <a id="txtLink" href="#" class="download-link disabled">
-                            <span class="icon">📝</span> Text Report
-                        </a>
-                    </div>
-                    <div class="download-item">
-                        <a id="htmlLink" href="#" class="download-link disabled">
-                            <span class="icon">🌐</span> HTML Report
-                        </a>
-                    </div>
-                    <div class="download-item">
-                        <a id="xlsxLink" href="#" class="download-link disabled">
-                            <span class="icon">📊</span> Excel Report
-                        </a>
-                    </div>
-                    <div class="download-item">
-                        <a id="pdfLink" href="#" class="download-link disabled">
-                            <span class="icon">📑</span> PDF Report
-                        </a>
-                    </div>
-                    <div class="download-item">
-                        <a id="unmappedLink" href="#" class="download-link disabled">
-                            <span class="icon">🔍</span> Unmapped Entities
-                        </a>
-                    </div>
-                    <div class="download-item">
-                        <a id="coreMarketCsvLink" href="#" class="download-link disabled">
-                            <span class="icon">📊</span> Core Market Report (CSV)
-                        </a>
-                    </div>
-                    <div class="download-item">
-                        <a id="coreMarketHtmlLink" href="#" class="download-link disabled">
-                            <span class="icon">🌐</span> Core Market Report (HTML)
-                        </a>
-                    </div>
-                    <div class="download-item">
-                        <a id="usaSpaHtmlLink" href="#" class="download-link disabled">
-                            <span class="icon">🌐</span> USA Spa Report (HTML)
-                        </a>
-                    </div>
-                    <div class="download-item">
-                        <a id="zipLink" href="#" class="download-link disabled">
-                            <span class="icon">📦</span> All Files (ZIP)
-                        </a>
-                    </div>
-                </div>
-                <div id="lastRun" class="last-run-info">
-                    Last run: <span id="lastRunTime">Never</span>
+                    {% else %}
+                    <a id="singleExportBtn" class="export-btn export-btn--primary single-export-btn" href="#" aria-disabled="true">
+                        <span>📊</span> Download {% if view == 'coremarkets' %}Core Markets{% else %}USA Spa{% endif %} Report (XLSX)
+                    </a>
+                    {% endif %}
+                    <button class="export-btn export-btn--secondary" onclick="shareReport()">
+                        <span>🔗</span> Share Report
+                    </button>
                 </div>
             </div>
 
@@ -148,13 +160,78 @@
     </div>
 
     <script>
+        const VIEW = "{{ view }}";
+
+        const VIEW_CONFIG = {
+            management: {
+                label:      "Management",
+                kpiLabel:   "Group Total Sales",
+                segmentKey: null,
+                kpiKey:     null
+            },
+            coremarkets: {
+                label:      "Core Markets",
+                kpiLabel:   "Core Markets Total Sales",
+                segmentKey: "Core Markets",
+                kpiKey:     "Core Markets"
+            },
+            usaspa: {
+                label:      "USA Spa",
+                kpiLabel:   "USA Spa Total Sales",
+                segmentKey: "US",
+                kpiKey:     "US"
+            }
+        };
+
+        const CFG = VIEW_CONFIG[VIEW] || VIEW_CONFIG.management;
+
+        // ── Stage indicator matchers ──────────────────────────────────────────
+        const PIPELINE_STAGES = [
+            { match: /Using SharePoint/i,                 label: 'Getting started...' },
+            { match: /Downloading.*QRY|sp\.download/i,    label: 'Gathering info...' },
+            { match: /Downloaded.*QRY files/i,            label: 'Finishing download...' },
+            { match: /Downloaded support files/i,          label: 'Getting things ready...' },
+            { match: /Mapped \d+ records/i,               label: 'Sorting data...' },
+            { match: /GENERATING REPORTS/i,               label: 'Making reports...' },
+            { match: /REPORT 1.*MANAGEMENT/i,             label: 'Making Management view...' },
+            { match: /REPORT 2.*USA SPA/i,                label: 'Making USA Spa view...' },
+            { match: /REPORT 3.*CORE MARKET/i,            label: 'Making Core Market view...' },
+            { match: /COMBINING REPORTS/i,                label: 'Finishing up...' },
+            { match: /Timestamp:/i,                       label: 'Almost there...' },
+        ];
+
+        function updateStageLabel(logLine) {
+            const stageEl = document.getElementById('stageLabel');
+            if (!stageEl) return;
+            for (const { match, label } of PIPELINE_STAGES) {
+                if (match.test(logLine)) {
+                    stageEl.textContent = label;
+                    return;
+                }
+            }
+        }
+
+        // ── Drawer ────────────────────────────────────────────────────────────
+        function openDrawer() {
+            document.getElementById('navDrawer').classList.add('open');
+            document.getElementById('navOverlay').classList.add('open');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeDrawer() {
+            document.getElementById('navDrawer').classList.remove('open');
+            document.getElementById('navOverlay').classList.remove('open');
+            document.body.style.overflow = '';
+        }
+
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
+
         const statusIndicator = document.querySelector('.status-indicator');
         const statusTextElement = statusIndicator?.querySelector('.status-text');
         const statusDot = statusIndicator?.querySelector('.status-dot');
         const summaryState = document.getElementById('summaryState');
         const metricsCard = document.getElementById('metricsCard');
         const metricsTimestamp = document.getElementById('metricsTimestamp');
-        const lastRunTime = document.getElementById('lastRunTime');
         const runButton = document.getElementById('runButton');
         const loadingIndicator = document.getElementById('loading');
         const outputEl = document.getElementById('output');
@@ -204,10 +281,52 @@
             }
         }
 
-        function updateMetricsCardDisplay(metricsData) {
-            const totalSalesValue = document.getElementById('totalSalesValue');
-            if (totalSalesValue && metricsData?.total_sales != null) {
-                totalSalesValue.textContent = metricsData.total_sales.toFixed(0) + ' kEUR';
+        async function fetchSegmentMetrics() {
+            try {
+                const resp = await fetch('/segment-metrics');
+                if (!resp.ok) throw new Error('Segment metrics unavailable');
+                return await resp.json();
+            } catch (error) {
+                console.warn('Segment metrics not yet available', error);
+                return null;
+            }
+        }
+
+        function renderKpiValues(sales, pct) {
+            const salesEl = document.getElementById('totalSalesValue');
+            const pctEl   = document.getElementById('budgetPctValue');
+
+            if (salesEl) {
+                salesEl.textContent = sales !== null ? sales.toFixed(1) + ' kEUR' : '—';
+            }
+            if (pctEl) {
+                if (pct === null) {
+                    pctEl.textContent = 'No data';
+                    pctEl.className   = 'kpi-value kpi-no-data';
+                } else {
+                    pctEl.textContent = pct.toFixed(1) + '%';
+                    pctEl.className   = 'kpi-value ' + (pct >= 100 ? 'kpi-value--positive' : pct >= 80 ? 'kpi-value--warning' : 'kpi-value--negative');
+                }
+            }
+        }
+
+        function updateMetricsCardDisplay(metricsData, segmentMetrics) {
+            if (CFG.segmentKey === null) {
+                // Management view: use group totals from /metrics
+                const sales = metricsData?.total_sales ?? null;
+                const pct   = metricsData?.budget_pct  ?? null;
+                renderKpiValues(sales, pct);
+            } else {
+                // Audience view: use per-segment data from /segment-metrics
+                let sales = null, pct = null;
+                if (VIEW === 'coremarkets' && segmentMetrics?.core_markets) {
+                    sales = segmentMetrics.core_markets.sales      ?? null;
+                    pct   = segmentMetrics.core_markets.budget_pct ?? null;
+                } else if (VIEW === 'usaspa' && segmentMetrics?.usa_spa) {
+                    sales = segmentMetrics.usa_spa.sales      ?? null;
+                    pct   = segmentMetrics.usa_spa.budget_pct ?? null;
+                }
+                renderKpiValues(sales, pct);
             }
         }
 
@@ -216,37 +335,58 @@
         const tablesContainer = document.getElementById('tablesContainer');
 
         function updateDownloadLinks(status) {
-            const links = {
-                'csvLink': status.csv_url,
-                'txtLink': status.txt_url,
-                'htmlLink': status.html_url,
-                'xlsxLink': status.xlsx_url,
-                'pdfLink': status.pdf_url,
-                'unmappedLink': status.unmapped_url,
-                'coreMarketCsvLink': status.core_market_csv_url,
-                'coreMarketHtmlLink': status.core_market_html_url,
-                'usaSpaHtmlLink': status.usa_spa_html_url,
-                'zipLink': status.zip_url
-            };
+            // Management view: sync 4-item export dropdown
+            const exportDropdownLinks = [
+                { id: 'exportCombinedXlsxBtn', url: status.xlsx_url },
+                { id: 'exportCoreMarketXlsxBtn', url: status.core_market_csv_url ? status.core_market_csv_url.replace('.csv', '.xlsx') : '' },
+                { id: 'exportUsaSpaXlsxBtn', url: status.usa_spa_html_url ? status.usa_spa_html_url.replace('.html', '.xlsx') : '' },
+                { id: 'exportZipBtn', url: status.zip_url }
+            ];
+            exportDropdownLinks.forEach(({ id, url }) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                if (url) {
+                    el.href = url;
+                    el.classList.remove('disabled');
+                } else {
+                    el.href = '#';
+                    el.classList.add('disabled');
+                }
+            });
 
-            for (const [id, url] of Object.entries(links)) {
-                const link = document.getElementById(id);
-                if (link) {
-                    if (url) {
-                        link.href = url;
-                        link.classList.remove('disabled');
-                    } else {
-                        link.href = '#';
-                        link.classList.add('disabled');
-                    }
+            // Audience views: sync single export button
+            const singleBtn = document.getElementById('singleExportBtn');
+            if (singleBtn) {
+                let url = '';
+                if (VIEW === 'coremarkets') {
+                    url = status.core_market_csv_url ? status.core_market_csv_url.replace('.csv', '.xlsx') : '';
+                } else if (VIEW === 'usaspa') {
+                    url = status.usa_spa_html_url ? status.usa_spa_html_url.replace('.html', '.xlsx') : '';
+                }
+                if (url) {
+                    singleBtn.href = url;
+                    singleBtn.removeAttribute('aria-disabled');
+                } else {
+                    singleBtn.href = '#';
+                    singleBtn.setAttribute('aria-disabled', 'true');
                 }
             }
-            
-            // Load table data if CSV is available
+
+                // Load tables or show empty state
             if (status.csv_url) {
                 loadTableData(status.csv_url);
+            } else if (VIEW === 'coremarkets') {
+                // Coremarkets has its own loader — try even without csv_url
+                tablesContainer.innerHTML = '';
+                loadCoreMarketTable();
+            } else if (VIEW === 'usaspa') {
+                // USA Spa has its own loader — try even without csv_url
+                tablesContainer.innerHTML = '';
+                loadUsaSpaTable();
             } else {
-                if (tablesContainer) tablesContainer.innerHTML = '';
+                if (tablesContainer) {
+                    tablesContainer.innerHTML = `<div class="empty-state"><p>Run the report to see ${CFG.label} data.</p></div>`;
+                }
             }
         }
 
@@ -303,54 +443,122 @@
 
             const responsiveDiv = document.createElement('div');
             responsiveDiv.className = 'table-responsive';
-            
+
             const table = document.createElement('table');
-            table.className = 'data-table';
-            
+            table.className = 'data-table sortable-table';
+
+            // --- Sticky + sortable thead ---
             const thead = document.createElement('thead');
             const headerRow = document.createElement('tr');
-            headers.forEach(text => {
+            let sortColIndex = null;
+            let sortAsc = true;
+
+            headers.forEach((text, idx) => {
                 const th = document.createElement('th');
-                th.textContent = text.trim();
+                const trimmed = text.trim();
+                th.innerHTML = `<span class="th-text">${trimmed}</span><span class="sort-indicator"></span>`;
+                if (idx > 0) {
+                    th.classList.add('sortable-col');
+                    th.title = `Sort by ${trimmed}`;
+                    th.addEventListener('click', () => {
+                        if (sortColIndex === idx) {
+                            sortAsc = !sortAsc;
+                        } else {
+                            sortColIndex = idx;
+                            sortAsc = false; // default: highest first
+                        }
+                        sortTableBody(tbody, sortColIndex, sortAsc);
+                        headerRow.querySelectorAll('th').forEach((el, i) => {
+                            const ind = el.querySelector('.sort-indicator');
+                            if (!ind) return;
+                            ind.textContent = (i === sortColIndex) ? (sortAsc ? ' ↑' : ' ↓') : '';
+                        });
+                    });
+                }
                 headerRow.appendChild(th);
             });
             thead.appendChild(headerRow);
             table.appendChild(thead);
 
-            const tbody = document.createElement('tbody');
-            rows.forEach(row => {
-                if (row.length < 2) return;
+            // --- Helpers ---
+            function parseVal(str) {
+                const s = (str || '').trim().replace('%', '').replace(/,/g, '');
+                const n = parseFloat(s);
+                return isNaN(n) ? null : n;
+            }
+
+            function sortTableBody(tbodyEl, colIdx, asc) {
+                const dataTrs = Array.from(tbodyEl.querySelectorAll('tr[data-row-type="data"]'));
+                dataTrs.sort((a, b) => {
+                    const aVal = parseVal(a.cells[colIdx]?.textContent);
+                    const bVal = parseVal(b.cells[colIdx]?.textContent);
+                    if (aVal === null && bVal === null) return 0;
+                    if (aVal === null) return 1;
+                    if (bVal === null) return -1;
+                    return asc ? aVal - bVal : bVal - aVal;
+                });
+                const totalTrs = Array.from(tbodyEl.querySelectorAll('tr[data-row-type="total"]'));
+                dataTrs.forEach(tr => tbodyEl.insertBefore(tr, totalTrs[0] || null));
+            }
+
+            function buildRow(row, rowType) {
                 const tr = document.createElement('tr');
-                const label = (row[0] || '').trim();
-                const isTotalRow = label.startsWith('Total ') || label.endsWith(' Sales');
-                if (isTotalRow) tr.style.fontWeight = 'bold';
+                tr.setAttribute('data-row-type', rowType);
+                if (rowType === 'total') tr.style.fontWeight = 'bold';
                 row.forEach(cell => {
                     const td = document.createElement('td');
                     td.textContent = cell.trim();
                     tr.appendChild(td);
                 });
-                tbody.appendChild(tr);
+                return tr;
+            }
+
+            // --- Tbody: separate data rows from total rows ---
+            const tbody = document.createElement('tbody');
+            const dataRows = [];
+            const totalRows = [];
+            rows.forEach(row => {
+                if (row.length < 2) return;
+                const label = (row[0] || '').trim();
+                const isTotalRow = label.startsWith('Total ') || label.endsWith(' Sales');
+                (isTotalRow ? totalRows : dataRows).push(row);
             });
+            dataRows.forEach(row => tbody.appendChild(buildRow(row, 'data')));
+            totalRows.forEach(row => tbody.appendChild(buildRow(row, 'total')));
             table.appendChild(tbody);
-            
+
             responsiveDiv.appendChild(table);
             card.appendChild(responsiveDiv);
-            
             return card;
         }
 
         async function loadTableData(csvUrl) {
             try {
+                // Core Markets view: skip combined CSV, load only core market table
+                if (VIEW === 'coremarkets') {
+                    tablesContainer.innerHTML = '';
+                    await loadCoreMarketTable();
+                    return;
+                }
+
+                // USA Spa view: prefer dedicated CSV, fall back to combined CSV section 2
+                if (VIEW === 'usaspa') {
+                    tablesContainer.innerHTML = '';
+                    const loaded = await loadUsaSpaTable();
+                    if (loaded) return;
+                    // fallthrough to combined CSV parsing below
+                }
+
                 const response = await fetch(csvUrl);
                 if (!response.ok) return;
                 const text = await response.text();
-                
+
                 const allRows = parseCSV(text);
                 if (allRows.length === 0) return;
 
                 const headerRow = allRows[0];
                 const dataRows = allRows.slice(1);
-                
+
                 const sections = [
                     { title: 'Management Report', rows: [] },
                     { title: 'USA Spa Breakdown', rows: [] }
@@ -360,27 +568,27 @@
 
                 for (const row of dataRows) {
                     if (row.length === 0) continue;
-                    
                     sections[currentSectionIndex].rows.push(row);
-
                     if (row[0] === 'Total Sales') {
                         currentSectionIndex = 1;
                     }
                 }
 
                 tablesContainer.innerHTML = '';
-                
-                // First add Management Report
-                if (sections[0].rows.length > 0) {
+
+                // Management Report (management view only)
+                if (VIEW === 'management' && sections[0].rows.length > 0) {
                     const card = createTableCard(sections[0].title, headerRow, sections[0].rows);
                     tablesContainer.appendChild(card);
                 }
-                
-                // Then load Core Market Report (from separate CSV)
-                await loadCoreMarketTable();
-                
-                // Finally add USA Spa Breakdown
-                if (sections[1].rows.length > 0) {
+
+                // Core Market Report between sections (management view only)
+                if (VIEW === 'management') {
+                    await loadCoreMarketTable();
+                }
+
+                // USA Spa Breakdown (management and usaspa views)
+                if ((VIEW === 'management' || VIEW === 'usaspa') && sections[1].rows.length > 0) {
                     const card = createTableCard(sections[1].title, headerRow, sections[1].rows);
                     tablesContainer.appendChild(card);
                 }
@@ -416,18 +624,105 @@
             }
         }
 
+        async function loadUsaSpaTable() {
+            try {
+                const statusResponse = await fetch('/status');
+                if (!statusResponse.ok) return false;
+                const status = await statusResponse.json();
+
+                if (!status.usa_spa_csv_url) return false;
+
+                const response = await fetch(status.usa_spa_csv_url);
+                if (!response.ok) return false;
+                const text = await response.text();
+
+                const allRows = parseCSV(text);
+                if (allRows.length === 0) return false;
+
+                const headerRow = allRows[0];
+                const dataRows = allRows.slice(1);
+
+                const card = createTableCard('USA Spa Report', headerRow, dataRows);
+                tablesContainer.appendChild(card);
+                return true;
+            } catch (error) {
+                console.error('Error loading USA Spa table:', error);
+                return false;
+            }
+        }
+
         function endRun() {
             runButton.disabled = false;
             loadingIndicator.style.display = 'none';
+            const stageEl = document.getElementById('stageLabel');
+            if (stageEl) stageEl.textContent = 'Starting...';
             if (eventSource) {
                 eventSource.close();
                 eventSource = null;
             }
         }
 
+        function toggleExportMenu(e) {
+            e.stopPropagation();
+            const menu = document.getElementById('exportMenu');
+            const btn = document.getElementById('exportMenuBtn');
+            const isOpen = menu.classList.contains('open');
+            menu.classList.toggle('open', !isOpen);
+            btn.querySelector('.dropdown-arrow').textContent = isOpen ? '▼' : '▲';
+        }
+        document.addEventListener('click', () => {
+            const menu = document.getElementById('exportMenu');
+            const btn = document.getElementById('exportMenuBtn');
+            if (menu && menu.classList.contains('open')) {
+                menu.classList.remove('open');
+                if (btn) btn.querySelector('.dropdown-arrow').textContent = '▼';
+            }
+        });
+
+        function toggleLogs(forceOpen) {
+            const panel = document.getElementById('logPanel');
+            const toggle = document.getElementById('logToggle');
+            const isOpen = toggle.getAttribute('aria-expanded') === 'true';
+            const shouldOpen = forceOpen !== undefined ? forceOpen : !isOpen;
+            toggle.setAttribute('aria-expanded', String(shouldOpen));
+            panel.style.display = shouldOpen ? 'block' : 'none';
+            toggle.querySelector('.log-toggle-icon').textContent = shouldOpen ? '▲' : '▼';
+        }
+
+        function shareReport() {
+            navigator.clipboard.writeText(window.location.href).then(() => {
+                const toast = document.createElement('div');
+                toast.className = 'share-toast';
+                toast.textContent = '✓ Link copied to clipboard';
+                document.body.appendChild(toast);
+                requestAnimationFrame(() => toast.classList.add('visible'));
+                setTimeout(() => {
+                    toast.classList.remove('visible');
+                    setTimeout(() => toast.remove(), 300);
+                }, 2500);
+            }).catch(() => {
+                prompt('Copy this link:', window.location.href);
+            });
+        }
+
         function startStreaming() {
             if (eventSource) eventSource.close();
-            
+
+            // Prepend pipeline notice for audience views
+            if (VIEW !== 'management') {
+                if (outputEl) {
+                    outputEl.value =
+                        `ℹ️  Note: "Start Analysis" runs the full global data pipeline.\n` +
+                        `   This view shows ${CFG.label} data only — all markets are refreshed.\n` +
+                        `${'\u2500'.repeat(60)}\n`;
+                }
+                const logToggle = document.getElementById('logToggle');
+                const label = logToggle?.querySelector('.log-toggle-label');
+                if (label) label.textContent = 'Process Logs — full pipeline (filtered view)';
+            } else {
+                if (outputEl) outputEl.value = '';
+            }
+
             // Reset UI for running state
             runButton.disabled = true;
             loadingIndicator.style.display = 'flex';
@@ -437,7 +732,10 @@
             eventSource = new EventSource('/stream-logs');
 
             eventSource.addEventListener('outline', (e) => {
-                if (outputEl) outputEl.value = e.data + '\n\n';
+                if (outputEl) {
+                    const prefix = outputEl.value;
+                    outputEl.value = (prefix ? prefix + '\n' : '') + e.data + '\n\n';
+                }
             });
 
             eventSource.addEventListener('log', (e) => {
@@ -445,10 +743,13 @@
                     outputEl.value += e.data;
                     outputEl.scrollTop = outputEl.scrollHeight;
                 }
+                updateStageLabel(e.data);
             });
 
             eventSource.addEventListener('complete', async (e) => {
                 if (outputEl) outputEl.value += '\n\n' + e.data;
+                const stageEl = document.getElementById('stageLabel');
+                if (stageEl) stageEl.textContent = 'All Done! ✓';
                 await refreshStatus(); // Fetch final results
             });
 
@@ -492,18 +793,24 @@
                 // Update Timestamps
                 if (status.last_run) {
                     const formatted = formatTimestamp(status.last_run);
-                    if (lastRunTime) lastRunTime.textContent = formatted;
                     if (metricsTimestamp) metricsTimestamp.textContent = 'Refreshed: ' + formatted;
                 }
 
+                // Always set KPI heading label for the current view
+                const kpiSalesLabel = document.getElementById('kpiSalesLabel');
+                if (kpiSalesLabel) kpiSalesLabel.textContent = CFG.kpiLabel;
+
                 // Update Metrics
                 let hasFreshData = false;
-                if (status.last_run) {
-                    hasFreshData = status.last_run !== lastKnownRun;
-                    // Always fetch metrics if we have a last run, to be safe
-                    const metricsData = await fetchMetrics();
-                    updateMetricsCardDisplay(metricsData);
-                    if (hasFreshData) lastKnownRun = status.last_run;
+                // For audience views, fetch segment metrics even without last_run (works after server restart)
+                if (CFG.segmentKey !== null || status.last_run) {
+                    const metricsData     = status.last_run ? await fetchMetrics() : null;
+                    const segmentMetrics  = CFG.segmentKey !== null ? await fetchSegmentMetrics() : null;
+                    updateMetricsCardDisplay(metricsData, segmentMetrics);
+                    if (status.last_run && status.last_run !== lastKnownRun) {
+                        hasFreshData = true;
+                        lastKnownRun = status.last_run;
+                    }
                 }
 
                 // Update Links
@@ -514,6 +821,8 @@
                     if (!eventSource) startStreaming();
                 } else {
                     endRun();
+                    // Smart expand: only auto-open logs if the pipeline returned an error
+                    if (status.error) toggleLogs(true);
                     if (status.last_run) {
                         setStatusRole('results');
                         updateSummaryState(true);
