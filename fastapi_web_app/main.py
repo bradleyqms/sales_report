@@ -148,10 +148,15 @@ def get_version_info():
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "status": report_status
-    })
+    return templates.TemplateResponse("index.html", {"request": request, "view": "management"})
+
+@app.get("/coremarkets", response_class=HTMLResponse)
+async def core_markets_view(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request, "view": "coremarkets"})
+
+@app.get("/usaspa", response_class=HTMLResponse)
+async def usa_spa_view(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request, "view": "usaspa"})
 
 @app.get("/version")
 async def version():

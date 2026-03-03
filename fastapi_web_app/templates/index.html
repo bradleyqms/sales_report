@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sales Report Generator</title>
     <link rel="icon" href="/static/images/qms-favicon.ico">
-    <link rel="stylesheet" href="/static/styles.css?v=5">
+    <link rel="stylesheet" href="/static/styles.css?v=6">
 </head>
 <body>
     <!-- Splash Screen -->
@@ -38,6 +38,12 @@
                 <span class="version-value" id="versionValue">Loading...</span>
             </div>
         </header>
+
+        <nav class="segment-nav" aria-label="Segment views">
+            <a href="/"            class="segment-nav__item {% if view == 'management'  %}segment-nav__item--active{% endif %}">Management</a>
+            <a href="/coremarkets" class="segment-nav__item {% if view == 'coremarkets' %}segment-nav__item--active{% endif %}">Core Markets</a>
+            <a href="/usaspa"      class="segment-nav__item {% if view == 'usaspa'      %}segment-nav__item--active{% endif %}">USA Spa</a>
+        </nav>
 
         <main>
             <div class="card main-card">
@@ -78,7 +84,7 @@
                 </div>
                 <div class="kpi-row">
                     <div class="kpi-card kpi-card--sales">
-                        <div class="kpi-label">TOTAL SALES</div>
+                        <div class="kpi-label" id="kpiSalesLabel">TOTAL SALES</div>
                         <div class="kpi-value" id="totalSalesValue">— kEUR</div>
                     </div>
                     <div class="kpi-card kpi-card--budget">
@@ -94,6 +100,7 @@
 
             <div class="card export-strip">
                 <div class="export-strip-actions">
+                    {% if view == 'management' %}
                     <div class="export-dropdown" id="exportDropdown">
                         <button class="export-btn export-btn--primary" id="exportMenuBtn" onclick="toggleExportMenu(event)">
                             <span>📊</span> Export Reports <span class="dropdown-arrow">▼</span>
@@ -114,6 +121,11 @@
                             </a>
                         </div>
                     </div>
+                    {% else %}
+                    <a id="singleExportBtn" class="export-btn export-btn--primary single-export-btn" href="#" aria-disabled="true">
+                        <span>📊</span> Download {% if view == 'coremarkets' %}Core Markets{% else %}USA Spa{% endif %} Report (XLSX)
+                    </a>
+                    {% endif %}
                     <button class="export-btn export-btn--secondary" onclick="shareReport()">
                         <span>🔗</span> Share Report
                     </button>
@@ -126,6 +138,31 @@
     </div>
 
     <script>
+        const VIEW = "{{ view }}";
+
+        const VIEW_CONFIG = {
+            management: {
+                label:      "Management",
+                kpiLabel:   "Group Total Sales",
+                segmentKey: null,
+                kpiKey:     null
+            },
+            coremarkets: {
+                label:      "Core Markets",
+                kpiLabel:   "Core Markets Total Sales",
+                segmentKey: "Core Markets",
+                kpiKey:     "Core Markets"
+            },
+            usaspa: {
+                label:      "USA Spa",
+                kpiLabel:   "USA Spa Total Sales",
+                segmentKey: "US",
+                kpiKey:     "US"
+            }
+        };
+
+        const CFG = VIEW_CONFIG[VIEW] || VIEW_CONFIG.management;
+
         const statusIndicator = document.querySelector('.status-indicator');
         const statusTextElement = statusIndicator?.querySelector('.status-text');
         const statusDot = statusIndicator?.querySelector('.status-dot');
@@ -181,16 +218,36 @@
             }
         }
 
-        function updateMetricsCardDisplay(metricsData) {
-            const totalSalesValue = document.getElementById('totalSalesValue');
-            if (totalSalesValue && metricsData?.total_sales != null) {
-                totalSalesValue.textContent = metricsData.total_sales.toFixed(0) + ' kEUR';
+        function renderKpiValues(sales, pct) {
+            const salesEl = document.getElementById('totalSalesValue');
+            const pctEl   = document.getElementById('budgetPctValue');
+
+            if (salesEl) {
+                salesEl.textContent = (sales !== null && sales !== 0) ? sales.toFixed(1) + ' kEUR' : '—';
             }
-            const budgetPctValue = document.getElementById('budgetPctValue');
-            if (budgetPctValue && metricsData?.budget_pct != null) {
-                const pct = metricsData.budget_pct;
-                budgetPctValue.textContent = pct.toFixed(1) + '%';
-                budgetPctValue.className = 'kpi-value ' + (pct >= 100 ? 'kpi-value--positive' : pct >= 80 ? 'kpi-value--warning' : 'kpi-value--negative');
+            if (pctEl) {
+                if (pct === null || pct === 0) {
+                    pctEl.textContent = 'No data';
+                    pctEl.className   = 'kpi-value kpi-no-data';
+                } else {
+                    pctEl.textContent = pct.toFixed(1) + '%';
+                    pctEl.className   = 'kpi-value ' + (pct >= 100 ? 'kpi-value--positive' : pct >= 80 ? 'kpi-value--warning' : 'kpi-value--negative');
+                }
+            }
+        }
+
+        function updateMetricsCardDisplay(metricsData, segmentData) {
+            if (CFG.segmentKey === null) {
+                // Management view: use group totals from /metrics
+                const sales = metricsData?.total_sales ?? null;
+                const pct   = metricsData?.budget_pct  ?? null;
+                renderKpiValues(sales, pct);
+            } else {
+                // Audience view: use per-segment data from status.metrics.segments
+                const seg   = segmentData?.[CFG.kpiKey];
+                const sales = seg?.sales      ?? null;
+                const pct   = seg?.budget_pct ?? null;
+                renderKpiValues(sales, pct);
             }
         }
 
@@ -199,7 +256,7 @@
         const tablesContainer = document.getElementById('tablesContainer');
 
         function updateDownloadLinks(status) {
-            // Sync export dropdown links
+            // Management view: sync 4-item export dropdown
             const exportDropdownLinks = [
                 { id: 'exportCombinedXlsxBtn', url: status.xlsx_url },
                 { id: 'exportCoreMarketXlsxBtn', url: status.core_market_csv_url ? status.core_market_csv_url.replace('.csv', '.xlsx') : '' },
@@ -218,11 +275,31 @@
                 }
             });
 
-            // Load table data if CSV is available
+            // Audience views: sync single export button
+            const singleBtn = document.getElementById('singleExportBtn');
+            if (singleBtn) {
+                let url = '';
+                if (VIEW === 'coremarkets') {
+                    url = status.core_market_csv_url ? status.core_market_csv_url.replace('.csv', '.xlsx') : '';
+                } else if (VIEW === 'usaspa') {
+                    url = status.usa_spa_html_url ? status.usa_spa_html_url.replace('.html', '.xlsx') : '';
+                }
+                if (url) {
+                    singleBtn.href = url;
+                    singleBtn.removeAttribute('aria-disabled');
+                } else {
+                    singleBtn.href = '#';
+                    singleBtn.setAttribute('aria-disabled', 'true');
+                }
+            }
+
+            // Load tables or show empty state
             if (status.csv_url) {
                 loadTableData(status.csv_url);
             } else {
-                if (tablesContainer) tablesContainer.innerHTML = '';
+                if (tablesContainer) {
+                    tablesContainer.innerHTML = `<div class="empty-state"><p>Run the report to see ${CFG.label} data.</p></div>`;
+                }
             }
         }
 
@@ -370,16 +447,23 @@
 
         async function loadTableData(csvUrl) {
             try {
+                // Core Markets view: skip combined CSV, load only core market table
+                if (VIEW === 'coremarkets') {
+                    tablesContainer.innerHTML = '';
+                    await loadCoreMarketTable();
+                    return;
+                }
+
                 const response = await fetch(csvUrl);
                 if (!response.ok) return;
                 const text = await response.text();
-                
+
                 const allRows = parseCSV(text);
                 if (allRows.length === 0) return;
 
                 const headerRow = allRows[0];
                 const dataRows = allRows.slice(1);
-                
+
                 const sections = [
                     { title: 'Management Report', rows: [] },
                     { title: 'USA Spa Breakdown', rows: [] }
@@ -389,27 +473,27 @@
 
                 for (const row of dataRows) {
                     if (row.length === 0) continue;
-                    
                     sections[currentSectionIndex].rows.push(row);
-
                     if (row[0] === 'Total Sales') {
                         currentSectionIndex = 1;
                     }
                 }
 
                 tablesContainer.innerHTML = '';
-                
-                // First add Management Report
-                if (sections[0].rows.length > 0) {
+
+                // Management Report (management view only)
+                if (VIEW === 'management' && sections[0].rows.length > 0) {
                     const card = createTableCard(sections[0].title, headerRow, sections[0].rows);
                     tablesContainer.appendChild(card);
                 }
-                
-                // Then load Core Market Report (from separate CSV)
-                await loadCoreMarketTable();
-                
-                // Finally add USA Spa Breakdown
-                if (sections[1].rows.length > 0) {
+
+                // Core Market Report between sections (management view only)
+                if (VIEW === 'management') {
+                    await loadCoreMarketTable();
+                }
+
+                // USA Spa Breakdown (management and usaspa views)
+                if ((VIEW === 'management' || VIEW === 'usaspa') && sections[1].rows.length > 0) {
                     const card = createTableCard(sections[1].title, headerRow, sections[1].rows);
                     tablesContainer.appendChild(card);
                 }
@@ -499,7 +583,22 @@
 
         function startStreaming() {
             if (eventSource) eventSource.close();
-            
+
+            // Prepend pipeline notice for audience views
+            if (VIEW !== 'management') {
+                if (outputEl) {
+                    outputEl.value =
+                        `ℹ️  Note: "Start Analysis" runs the full global data pipeline.\n` +
+                        `   This view shows ${CFG.label} data only — all markets are refreshed.\n` +
+                        `${'\u2500'.repeat(60)}\n`;
+                }
+                const logToggle = document.getElementById('logToggle');
+                const label = logToggle?.querySelector('.log-toggle-label');
+                if (label) label.textContent = 'Process Logs — full pipeline (filtered view)';
+            } else {
+                if (outputEl) outputEl.value = '';
+            }
+
             // Reset UI for running state
             runButton.disabled = true;
             toggleLogs(true);
@@ -510,7 +609,10 @@
             eventSource = new EventSource('/stream-logs');
 
             eventSource.addEventListener('outline', (e) => {
-                if (outputEl) outputEl.value = e.data + '\n\n';
+                if (outputEl) {
+                    const prefix = outputEl.value;
+                    outputEl.value = (prefix ? prefix + '\n' : '') + e.data + '\n\n';
+                }
             });
 
             eventSource.addEventListener('log', (e) => {
@@ -568,13 +670,17 @@
                     if (metricsTimestamp) metricsTimestamp.textContent = 'Refreshed: ' + formatted;
                 }
 
+                // Always set KPI heading label for the current view
+                const kpiSalesLabel = document.getElementById('kpiSalesLabel');
+                if (kpiSalesLabel) kpiSalesLabel.textContent = CFG.kpiLabel;
+
                 // Update Metrics
                 let hasFreshData = false;
                 if (status.last_run) {
                     hasFreshData = status.last_run !== lastKnownRun;
                     // Always fetch metrics if we have a last run, to be safe
                     const metricsData = await fetchMetrics();
-                    updateMetricsCardDisplay(metricsData);
+                    updateMetricsCardDisplay(metricsData, status.metrics?.segments);
                     if (hasFreshData) lastKnownRun = status.last_run;
                 }
 

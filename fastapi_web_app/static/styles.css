@@ -750,3 +750,70 @@ main {
     opacity: 1;
     transform: translateY(0);
 }
+
+/* ── Segment navigation strip (DNR-9) ────────────────────────── */
+.segment-nav {
+    display: flex;
+    gap: 0;
+    border: 1px solid #4a5568;
+    border-radius: 8px;
+    overflow: hidden;
+    width: fit-content;
+    margin: 0 auto 1.5rem;
+}
+
+.segment-nav__item {
+    padding: 0.4rem 1.1rem;
+    font-size: 0.85rem;
+    color: #a0aec0;
+    text-decoration: none;
+    border-right: 1px solid #4a5568;
+    transition: background 0.15s;
+}
+
+.segment-nav__item:last-child {
+    border-right: none;
+}
+
+.segment-nav__item:hover {
+    background: rgba(74, 85, 104, 0.4);
+}
+
+.segment-nav__item--active {
+    background: #10b981;
+    color: #fff;
+    font-weight: 600;
+    pointer-events: none;
+}
+
+/* ── Single export button (audience views, DNR-9) ─────────────── */
+.single-export-btn[aria-disabled="true"] {
+    opacity: 0.45;
+    pointer-events: none;
+    cursor: not-allowed;
+}
+
+/* ── Empty state (no run yet) ─────────────────────────────────── */
+.empty-state {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 3rem 1.5rem;
+    margin-top: 24px;
+    background: #1a2035;
+    border: 1px solid #4a5568;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.empty-state p {
+    color: #718096;
+    font-size: 14px;
+    margin: 0;
+}
+
+/* ── KPI no-data badge (DNR-9) ────────────────────────────────── */
+.kpi-no-data {
+    color: #a0aec0 !important;
+    font-size: 0.9rem;
+}
