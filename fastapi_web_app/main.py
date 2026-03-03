@@ -50,6 +50,7 @@ report_status = {
     "unmapped_url": "",
     "core_market_csv_url": "",
     "core_market_html_url": "",
+    "usa_spa_csv_url": "",
     "usa_spa_html_url": "",
     "last_run": None,
     "metrics": {
@@ -63,6 +64,149 @@ report_status = {
         }
     }
 }
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Pre-populate report_status from disk on every startup so views work after server restarts."""
+    _recover_status_from_disk()
+
+
+def _parse_to_float(s):
+    """Parse a CSV cell string to float. Treats '-' and empty as 0.0, returns None on failure."""
+    if s is None:
+        return None
+    stripped = str(s).strip().rstrip('%').replace(',', '')
+    if stripped in ('', '-', '\u2014', 'n/a', 'N/A'):
+        return 0.0
+    try:
+        return float(stripped)
+    except ValueError:
+        return None
+
+
+def extract_latest_segment_metrics():
+    """Read the latest audience-specific CSVs from data/outputs/ and return per-segment totals."""
+    output_dir = Path(__file__).parent.parent / "data" / "outputs"
+    result = {
+        "core_markets": {"sales": None, "budget_pct": None},
+        "usa_spa":      {"sales": None, "budget_pct": None},
+    }
+
+    # ---- Core Markets -------------------------------------------------------
+    core_csvs = sorted(
+        output_dir.glob("management_report_core_markets_*.csv"),
+        key=lambda x: x.stat().st_mtime, reverse=True
+    )
+    if core_csvs:
+        try:
+            with open(core_csvs[0], 'r', encoding='utf-8') as f:
+                for row in csv.reader(f):
+                    if not row:
+                        continue
+                    if row[0].strip().startswith('Total Core Market'):
+                        sales = _parse_to_float(row[1]) if len(row) > 1 else None
+                        # % vs Budget is the last cell containing '%'
+                        pct = None
+                        for cell in reversed(row):
+                            if '%' in cell:
+                                pct = _parse_to_float(cell)
+                                break
+                        result["core_markets"] = {"sales": sales, "budget_pct": pct}
+                        break
+        except Exception as e:
+            logging.error(f"extract_latest_segment_metrics (core markets): {e}")
+
+    # ---- USA Spa ------------------------------------------------------------
+    usa_csvs = sorted(
+        output_dir.glob("management_report_usa_spa_*.csv"),
+        key=lambda x: x.stat().st_mtime, reverse=True
+    )
+    if usa_csvs:
+        try:
+            with open(usa_csvs[0], 'r', encoding='utf-8') as f:
+                rows = list(csv.reader(f))
+            if len(rows) >= 2:
+                header = rows[0]
+                # Preferred column: 'vs Budget' or '% 26A vs 26B' pattern
+                budget_col_idx = next(
+                    (i for i, h in enumerate(header)
+                     if h.strip().startswith('%') and 'vs' in h.lower() and h.strip()[-1] == 'B'),
+                    4  # fallback to column 4 (known format)
+                )
+                for row in rows[1:]:
+                    if row and row[0].strip() == 'USA Spa':
+                        sales = _parse_to_float(row[1]) if len(row) > 1 else None
+                        pct   = _parse_to_float(row[budget_col_idx]) if len(row) > budget_col_idx else None
+                        result["usa_spa"] = {"sales": sales, "budget_pct": pct}
+                        break
+        except Exception as e:
+            logging.error(f"extract_latest_segment_metrics (usa spa): {e}")
+
+    return result
+
+
+def _recover_status_from_disk():
+    """On startup, scan data/outputs/ for the latest run and pre-populate report_status.
+    This keeps the UI functional across server restarts."""
+    output_dir = Path(__file__).parent.parent / "data" / "outputs"
+    static_dir = BASE_DIR / "static"
+    try:
+        # Find latest combined CSV to get the last timestamp
+        combined_csvs = sorted(
+            output_dir.glob("combined_management_report_*.csv"),
+            key=lambda x: x.stat().st_mtime, reverse=True
+        )
+        if not combined_csvs:
+            return
+
+        # Extract timestamp from filename
+        ts_match = re.search(r'_(\d{8}_\d{6})\.csv$', combined_csvs[0].name)
+        if not ts_match:
+            return
+        timestamp = ts_match.group(1)
+        report_status["last_run"] = timestamp
+        logging.info(f"Recovered last_run from disk: {timestamp}")
+
+        # Rebuild URLs for all files that exist in static/
+        for f in static_dir.iterdir():
+            name = f.name
+            if timestamp not in name:
+                continue
+            url = f'/download/{name}'
+            if 'core_market' in name:
+                if name.endswith('.csv'):
+                    report_status["core_market_csv_url"] = url
+                elif name.endswith('.html'):
+                    report_status["core_market_html_url"] = url
+            elif 'usa_spa' in name:
+                if name.endswith('.csv'):
+                    report_status["usa_spa_csv_url"] = url
+                elif name.endswith('.html'):
+                    report_status["usa_spa_html_url"] = url
+            elif 'combined' in name:
+                if name.endswith('.csv'):
+                    report_status["csv_url"] = url
+                elif name.endswith('.txt'):
+                    report_status["txt_url"] = url
+                elif name.endswith('.html'):
+                    report_status["html_url"] = url
+                elif name.endswith('.xlsx'):
+                    report_status["xlsx_url"] = url
+                elif name.endswith('.pdf'):
+                    report_status["pdf_url"] = url
+                elif name.endswith('.zip'):
+                    report_status["zip_url"] = url
+
+        # Recover segment metrics from disk
+        seg = extract_latest_segment_metrics()
+        report_status["metrics"]["segments"]["Core Markets"] = seg["core_markets"]
+        report_status["metrics"]["segments"]["US"]           = seg["usa_spa"]
+        report_status["metrics"]["timestamp"] = timestamp
+        logging.info(f"Recovered segment metrics from disk: {seg}")
+    except Exception as e:
+        logging.warning(f"_recover_status_from_disk failed: {e}")
+
 
 def extract_metrics_from_csv():
     """Extract total sales and budget percentage from the latest CSV report."""
@@ -210,6 +354,12 @@ async def get_metrics():
     """Get the total sales and budget percentage from the latest report."""
     return extract_metrics_from_csv()
 
+
+@app.get("/segment-metrics")
+async def get_segment_metrics():
+    """Return per-segment metrics from the latest audience-specific CSV files."""
+    return extract_latest_segment_metrics()
+
 @app.get("/download/{filename}")
 async def download_file(filename: str):
     file_path = Path("static") / filename
@@ -237,6 +387,7 @@ def execute_report():
     report_status["unmapped_url"] = ""
     report_status["core_market_csv_url"] = ""
     report_status["core_market_html_url"] = ""
+    report_status["usa_spa_csv_url"] = ""
     report_status["usa_spa_html_url"] = ""
 
     try:
@@ -306,7 +457,9 @@ def execute_report():
                                 shutil.copy(output_dir / file, static_dir / file)
                         elif 'usa_spa' in file:
                             shutil.copy(output_dir / file, static_dir / file)
-                            if file.endswith('.html'):
+                            if file.endswith('.csv'):
+                                report_status["usa_spa_csv_url"] = f'/download/{file}'
+                            elif file.endswith('.html'):
                                 report_status["usa_spa_html_url"] = f'/download/{file}'
                         elif file.endswith('.csv'):
                             shutil.copy(output_dir / file, static_dir / file)
@@ -332,6 +485,13 @@ def execute_report():
                     shutil.copy(latest_unmapped, static_dir / latest_unmapped.name)
                     report_status["unmapped_url"] = f'/download/{latest_unmapped.name}'
                 
+                # Populate per-segment metrics in memory
+                seg = extract_latest_segment_metrics()
+                report_status["metrics"]["segments"]["Core Markets"] = seg["core_markets"]
+                report_status["metrics"]["segments"]["US"]           = seg["usa_spa"]
+                report_status["metrics"]["timestamp"] = timestamp
+                logging.info(f"Segment metrics populated after run: {seg}")
+
                 if not generated_files and not unmapped_files:
                     report_status["output"] += "\n\nNo generated files found."
             else:

@@ -281,6 +281,17 @@
             }
         }
 
+        async function fetchSegmentMetrics() {
+            try {
+                const resp = await fetch('/segment-metrics');
+                if (!resp.ok) throw new Error('Segment metrics unavailable');
+                return await resp.json();
+            } catch (error) {
+                console.warn('Segment metrics not yet available', error);
+                return null;
+            }
+        }
+
         function renderKpiValues(sales, pct) {
             const salesEl = document.getElementById('totalSalesValue');
             const pctEl   = document.getElementById('budgetPctValue');
@@ -299,17 +310,22 @@
             }
         }
 
-        function updateMetricsCardDisplay(metricsData, segmentData) {
+        function updateMetricsCardDisplay(metricsData, segmentMetrics) {
             if (CFG.segmentKey === null) {
                 // Management view: use group totals from /metrics
                 const sales = metricsData?.total_sales ?? null;
                 const pct   = metricsData?.budget_pct  ?? null;
                 renderKpiValues(sales, pct);
             } else {
-                // Audience view: use per-segment data from status.metrics.segments
-                const seg   = segmentData?.[CFG.kpiKey];
-                const sales = seg?.sales      ?? null;
-                const pct   = seg?.budget_pct ?? null;
+                // Audience view: use per-segment data from /segment-metrics
+                let sales = null, pct = null;
+                if (VIEW === 'coremarkets' && segmentMetrics?.core_markets) {
+                    sales = segmentMetrics.core_markets.sales      ?? null;
+                    pct   = segmentMetrics.core_markets.budget_pct ?? null;
+                } else if (VIEW === 'usaspa' && segmentMetrics?.usa_spa) {
+                    sales = segmentMetrics.usa_spa.sales      ?? null;
+                    pct   = segmentMetrics.usa_spa.budget_pct ?? null;
+                }
                 renderKpiValues(sales, pct);
             }
         }
@@ -356,9 +372,17 @@
                 }
             }
 
-            // Load tables or show empty state
+                // Load tables or show empty state
             if (status.csv_url) {
                 loadTableData(status.csv_url);
+            } else if (VIEW === 'coremarkets') {
+                // Coremarkets has its own loader — try even without csv_url
+                tablesContainer.innerHTML = '';
+                loadCoreMarketTable();
+            } else if (VIEW === 'usaspa') {
+                // USA Spa has its own loader — try even without csv_url
+                tablesContainer.innerHTML = '';
+                loadUsaSpaTable();
             } else {
                 if (tablesContainer) {
                     tablesContainer.innerHTML = `<div class="empty-state"><p>Run the report to see ${CFG.label} data.</p></div>`;
@@ -517,6 +541,14 @@
                     return;
                 }
 
+                // USA Spa view: prefer dedicated CSV, fall back to combined CSV section 2
+                if (VIEW === 'usaspa') {
+                    tablesContainer.innerHTML = '';
+                    const loaded = await loadUsaSpaTable();
+                    if (loaded) return;
+                    // fallthrough to combined CSV parsing below
+                }
+
                 const response = await fetch(csvUrl);
                 if (!response.ok) return;
                 const text = await response.text();
@@ -589,6 +621,33 @@
                 
             } catch (error) {
                 console.error('Error loading Core Market table:', error);
+            }
+        }
+
+        async function loadUsaSpaTable() {
+            try {
+                const statusResponse = await fetch('/status');
+                if (!statusResponse.ok) return false;
+                const status = await statusResponse.json();
+
+                if (!status.usa_spa_csv_url) return false;
+
+                const response = await fetch(status.usa_spa_csv_url);
+                if (!response.ok) return false;
+                const text = await response.text();
+
+                const allRows = parseCSV(text);
+                if (allRows.length === 0) return false;
+
+                const headerRow = allRows[0];
+                const dataRows = allRows.slice(1);
+
+                const card = createTableCard('USA Spa Report', headerRow, dataRows);
+                tablesContainer.appendChild(card);
+                return true;
+            } catch (error) {
+                console.error('Error loading USA Spa table:', error);
+                return false;
             }
         }
 
@@ -743,12 +802,15 @@
 
                 // Update Metrics
                 let hasFreshData = false;
-                if (status.last_run) {
-                    hasFreshData = status.last_run !== lastKnownRun;
-                    // Always fetch metrics if we have a last run, to be safe
-                    const metricsData = await fetchMetrics();
-                    updateMetricsCardDisplay(metricsData, status.metrics?.segments);
-                    if (hasFreshData) lastKnownRun = status.last_run;
+                // For audience views, fetch segment metrics even without last_run (works after server restart)
+                if (CFG.segmentKey !== null || status.last_run) {
+                    const metricsData     = status.last_run ? await fetchMetrics() : null;
+                    const segmentMetrics  = CFG.segmentKey !== null ? await fetchSegmentMetrics() : null;
+                    updateMetricsCardDisplay(metricsData, segmentMetrics);
+                    if (status.last_run && status.last_run !== lastKnownRun) {
+                        hasFreshData = true;
+                        lastKnownRun = status.last_run;
+                    }
                 }
 
                 // Update Links
