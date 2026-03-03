@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sales Report Generator</title>
     <link rel="icon" href="/static/images/qms-favicon.ico">
-    <link rel="stylesheet" href="/static/styles.css?v=3">
+    <link rel="stylesheet" href="/static/styles.css?v=4">
 </head>
 <body>
     <!-- Splash Screen -->
@@ -76,9 +76,15 @@
                     <h3>Summary Metrics (MTD)</h3>
                     <span id="summaryState" class="summary-state">Awaiting fresh run</span>
                 </div>
-                <div class="total-sales-box">
-                    <div class="total-label">TOTAL SALES</div>
-                    <div class="total-value" id="totalSalesValue">0 kEUR</div>
+                <div class="kpi-row">
+                    <div class="kpi-card kpi-card--sales">
+                        <div class="kpi-label">TOTAL SALES</div>
+                        <div class="kpi-value" id="totalSalesValue">— kEUR</div>
+                    </div>
+                    <div class="kpi-card kpi-card--budget">
+                        <div class="kpi-label">% VS BUDGET</div>
+                        <div class="kpi-value" id="budgetPctValue">— %</div>
+                    </div>
                 </div>
                 <div id="metricsContainer" class="metrics-grid">
                     <!-- Metrics will be populated by JavaScript, ordered largest to smallest -->
@@ -88,9 +94,26 @@
 
             <div class="card export-strip">
                 <div class="export-strip-actions">
-                    <a id="exportPdfBtn" href="#" class="export-btn export-btn--primary disabled">
-                        <span>📑</span> Export PDF
-                    </a>
+                    <div class="export-dropdown" id="exportDropdown">
+                        <button class="export-btn export-btn--primary" id="exportMenuBtn" onclick="toggleExportMenu(event)">
+                            <span>📊</span> Export Reports <span class="dropdown-arrow">▼</span>
+                        </button>
+                        <div class="export-menu" id="exportMenu">
+                            <a id="exportCombinedXlsxBtn" href="#" class="export-menu-item disabled">
+                                <span>📊</span> Combined Management Report (XLSX)
+                            </a>
+                            <a id="exportCoreMarketXlsxBtn" href="#" class="export-menu-item disabled">
+                                <span>📊</span> Core Market Report (XLSX)
+                            </a>
+                            <a id="exportUsaSpaXlsxBtn" href="#" class="export-menu-item disabled">
+                                <span>📊</span> USA Spa Report (XLSX)
+                            </a>
+                            <div class="export-menu-divider"></div>
+                            <a id="exportZipBtn" href="#" class="export-menu-item disabled">
+                                <span>📦</span> All Files (ZIP)
+                            </a>
+                        </div>
+                    </div>
                     <button class="export-btn export-btn--secondary" onclick="shareReport()">
                         <span>🔗</span> Share Report
                     </button>
@@ -223,6 +246,12 @@
             if (totalSalesValue && metricsData?.total_sales != null) {
                 totalSalesValue.textContent = metricsData.total_sales.toFixed(0) + ' kEUR';
             }
+            const budgetPctValue = document.getElementById('budgetPctValue');
+            if (budgetPctValue && metricsData?.budget_pct != null) {
+                const pct = metricsData.budget_pct;
+                budgetPctValue.textContent = pct.toFixed(1) + '%';
+                budgetPctValue.className = 'kpi-value ' + (pct >= 100 ? 'kpi-value--positive' : pct >= 80 ? 'kpi-value--warning' : 'kpi-value--negative');
+            }
         }
 
         const tableCard = document.getElementById('tableCard');
@@ -256,17 +285,24 @@
                 }
             }
             
-            // Sync export strip PDF button
-            const exportPdfBtn = document.getElementById('exportPdfBtn');
-            if (exportPdfBtn) {
-                if (status.pdf_url) {
-                    exportPdfBtn.href = status.pdf_url;
-                    exportPdfBtn.classList.remove('disabled');
+            // Sync export dropdown links
+            const exportDropdownLinks = [
+                { id: 'exportCombinedXlsxBtn', url: status.xlsx_url },
+                { id: 'exportCoreMarketXlsxBtn', url: status.core_market_csv_url ? status.core_market_csv_url.replace('.csv', '.xlsx') : '' },
+                { id: 'exportUsaSpaXlsxBtn', url: status.usa_spa_html_url ? status.usa_spa_html_url.replace('.html', '.xlsx') : '' },
+                { id: 'exportZipBtn', url: status.zip_url }
+            ];
+            exportDropdownLinks.forEach(({ id, url }) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                if (url) {
+                    el.href = url;
+                    el.classList.remove('disabled');
                 } else {
-                    exportPdfBtn.href = '#';
-                    exportPdfBtn.classList.add('disabled');
+                    el.href = '#';
+                    el.classList.add('disabled');
                 }
-            }
+            });
 
             // Load table data if CSV is available
             if (status.csv_url) {
@@ -503,6 +539,23 @@
                 eventSource = null;
             }
         }
+
+        function toggleExportMenu(e) {
+            e.stopPropagation();
+            const menu = document.getElementById('exportMenu');
+            const btn = document.getElementById('exportMenuBtn');
+            const isOpen = menu.classList.contains('open');
+            menu.classList.toggle('open', !isOpen);
+            btn.querySelector('.dropdown-arrow').textContent = isOpen ? '▼' : '▲';
+        }
+        document.addEventListener('click', () => {
+            const menu = document.getElementById('exportMenu');
+            const btn = document.getElementById('exportMenuBtn');
+            if (menu && menu.classList.contains('open')) {
+                menu.classList.remove('open');
+                if (btn) btn.querySelector('.dropdown-arrow').textContent = '▼';
+            }
+        });
 
         function toggleLogs(forceOpen) {
             const panel = document.getElementById('logPanel');

@@ -309,21 +309,28 @@ main {
     box-shadow: 0 0 30px rgba(16, 185, 129, 0.35);
 }
 
-.metrics-card--fresh .total-sales-box {
-    border: 1px solid rgba(16, 185, 129, 0.4);
+.metrics-card--fresh .kpi-card {
+    border-color: rgba(16, 185, 129, 0.4);
 }
 
-.total-sales-box {
-    background-color: #0f131f; /* Dark inset */
-    border: 1px solid #2d3748;
-    padding: 32px;
-    border-radius: 8px;
-    text-align: center;
+/* ── KPI Row (side-by-side Total Sales + % vs Budget) ─ */
+.kpi-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
     margin-bottom: 24px;
 }
 
-.total-label {
-    font-size: 12px;
+.kpi-card {
+    background-color: #0f131f;
+    border: 1px solid #2d3748;
+    padding: 28px 24px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.kpi-label {
+    font-size: 11px;
     font-weight: 600;
     color: #a0aec0;
     margin-bottom: 12px;
@@ -331,12 +338,36 @@ main {
     letter-spacing: 1px;
 }
 
-.total-value {
-    font-size: 48px;
+.kpi-value {
+    font-size: 42px;
     font-weight: 700;
-    color: #10b981; /* Green value */
+    color: #10b981;
     letter-spacing: -1px;
     text-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+}
+
+.kpi-value--positive {
+    color: #10b981;
+    text-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+}
+
+.kpi-value--warning {
+    color: #facc15;
+    text-shadow: 0 0 20px rgba(252, 204, 21, 0.2);
+}
+
+.kpi-value--negative {
+    color: #f87171;
+    text-shadow: 0 0 20px rgba(248, 113, 113, 0.2);
+}
+
+@media (max-width: 480px) {
+    .kpi-row {
+        grid-template-columns: 1fr;
+    }
+    .kpi-value {
+        font-size: 32px;
+    }
 }
 
 .metrics-grid {
@@ -674,6 +705,65 @@ main {
     background-color: #2d3748;
     color: #e2e8f0;
     transform: translateY(-1px);
+}
+
+/* ── Export Dropdown ──────────────────────────────── */
+.export-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-arrow {
+    font-size: 10px;
+    margin-left: 4px;
+}
+
+.export-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 260px;
+    background: #1a202c;
+    border: 1px solid #2d3748;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    z-index: 100;
+    overflow: hidden;
+}
+
+.export-menu.open {
+    display: block;
+}
+
+.export-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 16px;
+    color: #a0aec0;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background 0.15s ease, color 0.15s ease;
+    cursor: pointer;
+}
+
+.export-menu-item:hover {
+    background: #2d3748;
+    color: #e2e8f0;
+}
+
+.export-menu-item.disabled {
+    color: #4a5568;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.export-menu-divider {
+    height: 1px;
+    background: #2d3748;
+    margin: 4px 0;
 }
 
 /* ── Sticky & Sortable Table Headers ──────────────── */
