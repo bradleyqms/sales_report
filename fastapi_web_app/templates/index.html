@@ -286,10 +286,10 @@
             const pctEl   = document.getElementById('budgetPctValue');
 
             if (salesEl) {
-                salesEl.textContent = (sales !== null && sales !== 0) ? sales.toFixed(1) + ' kEUR' : '—';
+                salesEl.textContent = sales !== null ? sales.toFixed(1) + ' kEUR' : '—';
             }
             if (pctEl) {
-                if (pct === null || pct === 0) {
+                if (pct === null) {
                     pctEl.textContent = 'No data';
                     pctEl.className   = 'kpi-value kpi-no-data';
                 } else {

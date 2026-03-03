@@ -55,11 +55,11 @@ report_status = {
     "metrics": {
         "timestamp": None,
         "segments": {
-            "Core Markets": {"sales": 0, "budget_pct": 0},
-            "UK": {"sales": 0, "budget_pct": 0},
-            "Export": {"sales": 0, "budget_pct": 0},
-            "US": {"sales": 0, "budget_pct": 0},
-            "Ecommerce": {"sales": 0, "budget_pct": 0}
+            "Core Markets": {"sales": None, "budget_pct": None},
+            "UK": {"sales": None, "budget_pct": None},
+            "Export": {"sales": None, "budget_pct": None},
+            "US": {"sales": None, "budget_pct": None},
+            "Ecommerce": {"sales": None, "budget_pct": None}
         }
     }
 }

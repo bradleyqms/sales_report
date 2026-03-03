@@ -72,6 +72,7 @@ fastapi_web_app/static/combined_reports_*.zip
 
 # Ignore any generated static artifacts
 /fastapi_web_app/static/*
+!/fastapi_web_app/static/images/
 /static/
 
 # Generated at deploy time — do not commit

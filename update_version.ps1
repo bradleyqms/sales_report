@@ -7,7 +7,7 @@ try {
     $gitCommit = git rev-parse --short HEAD 2>$null
     $gitBranch = git rev-parse --abbrev-ref HEAD 2>$null
     $deployedAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-    $rawTag = git describe --tags --abbrev=0 2>$null
+    $rawTag = git describe --tags --exact-match 2>$null
     if ($rawTag) {
         $version = $rawTag -replace '^v', ''
     } else {
