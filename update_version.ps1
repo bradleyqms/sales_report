@@ -7,7 +7,12 @@ try {
     $gitCommit = git rev-parse --short HEAD 2>$null
     $gitBranch = git rev-parse --abbrev-ref HEAD 2>$null
     $deployedAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-    $version = '1.0.0'
+    $rawTag = git describe --tags --abbrev=0 2>$null
+    if ($rawTag) {
+        $version = $rawTag -replace '^v', ''
+    } else {
+        $version = "dev-$gitCommit"
+    }
     
     $versionInfo = @{
         version = $version
@@ -21,9 +26,14 @@ try {
     $versionJson | Out-File -FilePath 'version.json' -Encoding UTF8 -NoNewline
     
     Write-Host 'Version updated!' -ForegroundColor Green
-    Write-Host "  Version: $version"
-    Write-Host "  Branch: $gitBranch"
-    Write-Host "  Commit: $gitCommit"
+    Write-Host "  Version : $version"
+    Write-Host "  Branch  : $gitBranch"
+    Write-Host "  Commit  : $gitCommit"
+    if ($rawTag) {
+        Write-Host "  Source  : git tag ($rawTag)" -ForegroundColor DarkGray
+    } else {
+        Write-Host "  Source  : no tag found, using commit SHA" -ForegroundColor Yellow
+    }
     
 } catch {
     Write-Host "Error: $_" -ForegroundColor Red
