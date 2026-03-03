@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sales Report Generator</title>
     <link rel="icon" href="/static/images/qms-favicon.ico">
-    <link rel="stylesheet" href="/static/styles.css?v=6">
+    <link rel="stylesheet" href="/static/styles.css?v=7">
 </head>
 <body>
     <!-- Splash Screen -->
@@ -18,8 +18,36 @@
         </div>
     </div>
 
+    <!-- Nav overlay + drawer (outside .app-container so it covers full viewport) -->
+    <div class="nav-overlay" id="navOverlay" onclick="closeDrawer()"></div>
+    <aside class="nav-drawer" id="navDrawer" aria-label="Navigation">
+        <div class="nav-drawer-header">
+            <span class="nav-drawer-title">Views</span>
+            <button class="nav-drawer-close" onclick="closeDrawer()" aria-label="Close navigation">&times;</button>
+        </div>
+        <nav>
+            <a href="/" class="nav-drawer-item {% if view == 'management' %}nav-drawer-item--active{% endif %}">
+                <span class="nav-drawer-icon">📊</span> Management
+            </a>
+            <a href="/coremarkets" class="nav-drawer-item {% if view == 'coremarkets' %}nav-drawer-item--active{% endif %}">
+                <span class="nav-drawer-icon">🌍</span> Core Markets
+            </a>
+            <a href="/usaspa" class="nav-drawer-item {% if view == 'usaspa' %}nav-drawer-item--active{% endif %}">
+                <span class="nav-drawer-icon">🇺🇸</span> USA Spa
+            </a>
+        </nav>
+        <div class="nav-drawer-footer">
+            <span class="nav-drawer-current">Current view: <strong>{% if view == 'management' %}Management{% elif view == 'coremarkets' %}Core Markets{% else %}USA Spa{% endif %}</strong></span>
+        </div>
+    </aside>
+
     <div class="app-container">
         <header class="top-bar">
+            <button class="hamburger-btn" id="hamburgerBtn" onclick="openDrawer()" aria-label="Open navigation">
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+            </button>
             <div class="brand-section">
                 <img class="brand-logo" src="/static/images/qms-logo.png" alt="QMS Medicosmetics" />
                 <div class="divider"></div>
@@ -39,12 +67,6 @@
             </div>
         </header>
 
-        <nav class="segment-nav" aria-label="Segment views">
-            <a href="/"            class="segment-nav__item {% if view == 'management'  %}segment-nav__item--active{% endif %}">Management</a>
-            <a href="/coremarkets" class="segment-nav__item {% if view == 'coremarkets' %}segment-nav__item--active{% endif %}">Core Markets</a>
-            <a href="/usaspa"      class="segment-nav__item {% if view == 'usaspa'      %}segment-nav__item--active{% endif %}">USA Spa</a>
-        </nav>
-
         <main>
             <div class="card main-card">
                 <div class="card-header">
@@ -58,7 +80,7 @@
                     </button>
                     <div id="loading" class="loading-indicator" style="display: none;">
                         <div class="spinner"></div>
-                        <span>Processing...</span>
+                        <span id="stageLabel">Starting...</span>
                     </div>
                 </div>
 
@@ -162,6 +184,47 @@
         };
 
         const CFG = VIEW_CONFIG[VIEW] || VIEW_CONFIG.management;
+
+        // ── Stage indicator matchers ──────────────────────────────────────────
+        const PIPELINE_STAGES = [
+            { match: /Using SharePoint/i,                 label: 'Connecting to SharePoint...' },
+            { match: /Downloading.*QRY|sp\.download/i,    label: 'Fetching QRY files...' },
+            { match: /Downloaded.*QRY files/i,            label: 'Fetching SharePoint files...' },
+            { match: /Downloaded support files/i,          label: 'Downloading support files...' },
+            { match: /Mapped \d+ records/i,               label: 'Mapping regions...' },
+            { match: /GENERATING REPORTS/i,               label: 'Generating reports...' },
+            { match: /REPORT 1.*MANAGEMENT/i,             label: 'Building Management Report...' },
+            { match: /REPORT 2.*USA SPA/i,                label: 'Building USA Spa Report...' },
+            { match: /REPORT 3.*CORE MARKET/i,            label: 'Building Core Market Report...' },
+            { match: /COMBINING REPORTS/i,                label: 'Combining outputs...' },
+            { match: /Timestamp:/i,                       label: 'Wrapping up...' },
+        ];
+
+        function updateStageLabel(logLine) {
+            const stageEl = document.getElementById('stageLabel');
+            if (!stageEl) return;
+            for (const { match, label } of PIPELINE_STAGES) {
+                if (match.test(logLine)) {
+                    stageEl.textContent = label;
+                    return;
+                }
+            }
+        }
+
+        // ── Drawer ────────────────────────────────────────────────────────────
+        function openDrawer() {
+            document.getElementById('navDrawer').classList.add('open');
+            document.getElementById('navOverlay').classList.add('open');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeDrawer() {
+            document.getElementById('navDrawer').classList.remove('open');
+            document.getElementById('navOverlay').classList.remove('open');
+            document.body.style.overflow = '';
+        }
+
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
 
         const statusIndicator = document.querySelector('.status-indicator');
         const statusTextElement = statusIndicator?.querySelector('.status-text');
@@ -532,6 +595,8 @@
         function endRun() {
             runButton.disabled = false;
             loadingIndicator.style.display = 'none';
+            const stageEl = document.getElementById('stageLabel');
+            if (stageEl) stageEl.textContent = 'Starting...';
             if (eventSource) {
                 eventSource.close();
                 eventSource = null;
@@ -620,10 +685,13 @@
                     outputEl.value += e.data;
                     outputEl.scrollTop = outputEl.scrollHeight;
                 }
+                updateStageLabel(e.data);
             });
 
             eventSource.addEventListener('complete', async (e) => {
                 if (outputEl) outputEl.value += '\n\n' + e.data;
+                const stageEl = document.getElementById('stageLabel');
+                if (stageEl) stageEl.textContent = 'Complete ✓';
                 await refreshStatus(); // Fetch final results
             });
 
