@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sales Report Generator</title>
     <link rel="icon" href="/static/images/qms-favicon.ico">
-    <link rel="stylesheet" href="/static/styles.css?v=4">
+    <link rel="stylesheet" href="/static/styles.css?v=5">
 </head>
 <body>
     <!-- Splash Screen -->
@@ -120,65 +120,6 @@
                 </div>
             </div>
 
-            <div class="card recent-runs-card">
-                <h3>Recent runs / Exports</h3>
-                <div class="downloads-grid">
-                    <div class="download-item">
-                        <a id="csvLink" href="#" class="download-link disabled">
-                            <span class="icon">📄</span> CSV Report
-                        </a>
-                    </div>
-                    <div class="download-item">
-                        <a id="txtLink" href="#" class="download-link disabled">
-                            <span class="icon">📝</span> Text Report
-                        </a>
-                    </div>
-                    <div class="download-item">
-                        <a id="htmlLink" href="#" class="download-link disabled">
-                            <span class="icon">🌐</span> HTML Report
-                        </a>
-                    </div>
-                    <div class="download-item">
-                        <a id="xlsxLink" href="#" class="download-link disabled">
-                            <span class="icon">📊</span> Excel Report
-                        </a>
-                    </div>
-                    <div class="download-item">
-                        <a id="pdfLink" href="#" class="download-link disabled">
-                            <span class="icon">📑</span> PDF Report
-                        </a>
-                    </div>
-                    <div class="download-item">
-                        <a id="unmappedLink" href="#" class="download-link disabled">
-                            <span class="icon">🔍</span> Unmapped Entities
-                        </a>
-                    </div>
-                    <div class="download-item">
-                        <a id="coreMarketCsvLink" href="#" class="download-link disabled">
-                            <span class="icon">📊</span> Core Market Report (CSV)
-                        </a>
-                    </div>
-                    <div class="download-item">
-                        <a id="coreMarketHtmlLink" href="#" class="download-link disabled">
-                            <span class="icon">🌐</span> Core Market Report (HTML)
-                        </a>
-                    </div>
-                    <div class="download-item">
-                        <a id="usaSpaHtmlLink" href="#" class="download-link disabled">
-                            <span class="icon">🌐</span> USA Spa Report (HTML)
-                        </a>
-                    </div>
-                    <div class="download-item">
-                        <a id="zipLink" href="#" class="download-link disabled">
-                            <span class="icon">📦</span> All Files (ZIP)
-                        </a>
-                    </div>
-                </div>
-                <div id="lastRun" class="last-run-info">
-                    Last run: <span id="lastRunTime">Never</span>
-                </div>
-            </div>
-
             <!-- Tables Container -->
             <div id="tablesContainer"></div>
         </main>
@@ -191,7 +132,6 @@
         const summaryState = document.getElementById('summaryState');
         const metricsCard = document.getElementById('metricsCard');
         const metricsTimestamp = document.getElementById('metricsTimestamp');
-        const lastRunTime = document.getElementById('lastRunTime');
         const runButton = document.getElementById('runButton');
         const loadingIndicator = document.getElementById('loading');
         const outputEl = document.getElementById('output');
@@ -259,32 +199,6 @@
         const tablesContainer = document.getElementById('tablesContainer');
 
         function updateDownloadLinks(status) {
-            const links = {
-                'csvLink': status.csv_url,
-                'txtLink': status.txt_url,
-                'htmlLink': status.html_url,
-                'xlsxLink': status.xlsx_url,
-                'pdfLink': status.pdf_url,
-                'unmappedLink': status.unmapped_url,
-                'coreMarketCsvLink': status.core_market_csv_url,
-                'coreMarketHtmlLink': status.core_market_html_url,
-                'usaSpaHtmlLink': status.usa_spa_html_url,
-                'zipLink': status.zip_url
-            };
-
-            for (const [id, url] of Object.entries(links)) {
-                const link = document.getElementById(id);
-                if (link) {
-                    if (url) {
-                        link.href = url;
-                        link.classList.remove('disabled');
-                    } else {
-                        link.href = '#';
-                        link.classList.add('disabled');
-                    }
-                }
-            }
-            
             // Sync export dropdown links
             const exportDropdownLinks = [
                 { id: 'exportCombinedXlsxBtn', url: status.xlsx_url },
@@ -651,7 +565,6 @@
                 // Update Timestamps
                 if (status.last_run) {
                     const formatted = formatTimestamp(status.last_run);
-                    if (lastRunTime) lastRunTime.textContent = formatted;
                     if (metricsTimestamp) metricsTimestamp.textContent = 'Refreshed: ' + formatted;
                 }
 

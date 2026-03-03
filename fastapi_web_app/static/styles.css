@@ -384,69 +384,7 @@ main {
     margin-top: 24px;
 }
 
-/* Downloads section */
-.recent-runs-card h3 {
-    font-size: 16px;
-    font-weight: 600;
-    color: #fff;
-    margin-bottom: 20px;
-}
 
-.downloads-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 16px;
-    margin-bottom: 20px;
-}
-
-.download-item {
-    background: #1a202c;
-    border: 1px solid #2d3748;
-    border-radius: 6px;
-    padding: 12px;
-    text-align: center;
-    transition: all 0.2s ease;
-}
-
-.download-item:hover {
-    background: #2d3748;
-    border-color: #4a5568;
-}
-
-.download-link {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    text-decoration: none;
-    color: #a0aec0;
-    font-size: 13px;
-    font-weight: 500;
-}
-
-.download-link:hover {
-    color: #fff;
-}
-
-.download-link.disabled {
-    color: #4a5568;
-    cursor: not-allowed;
-}
-
-.icon {
-    font-size: 16px;
-}
-
-.last-run-info {
-    font-size: 12px;
-    color: #718096;
-    margin-top: 24px;
-}
-
-.last-run-info span {
-    color: #fff;
-    font-weight: 600;
-}
 
 /* Table Styles */
 .table-responsive {
