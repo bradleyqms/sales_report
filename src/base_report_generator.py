@@ -249,8 +249,10 @@ class BaseReportGenerator(ABC):
             >>> format_number(0.0)
             '-'
         """
-        if abs(value) >= 0.5:
+        if abs(value) >= 1:
             return f"{int(round(value))}"
+        elif 0 < abs(value) < 1:
+            return f"{value:.1f}"
         elif value == 0:
             return zero_placeholder
         else:

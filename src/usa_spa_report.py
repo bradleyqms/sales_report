@@ -67,13 +67,19 @@ class USASpaReportGenerator(BaseReportGenerator):
         diff_prior = row['diff_prior']
         pct_prior = row['pct_prior']
         
-        a_str = f"{int(round(actual))}" if abs(actual) >= 0.5 else ("-" if actual == 0 else "0")
-        b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
-        db_str = f"{int(round(diff_budget))}" if abs(diff_budget) >= 0.5 else ("-" if diff_budget == 0 else "0")
+        def _fmt(v):
+            if abs(v) >= 1:    return f"{int(round(v))}"
+            if 0 < abs(v) < 1: return f"{v:.1f}"
+            if v == 0:         return "-"
+            return "0"
+
+        a_str  = _fmt(actual)
+        b_str  = _fmt(budget)
+        db_str = _fmt(diff_budget)
         pb_str = f"{pct_budget:.1f}%" if budget != 0 else "-"
-        p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
+        p_str  = _fmt(prior)
         pp_str = f"{pct_prior:.1f}%" if prior != 0 else "-"
-        
+
         return [label, a_str, b_str, db_str, pb_str, p_str, pp_str]
             
     def _prepare_data(self):
@@ -449,11 +455,17 @@ class USASpaReportGenerator(BaseReportGenerator):
                 print()
             
             # Format
-            a_str = f"{int(round(actual))}" if abs(actual) >= 0.5 else ("-" if actual == 0 else "0")
-            b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
-            db_str = f"{int(round(diff_budget))}" if abs(diff_budget) >= 0.5 else ("-" if diff_budget == 0 else "0")
+            def _fmt(v):
+                if abs(v) >= 1:    return f"{int(round(v))}"
+                if 0 < abs(v) < 1: return f"{v:.1f}"
+                if v == 0:         return "-"
+                return "0"
+
+            a_str  = _fmt(actual)
+            b_str  = _fmt(budget)
+            db_str = _fmt(diff_budget)
             pb_str = f"{pct_budget:.1f}%" if budget != 0 else "-"
-            p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
+            p_str  = _fmt(prior)
             pp_str = f"{pct_prior:.1f}%" if prior != 0 else "-"
             
             print(f"{label:<30} {a_str:>14} {b_str:>10} {db_str:>12} {pb_str:>14} {p_str:>10} {pp_str:>14}")
