@@ -67,13 +67,19 @@ class CoreMarketReportGenerator(BaseReportGenerator):
         
         pct = (sales / budget * 100) if budget and budget != 0 else 0
         
-        s_str = f"{int(round(sales))}" if abs(sales) >= 0.5 else ("-" if sales == 0 else "0")
-        ex_str = f"{int(round(existing_sales))}" if abs(existing_sales) >= 0.5 else ("-" if existing_sales == 0 else "0")
-        new_str = f"{int(round(new_sales))}" if abs(new_sales) >= 0.5 else ("-" if new_sales == 0 else "0")
-        b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
-        exb_str = f"{int(round(existing_budget))}" if abs(existing_budget) >= 0.5 else ("-" if existing_budget == 0 else "0")
-        newb_str = f"{int(round(new_budget))}" if abs(new_budget) >= 0.5 else ("-" if new_budget == 0 else "0")
-        p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
+        def _fmt(v):
+            if abs(v) >= 1:    return f"{int(round(v))}"
+            if 0 < abs(v) < 1: return f"{v:.1f}"
+            if v == 0:         return "-"
+            return "0"
+
+        s_str   = _fmt(sales)
+        ex_str  = _fmt(existing_sales)
+        new_str = _fmt(new_sales)
+        b_str   = _fmt(budget)
+        exb_str = _fmt(existing_budget)
+        newb_str = _fmt(new_budget)
+        p_str   = _fmt(prior)
         pct_str = f"{pct:.1f}%" if budget and budget != 0 else "-"
         
         return [label, s_str, ex_str, new_str, b_str, exb_str, newb_str, p_str, pct_str]
@@ -476,14 +482,20 @@ class CoreMarketReportGenerator(BaseReportGenerator):
             pct = (sales / budget * 100) if budget and budget != 0 else 0
             
             # Format
-            s_str = f"{int(round(sales))}" if abs(sales) >= 0.5 else ("-" if sales == 0 else "0")
-            ex_str = f"{int(round(existing_sales))}" if abs(existing_sales) >= 0.5 else ("-" if existing_sales == 0 else "0")
-            new_str = f"{int(round(new_sales))}" if abs(new_sales) >= 0.5 else ("-" if new_sales == 0 else "0")
-            b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
-            exb_str = f"{int(round(existing_budget))}" if abs(existing_budget) >= 0.5 else ("-" if existing_budget == 0 else "0")
-            newb_str = f"{int(round(new_budget))}" if abs(new_budget) >= 0.5 else ("-" if new_budget == 0 else "0")
-            p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
-            pct_str = f"{pct:.1f}%" if budget and budget != 0 else "-"
+            def _fmt(v):
+                if abs(v) >= 1:    return f"{int(round(v))}"
+                if 0 < abs(v) < 1: return f"{v:.1f}"
+                if v == 0:         return "-"
+                return "0"
+
+            s_str    = _fmt(sales)
+            ex_str   = _fmt(existing_sales)
+            new_str  = _fmt(new_sales)
+            b_str    = _fmt(budget)
+            exb_str  = _fmt(existing_budget)
+            newb_str = _fmt(new_budget)
+            p_str    = _fmt(prior)
+            pct_str  = f"{pct:.1f}%" if budget and budget != 0 else "-"
             
             print(f"{label:<30} {s_str:>10} {ex_str:>12} {new_str:>12} {b_str:>14} {exb_str:>16} {newb_str:>12} {p_str:>12} {pct_str:>12}")
             
