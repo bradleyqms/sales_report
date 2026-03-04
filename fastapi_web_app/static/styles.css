@@ -957,3 +957,16 @@ main {
     color: #a0aec0 !important;
     font-size: 0.9rem;
 }
+
+/* ── Management table row type styles (DNR-61) ─────────────────── */
+.row-subtotal td {
+    font-weight: 600;
+    background-color: #e8f4fd;
+}
+
+.row-grand-total td {
+    font-weight: 700;
+    background-color: #1a3a5c;
+    color: #fff;
+    border-top: 2px solid #0d2137;
+}

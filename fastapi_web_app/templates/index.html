@@ -462,16 +462,29 @@
                     th.title = `Sort by ${trimmed}`;
                     th.addEventListener('click', () => {
                         if (sortColIndex === idx) {
-                            sortAsc = !sortAsc;
+                            if (!sortAsc) {
+                                sortAsc = true;          // DESC → ASC
+                            } else {
+                                sortColIndex = null;     // ASC → reset
+                            }
                         } else {
                             sortColIndex = idx;
-                            sortAsc = false; // default: highest first
+                            sortAsc = false;             // first click: DESC
                         }
                         sortTableBody(tbody, sortColIndex, sortAsc);
+                        // Update indicators and titles
                         headerRow.querySelectorAll('th').forEach((el, i) => {
                             const ind = el.querySelector('.sort-indicator');
                             if (!ind) return;
-                            ind.textContent = (i === sortColIndex) ? (sortAsc ? ' ↑' : ' ↓') : '';
+                            if (i === sortColIndex) {
+                                ind.textContent = sortAsc ? ' ↑' : ' ↓';
+                                el.title = sortAsc
+                                    ? `Sort by ${el.querySelector('.th-text').textContent} (lowest first)`
+                                    : `Sort by ${el.querySelector('.th-text').textContent} (highest first)`;
+                            } else {
+                                ind.textContent = '';
+                                el.title = `Sort by ${el.querySelector('.th-text').textContent}`;
+                            }
                         });
                     });
                 }
@@ -488,8 +501,22 @@
             }
 
             function sortTableBody(tbodyEl, colIdx, asc) {
-                const dataTrs = Array.from(tbodyEl.querySelectorAll('tr[data-row-type="data"]'));
-                dataTrs.sort((a, b) => {
+                const allSortable = Array.from(
+                    tbodyEl.querySelectorAll(
+                        'tr[data-row-type="data"], tr[data-row-type="subtotal"]'
+                    )
+                );
+                const grandTotal = tbodyEl.querySelector('tr[data-row-type="grand-total"]');
+
+                if (colIdx === null) {
+                    // Restore canonical CSV order
+                    allSortable
+                        .sort((a, b) => +a.dataset.originalIndex - +b.dataset.originalIndex)
+                        .forEach(tr => tbodyEl.insertBefore(tr, grandTotal || null));
+                    return;
+                }
+
+                allSortable.sort((a, b) => {
                     const aVal = parseVal(a.cells[colIdx]?.textContent);
                     const bVal = parseVal(b.cells[colIdx]?.textContent);
                     if (aVal === null && bVal === null) return 0;
@@ -497,14 +524,14 @@
                     if (bVal === null) return -1;
                     return asc ? aVal - bVal : bVal - aVal;
                 });
-                const totalTrs = Array.from(tbodyEl.querySelectorAll('tr[data-row-type="total"]'));
-                dataTrs.forEach(tr => tbodyEl.insertBefore(tr, totalTrs[0] || null));
+                allSortable.forEach(tr => tbodyEl.insertBefore(tr, grandTotal || null));
             }
 
-            function buildRow(row, rowType) {
+            function buildRow(row, rowType, originalIndex) {
                 const tr = document.createElement('tr');
                 tr.setAttribute('data-row-type', rowType);
-                if (rowType === 'total') tr.style.fontWeight = 'bold';
+                tr.setAttribute('data-original-index', originalIndex);
+                tr.classList.add(`row-${rowType}`);
                 row.forEach(cell => {
                     const td = document.createElement('td');
                     td.textContent = cell.trim();
@@ -513,18 +540,25 @@
                 return tr;
             }
 
-            // --- Tbody: separate data rows from total rows ---
+            // --- Tbody: render in CSV source order using label-type lookup ---
+            const ROW_LABEL_TYPES = {
+                'Total Sales':          'grand-total',
+                'Total Core Markets':   'subtotal',
+                'Total UK':             'subtotal',
+                'Total USA':            'subtotal',
+                'Total Export':         'subtotal',
+                'Company 1 Sales':      'subtotal',
+                'Company 2 Sales':      'subtotal',
+                'Company 3 Sales':      'subtotal',
+            };
+
             const tbody = document.createElement('tbody');
-            const dataRows = [];
-            const totalRows = [];
-            rows.forEach(row => {
+            rows.forEach((row, idx) => {
                 if (row.length < 2) return;
                 const label = (row[0] || '').trim();
-                const isTotalRow = label.startsWith('Total ') || label.endsWith(' Sales');
-                (isTotalRow ? totalRows : dataRows).push(row);
+                const rowType = ROW_LABEL_TYPES[label] || 'data';
+                tbody.appendChild(buildRow(row, rowType, idx));
             });
-            dataRows.forEach(row => tbody.appendChild(buildRow(row, 'data')));
-            totalRows.forEach(row => tbody.appendChild(buildRow(row, 'total')));
             table.appendChild(tbody);
 
             responsiveDiv.appendChild(table);
