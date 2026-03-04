@@ -124,9 +124,15 @@ class ManagementReportGenerator(BaseReportGenerator):
         
         pct = (sales / budget * 100) if budget and budget != 0 else 0
         
-        s_str = f"{int(round(sales))}" if abs(sales) >= 0.5 else ("-" if sales == 0 else "0")
-        b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
-        p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
+        def _fmt(v):
+            if abs(v) >= 1:    return f"{int(round(v))}"
+            if 0 < abs(v) < 1: return f"{v:.1f}"
+            if v == 0:         return "-"
+            return "0"
+
+        s_str = _fmt(sales)
+        b_str = _fmt(budget)
+        p_str = _fmt(prior)
         pct_str = f"{pct:.1f}%" if budget and budget != 0 else "-"
         
         return [label, s_str, b_str, p_str, pct_str]
@@ -437,9 +443,15 @@ class ManagementReportGenerator(BaseReportGenerator):
             pct = (sales / budget * 100) if budget and budget != 0 else 0
             
             # Format values (already in kEUR)
-            s_str = f"{int(round(sales))}" if abs(sales) >= 0.5 else ("-" if sales == 0 else "0")
-            b_str = f"{int(round(budget))}" if abs(budget) >= 0.5 else ("-" if budget == 0 else "0")
-            p_str = f"{int(round(prior))}" if abs(prior) >= 0.5 else ("-" if prior == 0 else "0")
+            def _fmt(v):
+                if abs(v) >= 1:    return f"{int(round(v))}"
+                if 0 < abs(v) < 1: return f"{v:.1f}"
+                if v == 0:         return "-"
+                return "0"
+
+            s_str = _fmt(sales)
+            b_str = _fmt(budget)
+            p_str = _fmt(prior)
             pct_str = f"{pct:.1f}%" if budget and budget != 0 else "-"
             
             print(f"{label:<30} {s_str:>10} {b_str:>10} {p_str:>10} {pct_str:>10}")
