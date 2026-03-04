@@ -544,7 +544,7 @@
             const ROW_LABEL_TYPES = {
                 // Management report
                 'Total Sales':          'grand-total',
-                'Total Core Markets':   'grand-total',  // grand total in Core Markets view; subtotal in Management view — bold either way
+                'Total Core Markets':   'grand-total',  // overridden per-view below
                 'Total UK':             'subtotal',
                 'Total USA':            'subtotal',
                 'Total Export':         'subtotal',
@@ -564,7 +564,9 @@
             rows.forEach((row, idx) => {
                 if (row.length < 2) return;
                 const label = (row[0] || '').trim();
-                const rowType = ROW_LABEL_TYPES[label] || 'data';
+                let rowType = ROW_LABEL_TYPES[label] || 'data';
+                // Total Core Markets is a subtotal in Management (more totals follow) but grand-total in its own view
+                if (label === 'Total Core Markets' && VIEW !== 'coremarkets') rowType = 'subtotal';
                 tbody.appendChild(buildRow(row, rowType, idx));
             });
             table.appendChild(tbody);
