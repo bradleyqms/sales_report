@@ -542,14 +542,22 @@
 
             // --- Tbody: render in CSV source order using label-type lookup ---
             const ROW_LABEL_TYPES = {
+                // Management report
                 'Total Sales':          'grand-total',
-                'Total Core Markets':   'subtotal',
+                'Total Core Markets':   'grand-total',  // grand total in Core Markets view; subtotal in Management view — bold either way
                 'Total UK':             'subtotal',
                 'Total USA':            'subtotal',
                 'Total Export':         'subtotal',
                 'Company 1 Sales':      'subtotal',
                 'Company 2 Sales':      'subtotal',
                 'Company 3 Sales':      'subtotal',
+                // Core Markets report — section totals
+                'Germany':              'subtotal',
+                'Benelux':              'subtotal',
+                'Switzerland':          'subtotal',
+                'France':               'subtotal',
+                // USA Spa report — grand total
+                'USA Spa':              'grand-total',
             };
 
             const tbody = document.createElement('tbody');

@@ -959,14 +959,22 @@ main {
 }
 
 /* ── Management table row type styles (DNR-61) ─────────────────── */
+/* Font-weight tiers only — no background overrides so dark theme
+   colours and hover highlight work unchanged.
+   data: 300 (light) | subtotal: 600 | grand-total: 700            */
+.row-data td {
+    font-weight: 300;
+}
+
+.row-data td:first-child {
+    font-weight: 300;
+}
+
 .row-subtotal td {
     font-weight: 600;
-    background-color: #e8f4fd;
 }
 
 .row-grand-total td {
     font-weight: 700;
-    background-color: #1a3a5c;
-    color: #fff;
-    border-top: 2px solid #0d2137;
+    border-top: 2px solid #4a5568;
 }
