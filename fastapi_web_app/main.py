@@ -23,6 +23,14 @@ BASE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI(title="Sales Report Generator")
 
+# Include admin routes
+try:
+    from admin_routes import router as admin_router
+    app.include_router(admin_router)
+    logging.info("✅ Admin UI routes loaded successfully")
+except Exception as e:
+    logging.warning(f"⚠️  Admin UI routes not available: {e}")
+
 # Mount static files using absolute path
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
