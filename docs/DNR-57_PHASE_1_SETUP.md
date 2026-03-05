@@ -25,29 +25,59 @@
 
 ## 🔧 Next Steps (You Need to Do)
 
-### **Step 1: Update Your .env File**
+### **Step 1: Grant Your Azure AD Account Database Access**
 
-Copy `.env.example` to `.env` (if not already done) and add your SQL admin password:
+Connect to your SQL Database using Azure Portal Query Editor:
 
-```bash
-DATABASE_PASSWORD=your_actual_sql_password_here
+1. **Open Query Editor:**
+   - Go to Azure Portal → SQL Database `dnr-mapping-db`
+   - Left menu → **Query editor (preview)**
+   - Login with **Azure AD authentication** (bradley@qmsmedicosmetics.com)
+
+2. **Run these SQL commands:**
+
+```sql
+-- Create user for your Azure AD account
+CREATE USER [bradley@qmsmedicosmetics.com] FROM EXTERNAL PROVIDER;
+
+-- Grant necessary permissions
+ALTER ROLE db_datareader ADD MEMBER [bradley@qmsmedicosmetics.com];
+ALTER ROLE db_datawriter ADD MEMBER [bradley@qmsmedicosmetics.com];
+ALTER ROLE db_ddladmin ADD MEMBER [bradley@qmsmedicosmetics.com];
+
+-- Verify it worked
+SELECT name, type_desc FROM sys.database_principals 
+WHERE name = 'bradley@qmsmedicosmetics.com';
 ```
 
-**Important:** The password you set when creating the SQL Server!
+Expected output: `bradley@qmsmedicosmetics.com | EXTERNAL_USER`
 
 ---
 
-### **Step 2: Verify Python Dependencies Installed**
+### **Step 2: Login to Azure CLI**
 
-Confirm packages are installed globally (or create venv if needed):
+For local development, you need to authenticate with Azure CLI:
+
+```powershell
+# Login with your Azure account
+az login
+```
+
+A browser window will open for authentication. After logging in, you should see your subscription listed.
+
+---
+
+### **Step 3: Install Python Dependencies**
 
 ```powershell
 pip install -r requirements.txt
 ```
 
+This installs: `SQLAlchemy`, `pyodbc`, `alembic`, `azure-identity`
+
 ---
 
-### **Step 3: Test Database Connection**
+### **Step 4: Test Database Connection**
 
 ```powershell
 python -c "from src.database import test_connection; test_connection()"
@@ -55,19 +85,23 @@ python -c "from src.database import test_connection; test_connection()"
 
 Expected output:
 ```
-[Database] Using SQL authentication (local development)
+[Database] Using DefaultAzureCredential (Azure CLI/VS Code)
+[Database] Azure AD token acquired successfully
+[Database] Connecting to dnr-sql-server-qmsmedicosmetics.database.windows.net/dnr-mapping-db with Azure AD authentication
 [Database] Connection successful!
 [Database] SQL Server version: Microsoft SQL Server 2022...
 ```
 
 ❌ If connection fails:
-- Verify DATABASE_PASSWORD in `.env`
-- Check your IP is whitelisted in Azure SQL firewall rules
-- Verify ODBC Driver 18 is installed: `odbcinst -q -d` (should list "ODBC Driver 18 for SQL Server")
+- **"Failed to get Azure AD token"**: Run `az login` to authenticate
+- **"Login failed"**: Grant database permissions (Step 1 above)
+- **"Cannot open database"**: Check DATABASE_NAME in .env
+- **"TCP Provider: No connection"**: Your IP needs to be whitelisted in Azure SQL firewall
+- **"Data source name not found"**: Install [ODBC Driver 18](https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server)
 
 ---
 
-### **Step 4: Create Database Schema**
+### **Step 5: Create Database Schema**
 
 Generate initial Alembic migration from models:
 
@@ -88,7 +122,7 @@ INFO  [alembic.runtime.migration] Running upgrade  -> abc123, initial_schema
 
 ---
 
-### **Step 5: Seed Initial Data**
+### **Step 6: Seed Initial Data**
 
 Import existing entity_mappings.csv into database:
 
@@ -125,28 +159,51 @@ Expected output: `Total mappings: 245` (or your actual count)
 
 ---
 
-## 📝 Connection Strings Reference
+## 📝 Authentication Details
 
-### **Production** (Azure App Service with Managed Identity)
-```
-mssql+pyodbc://@dnr-sql-server-qmsmedicosmetics.database.windows.net/dnr-mapping-db?driver=ODBC+Driver+18+for+SQL+Server&Authentication=ActiveDirectoryMsi&Encrypt=yes
-```
-- No password needed
-- Automatically used when `AZURE_CLIENT_ID` env var present
+### **🔐 No Passwords Required!**
 
-### **Local Development** (SQL Authentication)
-```
-mssql+pyodbc://sqladmin:YOUR_PASSWORD@dnr-sql-server-qmsmedicosmetics.database.windows.net/dnr-mapping-db?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes
-```
-- Uses DATABASE_PASSWORD from .env
-- Used when `AZURE_CLIENT_ID` is not present
+This setup uses **Azure AD authentication everywhere**:
 
----
+### **Production** (Azure App Service)
+- Uses **Managed Identity** (automatic)
+- Token automatically refreshed every hour
+- No credentials in environment variables
 
-## 🚨 Troubleshooting
+### **Local Development**
+- Uses **DefaultAzureCredential** which tries in order:
+  1. Environment variables (if set)
+  2. Managed Identity (if running on Azure)
+  3. **Azure CLI** (`az login`) ← Most common for local dev
+  4. Visual Studio Code
+  5. Azure PowerShell
 
-### "Login failed for user 'qms-sales-report'" (Production)
-- Verify Managed Identity is enabled
+### **Connection String** (Same for both environments)
+```**"Failed to get Azure AD token"**
+- **Local**: Run `az login` to authenticate with Azure
+- **Production**: Verify Managed Identity is enabled on App Service
+
+### **"Login failed for user 'bradley@qmsmedicosmetics.com'"** (Local)
+- You haven't granted your user database permissions
+- Run the SQL commands from Step 1 in Azure Portal Query Editor
+
+### **"Login failed for user 'qms-sales-report'"** (Production)
+- Managed Identity doesn't have database permissions
+- Run: `CREATE USER [qms-sales-report] FROM EXTERNAL PROVIDER;`
+- Grant roles: `db_datareader`, `db_datawriter`, `db_ddladmin`
+
+### **"Cannot open database requested by the login"**
+- Check DATABASE_NAME matches in .env
+
+### **"TCP Provider: No connection could be made"**
+- Add your IP to SQL Server firewall rules (Azure Portal → SQL Server → Networking)
+
+### **"Data source name not found"** (ODBC error)
+- Install ODBC Driver 18: Download from [Microsoft](https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server)
+
+### **"Azure CLI not installed"**
+- Install: `winget install Microsoft.AzureCLI` (Windows)
+- Or download from: https://aka.ms/installazurecliwindows
 - Re-run SQL grant commands in Query Editor
 
 ### "Cannot open database requested by the login"
