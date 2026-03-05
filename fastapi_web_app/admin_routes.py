@@ -239,9 +239,9 @@ async def create_mapping(
         audit = AuditLog(
             user_email=user_email,
             action="create_mapping",
-            entity_type="entity_mapping",
-            entity_id=new_mapping.id,
-            changes=f"Created mapping: {customer_name or sales_employee} → {region}/{market_group}"
+            target_type="EntityMapping",
+            target_id=str(new_mapping.id),
+            detail=f"Created mapping: {customer_name or sales_employee} → {region}/{market_group}"
         )
         session.add(audit)
         session.commit()
@@ -305,9 +305,9 @@ async def update_mapping(
             audit = AuditLog(
                 user_email=user_email,
                 action="update_mapping",
-                entity_type="entity_mapping",
-                entity_id=mapping_id,
-                changes="; ".join(changes)
+                target_type="EntityMapping",
+                target_id=str(mapping_id),
+                detail="; ".join(changes)
             )
             session.add(audit)
             session.commit()
@@ -340,9 +340,9 @@ async def delete_mapping(
         audit = AuditLog(
             user_email=user_email,
             action="delete_mapping",
-            entity_type="entity_mapping",
-            entity_id=mapping_id,
-            changes=f"Deactivated mapping: {mapping.customer_name or mapping.sales_employee}"
+            target_type="EntityMapping",
+            target_id=str(mapping_id),
+            detail=f"Deactivated mapping: {mapping.customer_name or mapping.sales_employee}"
         )
         session.add(audit)
         session.commit()
@@ -359,6 +359,31 @@ async def delete_mapping(
 # ================================
 # API ENDPOINTS - Unmapped Entities
 # ================================
+
+@router.get("/api/unmapped/{unmapped_id}")
+async def get_unmapped(unmapped_id: int):
+    """Get a single unmapped entity by ID."""
+    session = SessionLocal()
+    try:
+        unmapped = session.query(UnmappedLog).filter_by(id=unmapped_id).first()
+        if not unmapped:
+            raise HTTPException(status_code=404, detail="Unmapped entity not found")
+        
+        return {
+            "id": unmapped.id,
+            "entity_name": unmapped.entity_name,
+            "customer_code": unmapped.customer_code,
+            "customer_name": unmapped.customer_name,
+            "sales_employee": unmapped.sales_employee,
+            "count": unmapped.count,
+            "total_ar_value_keur": float(unmapped.total_ar_value_keur) if unmapped.total_ar_value_keur else 0,
+            "status": unmapped.status,
+            "last_seen": unmapped.last_seen.isoformat() if unmapped.last_seen else None,
+            "first_seen": unmapped.first_seen.isoformat() if unmapped.first_seen else None
+        }
+    finally:
+        session.close()
+
 
 @router.post("/api/unmapped/{unmapped_id}/resolve")
 async def resolve_unmapped(
@@ -391,9 +416,9 @@ async def resolve_unmapped(
         audit = AuditLog(
             user_email=user_email,
             action="resolve_unmapped",
-            entity_type="unmapped_log",
-            entity_id=unmapped_id,
-            changes=f"Resolved {unmapped.entity_type} '{unmapped.entity_name}' to mapping ID {mapping_id}"
+            target_type="UnmappedLog",
+            target_id=str(unmapped_id),
+            detail=f"Resolved {unmapped.entity_name} to mapping ID {mapping_id}"
         )
         session.add(audit)
         session.commit()
@@ -429,9 +454,9 @@ async def ignore_unmapped(
         audit = AuditLog(
             user_email=user_email,
             action="ignore_unmapped",
-            entity_type="unmapped_log",
-            entity_id=unmapped_id,
-            changes=f"Ignored {unmapped.entity_type} '{unmapped.entity_name}'"
+            target_type="UnmappedLog",
+            target_id=str(unmapped_id),
+            detail=f"Ignored {unmapped.entity_name}"
         )
         session.add(audit)
         session.commit()
@@ -495,9 +520,9 @@ async def create_mapping_and_resolve(
         audit = AuditLog(
             user_email=user_email,
             action="create_and_resolve",
-            entity_type="unmapped_log",
-            entity_id=unmapped_id,
-            changes=f"Created mapping (ID {new_mapping.id}) and resolved {unmapped.entity_type} '{unmapped.entity_name}'"
+            target_type="UnmappedLog",
+            target_id=str(unmapped_id),
+            detail=f"Created mapping (ID {new_mapping.id}) and resolved {unmapped.entity_name}"
         )
         session.add(audit)
         session.commit()

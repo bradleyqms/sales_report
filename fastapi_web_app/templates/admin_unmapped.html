@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Unmapped Entities - Admin</title>
+    
+    <!-- External CSS -->
+    <link rel="stylesheet" href="/static/css/admin.css">
+    
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -375,7 +379,7 @@
             </thead>
             <tbody>
                 {% for item in unmapped_items %}
-                <tr>
+                <tr data-unmapped-id="{{ item.id }}">
                     <td>
                         <div class="entity-name">{{ item.entity_name }}</div>
                         {% if item.customer_code %}
@@ -395,21 +399,24 @@
                         {% if item.status == 'pending' %}
                         <button 
                             class="btn-link"
-                            onclick="alert('Link to existing mapping - ID {{ item.id }}')"
+                            onclick="window.adminUnmapped.openLinkDrawer({{ item.id }})"
+                            title="Link to existing mapping"
                         >
-                            Link
+                            🔗 Link
                         </button>
                         <button 
                             class="btn-resolve"
-                            onclick="alert('Create new mapping - ID {{ item.id }}')"
+                            onclick="window.adminUnmapped.openCreateFromUnmappedModal({{ item.id }})"
+                            title="Create new mapping"
                         >
-                            Create
+                            ➕ Create
                         </button>
                         <button 
                             class="btn-ignore"
-                            onclick="if(confirm('Ignore this entity?')) { fetch('/api/unmapped/{{ item.id }}/ignore', {method: 'POST'}).then(() => location.reload()); }"
+                            onclick="if(confirm('Ignore this entity?')) { fetch('/admin/api/unmapped/{{ item.id }}/ignore', {method: 'POST'}).then(() => location.reload()); }"
+                            title="Ignore entity"
                         >
-                            Ignore
+                            🚫 Ignore
                         </button>
                         {% else %}
                         <span style="color: #999; font-size: 12px;">No actions available</span>
@@ -454,5 +461,172 @@
         </div>
         {% endif %}
     </div>
+
+    <!-- Link to Existing Mapping Drawer -->
+    <div id="linkDrawer" class="drawer-overlay">
+        <div class="drawer-container">
+            <div class="drawer-header">
+                <h2>🔗 Link to Existing Mapping</h2>
+                <p>Find and link this unmapped entity to an existing mapping</p>
+            </div>
+            <div class="drawer-body">
+                <!-- Unmapped Entity Details -->
+                <div id="unmappedDetails" class="entity-details">
+                    <!-- Populated by JavaScript -->
+                </div>
+
+                <!-- Search Box -->
+                <div class="form-group">
+                    <label for="mappingSearch">Search existing mappings</label>
+                    <input 
+                        type="text" 
+                        id="mappingSearch" 
+                        placeholder="Search by name, code, region..."
+                        autocomplete="off"
+                    >
+                </div>
+
+                <!-- Suggested Matches -->
+                <div class="search-results">
+                    <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">💡 Suggested Matches</h4>
+                    <div id="suggestedMatches">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Search Results -->
+                <div id="searchResults" class="search-results" style="margin-top: 20px;">
+                    <!-- Populated by JavaScript on search -->
+                </div>
+            </div>
+            <div class="drawer-footer">
+                <button type="button" class="btn btn-secondary" onclick="window.adminUnmapped.closeDrawer()">
+                    Cancel
+                </button>
+                <button 
+                    type="button" 
+                    id="confirmLinkBtn"
+                    class="btn btn-primary" 
+                    onclick="window.adminUnmapped.confirmLink()"
+                    disabled
+                >
+                    Confirm Link
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create from Unmapped Modal -->
+    <div id="createFromUnmappedModal" class="modal-overlay">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2>➕ Create Mapping & Resolve</h2>
+                <button class="modal-close" onclick="window.adminUnmapped.closeModal()">&times;</button>
+            </div>
+            <form id="createFromUnmappedForm" onsubmit="window.adminUnmapped.submitCreateFromUnmapped(event)">
+                <div class="modal-body">
+                    <!-- Info Box -->
+                    <div style="background: #e3f2fd; border: 1px solid #90caf9; border-radius: 6px; padding: 12px; margin-bottom: 20px;">
+                        <p style="font-size: 13px; color: #1565c0; margin: 0;">
+                            ✨ Creating a new mapping will automatically resolve this unmapped entity
+                        </p>
+                        <p id="resolutionPreview" style="font-size: 12px; color: #1976d2; margin: 8px 0 0 0; font-weight: 500;">
+                            <!-- Populated by JavaScript -->
+                        </p>
+                    </div>
+
+                    <!-- Entity Type (Read-only) -->
+                    <div class="form-group">
+                        <label>Entity Type</label>
+                        <div style="padding: 10px 12px; background: #f5f5f5; border-radius: 6px; font-weight: 500; color: #666;">
+                            <span id="cfu_entity_type_display"><!-- Populated by JS --></span>
+                        </div>
+                        <input type="hidden" id="cfu_entity" name="cfu_entity">
+                    </div>
+
+                    <!-- Customer Fields (Pre-filled, read-only) -->
+                    <div id="cfuCustomerFields" style="display: none;">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="cfu_customer_code">Customer Code</label>
+                                <input type="number" id="cfu_customer_code" name="cfu_customer_code" readonly style="background: #f5f5f5;">
+                                <span class="help-text">Pre-filled from unmapped entity</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="cfu_customer_name">Customer Name</label>
+                                <input type="text" id="cfu_customer_name" name="cfu_customer_name" readonly style="background: #f5f5f5;">
+                                <span class="help-text">Pre-filled from unmapped entity</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Employee Fields (Pre-filled, read-only) -->
+                    <div id="cfuEmployeeFields" style="display: none;">
+                        <div class="form-group">
+                            <label for="cfu_sales_employee">Sales Employee</label>
+                            <input type="text" id="cfu_sales_employee" name="cfu_sales_employee" readonly style="background: #f5f5f5;">
+                            <span class="help-text">Pre-filled from unmapped entity</span>
+                        </div>
+                    </div>
+
+                    <!-- Editable Mapping Fields -->
+                    <div style="background: #fff9e6; border: 1px solid #ffecb3; border-radius: 6px; padding: 12px; margin: 20px 0 12px 0;">
+                        <p style="font-size: 13px; color: #f57c00; margin: 0; font-weight: 500;">
+                            📝 Complete the mapping details below
+                        </p>
+                    </div>
+
+                    <!-- Region & Sub-Region -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="cfu_region">Region <span class="required">*</span></label>
+                            <select id="cfu_region" name="cfu_region" required>
+                                <option value="">Select region...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="cfu_sub_region">Sub-Region</label>
+                            <input type="text" id="cfu_sub_region" name="cfu_sub_region" placeholder="Optional">
+                        </div>
+                    </div>
+
+                    <!-- Market Group & Channel Level -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="cfu_market_group">Market Group <span class="required">*</span></label>
+                            <select id="cfu_market_group" name="cfu_market_group" required>
+                                <option value="">Select market group...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="cfu_channel_level">Channel Level <span class="required">*</span></label>
+                            <select id="cfu_channel_level" name="cfu_channel_level" required>
+                                <option value="">Select channel level...</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Company Group -->
+                    <div class="form-group">
+                        <label for="cfu_company_group">Company Group</label>
+                        <input type="text" id="cfu_company_group" name="cfu_company_group" placeholder="Optional">
+                    </div>
+
+                    <input type="hidden" name="cfu_user_email" value="admin@qmsmedicosmetics.com">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="window.adminUnmapped.closeModal()">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        🎉 Create & Resolve
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="/static/js/admin_unmapped.js"></script>
 </body>
 </html>

@@ -35,6 +35,15 @@
             <a href="/usaspa" class="nav-drawer-item {% if view == 'usaspa' %}nav-drawer-item--active{% endif %}">
                 <img src="/static/images/us_flag.png" class="nav-drawer-flag" alt="USA Spa" /> USA Spa
             </a>
+            
+            <div style="border-top: 1px solid #e0e0e0; margin: 15px 0;"></div>
+            
+            <a href="/admin/mappings" class="nav-drawer-item" style="color: #0066cc;">
+                <span style="font-size: 20px; margin-right: 8px;">⚙️</span> Admin: Entity Mappings
+            </a>
+            <a href="/admin/unmapped" class="nav-drawer-item" style="color: #ff9800;">
+                <span style="font-size: 20px; margin-right: 8px;">⚠️</span> Admin: Unmapped Entities
+            </a>
         </nav>
         <div class="nav-drawer-footer">
             <span class="nav-drawer-current">Current view: <strong>{% if view == 'management' %}Management{% elif view == 'coremarkets' %}Core Markets{% else %}USA Spa{% endif %}</strong></span>

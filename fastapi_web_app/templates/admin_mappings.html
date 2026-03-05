@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Entity Mappings - Admin</title>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    <!-- External CSS -->
+    <link rel="stylesheet" href="/static/css/admin.css">
+    
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -279,7 +283,7 @@
                     Employees
                 </button>
             </div>
-            <button class="btn-primary" onclick="alert('Create new mapping - coming soon!')">
+            <button class="btn-primary" onclick="window.adminMappings.openCreateModal()">
                 + New Mapping
             </button>
         </div>
@@ -310,7 +314,7 @@
             </thead>
             <tbody>
                 {% for mapping in mappings %}
-                <tr>
+                <tr data-mapping-id="{{ mapping.id }}">
                     <td>
                         <strong>{{ mapping.customer_name or mapping.sales_employee or '—' }}</strong>
                         {% if mapping.customer_name and mapping.sales_employee %}
@@ -327,9 +331,20 @@
                     <td class="actions">
                         <button 
                             class="btn-sm"
-                            onclick="alert('Edit mapping ID {{ mapping.id }} - coming soon!')"
+                            onclick="window.adminMappings.openEditModal({{ mapping.id }})"
+                            title="Edit mapping"
                         >
-                            Edit
+                            ✏️ Edit
+                        </button>
+                        <button 
+                            class="btn-sm"
+                            data-mapping-id="{{ mapping.id }}"
+                            data-entity-name="{{ mapping.customer_name or mapping.sales_employee or 'Mapping' }}"
+                            onclick="window.adminMappings.confirmDeleteMapping(this.dataset.mappingId, this.dataset.entityName)"
+                            title="Delete mapping"
+                            style="color: #d32f2f;"
+                        >
+                            🗑️ Delete
                         </button>
                     </td>
                 </tr>
@@ -371,5 +386,201 @@
         </div>
         {% endif %}
     </div>
+
+    <!-- Create Mapping Modal -->
+    <div id="createModal" class="modal-overlay">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2>➕ Create New Mapping</h2>
+                <button class="modal-close" onclick="window.adminMappings.closeModal()">&times;</button>
+            </div>
+            <form id="createMappingForm" onsubmit="window.adminMappings.submitCreateMapping(event)">
+                <div class="modal-body">
+                    <!-- Entity Type -->
+                    <div class="form-group">
+                        <label for="entity">Entity Type <span class="required">*</span></label>
+                        <select id="entity" name="entity" required>
+                            <option value="">Select entity type...</option>
+                            <option value="Customer">Customer</option>
+                            <option value="Employee">Employee</option>
+                        </select>
+                        <span class="error-text">Entity type is required</span>
+                    </div>
+
+                    <!-- Customer Fields -->
+                    <div id="customerFields" style="display: none;">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="customer_code">Customer Code</label>
+                                <input type="number" id="customer_code" name="customer_code" placeholder="e.g., 12345">
+                                <span class="error-text">Invalid customer code</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="customer_name">Customer Name</label>
+                                <input type="text" id="customer_name" name="customer_name" placeholder="e.g., Harrods">
+                                <span class="error-text">Customer name is required</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Employee Fields -->
+                    <div id="employeeFields" style="display: none;">
+                        <div class="form-group">
+                            <label for="sales_employee">Sales Employee</label>
+                            <input type="text" id="sales_employee" name="sales_employee" placeholder="e.g., John Smith">
+                            <span class="error-text">Sales employee is required</span>
+                        </div>
+                    </div>
+
+                    <div class="help-text" style="font-size: 12px; color: #666; margin-bottom: 16px;">
+                        At least one identifier (Customer Code, Name, or Employee) is required
+                    </div>
+
+                    <!-- Region & Sub-Region -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="region">Region <span class="required">*</span></label>
+                            <select id="region" name="region" required>
+                                <option value="">Select region...</option>
+                            </select>
+                            <span class="error-text">Region is required</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="sub_region">Sub-Region</label>
+                            <input type="text" id="sub_region" name="sub_region" placeholder="Optional">
+                        </div>
+                    </div>
+
+                    <!-- Market Group & Channel Level -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="market_group">Market Group <span class="required">*</span></label>
+                            <select id="market_group" name="market_group" required>
+                                <option value="">Select market group...</option>
+                            </select>
+                            <span class="error-text">Market group is required</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="channel_level">Channel Level <span class="required">*</span></label>
+                            <select id="channel_level" name="channel_level" required>
+                                <option value="">Select channel level...</option>
+                            </select>
+                            <span class="error-text">Channel level is required</span>
+                        </div>
+                    </div>
+
+                    <!-- Company Group -->
+                    <div class="form-group">
+                        <label for="company_group">Company Group</label>
+                        <input type="text" id="company_group" name="company_group" placeholder="Optional">
+                    </div>
+
+                    <!-- Hidden field for user email (will be populated by backend) -->
+                    <input type="hidden" name="user_email" value="admin@qmsmedicosmetics.com">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="window.adminMappings.closeModal()">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        Create Mapping
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Mapping Modal -->
+    <div id="editModal" class="modal-overlay">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2>✏️ Edit Mapping</h2>
+                <button class="modal-close" onclick="window.adminMappings.closeModal()">&times;</button>
+            </div>
+            <form id="editMappingForm" onsubmit="window.adminMappings.submitEditMapping(event)">
+                <div class="modal-body">
+                    <!-- Changes Summary (hidden until changes are detected) -->
+                    <div id="changesSummary" class="changes-summary" style="display: none;">
+                        <h4>📝 Changes Detected</h4>
+                        <div id="changesList"></div>
+                    </div>
+
+                    <!-- Entity Type (Read-only for edit) -->
+                    <div class="form-group">
+                        <label for="edit_entity">Entity Type</label>
+                        <select id="edit_entity" name="edit_entity" disabled>
+                            <option value="Customer">Customer</option>
+                            <option value="Employee">Employee</option>
+                        </select>
+                        <span class="help-text">Entity type cannot be changed</span>
+                    </div>
+
+                    <!-- Customer/Employee Fields -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="edit_customer_code">Customer Code</label>
+                            <input type="number" id="edit_customer_code" name="edit_customer_code">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_customer_name">Customer Name</label>
+                            <input type="text" id="edit_customer_name" name="edit_customer_name">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="edit_sales_employee">Sales Employee</label>
+                        <input type="text" id="edit_sales_employee" name="edit_sales_employee">
+                    </div>
+
+                    <!-- Region & Sub-Region -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="edit_region">Region <span class="required">*</span></label>
+                            <select id="edit_region" name="edit_region" required>
+                                <option value="">Select region...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_sub_region">Sub-Region</label>
+                            <input type="text" id="edit_sub_region" name="edit_sub_region">
+                        </div>
+                    </div>
+
+                    <!-- Market Group & Channel Level -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="edit_market_group">Market Group <span class="required">*</span></label>
+                            <select id="edit_market_group" name="edit_market_group" required>
+                                <option value="">Select market group...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_channel_level">Channel Level <span class="required">*</span></label>
+                            <select id="edit_channel_level" name="edit_channel_level" required>
+                                <option value="">Select channel level...</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Company Group -->
+                    <div class="form-group">
+                        <label for="edit_company_group">Company Group</label>
+                        <input type="text" id="edit_company_group" name="edit_company_group">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="window.adminMappings.closeModal()">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="/static/js/admin_mappings.js"></script>
 </body>
 </html>
