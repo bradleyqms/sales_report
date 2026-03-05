@@ -1,11 +1,11 @@
 # Admin UI - Full CRUD Functionality Roadmap
 
-**Phase 4 Enhancement Plan**  
-Implementation of complete Create, Read, Update, Delete functionality for Entity Mappings and Unmapped Entity Resolution.
+**Reference Document for DNR-58 and Beyond**  
+Comprehensive plan for interactive CRUD implementation across multiple tickets.
 
 ---
 
-## Current Status (✅ Completed)
+## DNR-57: Foundation (✅ COMPLETED - 2026-03-05)
 
 ### Backend API (admin_routes.py)
 - ✅ GET /admin/mappings - Paginated grid view with search/filters
@@ -20,10 +20,31 @@ Implementation of complete Create, Read, Update, Delete functionality for Entity
 - ✅ GET /api/mappings/search - Autocomplete search
 - ✅ GET /api/reference/* - Dropdown data (regions, markets, channels)
 
-### Frontend Templates
-- ✅ admin_mappings.html - Read-only grid with search/filters/pagination
-- ✅ admin_unmapped.html - Read-only queue with basic action buttons
-- ⚠️ No edit/create/delete UI implemented yet
+### Frontend Templates (Read-Only)
+- ✅ admin_mappings.html - Grid with search/filters/pagination
+- ✅ admin_unmapped.html - Queue with stats and placeholders
+- ✅ Azure SQL Database with 246 entity mappings
+- ✅ Azure AD authentication working
+- ✅ Audit logging infrastructure in place
+
+**See**: [DNR-57-COMPLETE.md](./.ai/features/DNR-57-COMPLETE.md) for full details
+
+---
+
+## DNR-58: Interactive CRUD (🎯 NEXT - Sprint 1-2)
+
+**Status**: Ready to start  
+**Effort**: 18-23 hours over 2 weeks  
+**Priority**: HIGH  
+
+**Tasks Included**:
+- ✏️ Task 1: Create Mapping Modal (3-4h)
+- ✏️ Task 2: Edit Mapping (4-5h)
+- ✏️ Task 3: Delete Mapping (2-3h)
+- ✏️ Task 4: Link Existing (Unmapped) (5-6h)
+- ✏️ Task 5: Create from Unmapped (4-5h)
+
+**See**: [DNR-58.md](./.ai/features/DNR-58.md) for acceptance criteria and implementation plan
 
 ---
 
@@ -179,7 +200,12 @@ Implementation of complete Create, Read, Update, Delete functionality for Entity
 
 ---
 
-### **Task 6: Advanced Search and Filtering** (Priority: MEDIUM)
+## Future Enhancements (DNR-59 through DNR-63)
+
+The following tasks from the original roadmap have been split into separate tickets for future sprints:
+
+### **Task 6: Advanced Search and Filtering** → DNR-59
+**Priority**: MEDIUM | **Effort**: 3-4 hours
 **Goal**: Enhanced search capabilities for power users
 
 **Frontend Changes**:
@@ -214,7 +240,8 @@ Implementation of complete Create, Read, Update, Delete functionality for Entity
 
 ---
 
-### **Task 7: Bulk Operations** (Priority: LOW)
+### **Task 7: Bulk Operations** → DNR-60
+**Priority**: LOW | **Effort**: 4-5 hours
 **Goal**: Allow batch actions on multiple entities
 
 **Frontend Changes**:
@@ -242,7 +269,8 @@ Implementation of complete Create, Read, Update, Delete functionality for Entity
 
 ---
 
-### **Task 8: Audit Trail and History Panel** (Priority: MEDIUM)
+### **Task 8: Audit Trail and History Panel** → DNR-61
+**Priority**: MEDIUM | **Effort**: 3-4 hours
 **Goal**: Show change history for compliance and debugging
 
 **Frontend Changes**:
@@ -268,7 +296,8 @@ Implementation of complete Create, Read, Update, Delete functionality for Entity
 
 ---
 
-### **Task 9: Impact Preview** (Priority: LOW)
+### **Task 9: Impact Preview** → DNR-62
+**Priority**: LOW | **Effort**: 5-6 hours
 **Goal**: Show how changes will affect reports before committing
 
 **Frontend Changes**:
@@ -293,7 +322,8 @@ Implementation of complete Create, Read, Update, Delete functionality for Entity
 
 ---
 
-### **Task 10: Keyboard Shortcuts and Accessibility** (Priority: LOW)
+### **Task 10: Keyboard Shortcuts and Accessibility** → DNR-63
+**Priority**: LOW | **Effort**: 4-5 hours
 **Goal**: Power user enhancements and WCAG 2.1 compliance
 
 **Frontend Changes**:
@@ -322,57 +352,66 @@ Implementation of complete Create, Read, Update, Delete functionality for Entity
 
 ## 📊 Implementation Priority Matrix
 
-| Task | Priority | Complexity | User Value | Time Est. |
-|------|----------|------------|------------|-----------|
-| Task 1: Create Mapping Modal | **HIGH** | Medium | Very High | 3-4h |
-| Task 2: Edit Mapping | **HIGH** | Medium-High | Very High | 4-5h |
-| Task 4: Link Existing (Unmapped) | **HIGH** | High | Very High | 5-6h |
-| Task 5: Create from Unmapped | **HIGH** | High | Very High | 4-5h |
-| Task 3: Delete Mapping | MEDIUM | Low | High | 2-3h |
-| Task 6: Advanced Filters | MEDIUM | Medium | High | 3-4h |
-| Task 8: Audit Trail | MEDIUM | Medium | Medium | 3-4h |
-| Task 7: Bulk Operations | LOW | Medium | Medium | 4-5h |
-| Task 9: Impact Preview | LOW | High | Medium | 5-6h |
-| Task 10: Keyboard Shortcuts | LOW | Medium | Low | 4-5h |
+**DNR-58 Tasks (Sprint 1-2)**: See [DNR-58.md](./.ai/features/DNR-58.md)
+- ✏️ Task 1: Create Mapping Modal - **HIGH** Priority - 3-4h
+- ✏️ Task 2: Edit Mapping - **HIGH** Priority - 4-5h
+- ✏️ Task 3: Delete Mapping - MEDIUM Priority - 2-3h
+- ✏️ Task 4: Link Existing (Unmapped) - **HIGH** Priority - 5-6h
+- ✏️ Task 5: Create from Unmapped - **HIGH** Priority - 4-5h
 
-**Total Estimated Time**: 38-51 hours
+**DNR-58 Total**: 18-23 hours
 
 ---
 
-## 🚀 Recommended Implementation Phases
+**Future Tickets Matrix**:
 
-### **Sprint 1: Core CRUD (Week 1)** - ~18 hours
-1. Task 1: Create Mapping Modal
-2. Task 2: Edit Mapping
-3. Task 3: Delete Mapping
-4. Testing & bug fixes
+| Task | Ticket | Priority | Complexity | User Value | Time Est. |
+|------|--------|----------|------------|------------|-----------|
+| Task 6: Advanced Filters | DNR-59 | MEDIUM | Medium | High | 3-4h |
+| Task 8: Audit Trail | DNR-61 | MEDIUM | Medium | Medium | 3-4h |
+| Task 7: Bulk Operations | DNR-60 | LOW | Medium | Medium | 4-5h |
+| Task 9: Impact Preview | DNR-62 | LOW | High | Medium | 5-6h |
+| Task 10: Keyboard Shortcuts | DNR-63 | LOW | Medium | Low | 4-5h |
+
+**Future Tickets Total**: 20-28 hours
+
+---
+
+## 🚀 Implementation Timeline
+
+### **DNR-58: Interactive CRUD (Current Priority)**
+
+**Sprint 1 (Week 1): Core CRUD** - ~10 hours
+1. Task 1: Create Mapping Modal (3-4h)
+2. Task 3: Delete Mapping (2-3h)
+3. Task 2: Edit Mapping (4-5h)
 
 **Deliverable**: Full CRUD for entity mappings
 
 ---
 
-### **Sprint 2: Unmapped Resolution (Week 2)** - ~10 hours
-1. Task 4: Link Existing workflow
-2. Task 5: Create from Unmapped workflow
-3. Testing & bug fixes
+**Sprint 2 (Week 2): Unmapped Resolution** - ~10 hours
+1. Task 4: Link Existing workflow (5-6h)
+2. Task 5: Create from Unmapped (4-5h)
 
 **Deliverable**: Complete unmapped entity resolution UI
 
 ---
 
-### **Sprint 3: Power User Features (Week 3)** - ~7 hours
-1. Task 6: Advanced Search/Filters
-2. Task 8: Audit Trail panel
-3. Testing & polish
+### **Future Enhancements (DNR-59+)**
+
+**Sprint 3 (Optional): Power User Features** - ~7 hours
+1. DNR-59: Advanced Search/Filters (3-4h)
+2. DNR-61: Audit Trail panel (3-4h)
 
 **Deliverable**: Enhanced usability for frequent users
 
 ---
 
-### **Sprint 4: Advanced Features (Optional)** - ~15 hours
-1. Task 7: Bulk Operations
-2. Task 9: Impact Preview
-3. Task 10: Keyboard Shortcuts
+**Sprint 4 (Optional): Advanced Features** - ~15 hours
+1. DNR-60: Bulk Operations (4-5h)
+2. DNR-62: Impact Preview (5-6h)
+3. DNR-63: Keyboard Shortcuts (4-5h)
 
 **Deliverable**: Production-ready enterprise UI
 
@@ -454,32 +493,60 @@ fastapi_web_app/
 
 ---
 
-## 📋 Next Steps
+## 📋 Current Status & Next Steps
 
-**Immediate Actions** (for Sprint 1 kickoff):
+**DNR-57 Status**: ✅ CLOSED (2026-03-05)
+- Database infrastructure complete
+- Backend API complete (15 endpoints)
+- Read-only Admin UI templates complete
+- See [DNR-57-COMPLETE.md](./.ai/features/DNR-57-COMPLETE.md)
+
+**DNR-58 Status**: 🎯 READY TO START
+- All prerequisites met
+- Detailed acceptance criteria defined
+- File structure planned
+- See [DNR-58.md](./.ai/features/DNR-58.md)
+
+**Immediate Actions** (for DNR-58 Sprint 1 kickoff):
 1. Create `static/css/admin.css` stylesheet
 2. Create `static/js/admin_mappings.js` with modal framework
-3. Add SweetAlert2 for modals (or build custom)
+3. Add SweetAlert2 CDN or build custom modal
 4. Wire up "+ New Mapping" button to open create modal
-5. Implement form submission to POST /api/mappings
+5. Implement form submission handler for POST /api/mappings
 6. Test create workflow end-to-end
 
-**Questions to Resolve**:
-- [ ] Should we use a modal library (SweetAlert2) or build custom?
-- [ ] Inline editing vs. modal editing for updates?
-- [ ] Hard delete vs. soft delete only?
-- [ ] Authentication: When to implement Azure AD for admin routes?
-- [ ] Do we need approval workflow (require manager approval for mapping changes)?
+**Questions Resolved**:
+- ✅ Modal library: SweetAlert2 recommended (or custom HTML/CSS)
+- ✅ Edit approach: Modal (not inline) for consistency
+- ✅ Delete type: Soft delete only (is_active=False)
+- ❌ Authentication: Deferred to DNR-64 (later sprint)
+- ❌ Approval workflow: Not needed initially
 
 ---
 
-## 🔗 Related Documentation
-- [Phase 1-3 Implementation](../docs/DNR-57-progress.md)
-- [Backend API Reference](./admin_routes.py) - Line 1-587
-- [Database Models](../src/models.py) - EntityMapping, UnmappedLog, AuditLog
+## 🔗 Related Documentation & Tickets
+
+**Completed**:
+- [DNR-57-COMPLETE.md](./.ai/features/DNR-57-COMPLETE.md) - Phase 1-4 summary
+
+**Current Work**:
+- [DNR-58.md](./.ai/features/DNR-58.md) - Interactive CRUD implementation
+
+**Future Work**:
+- DNR-59: Advanced Search & Filtering
+- DNR-60: Bulk Operations
+- DNR-61: Audit Trail History Panel
+- DNR-62: Impact Preview
+- DNR-63: Keyboard Shortcuts & Accessibility
+- DNR-64: Azure AD Authentication for Admin UI
+
+**Code References**:
+- Backend: [admin_routes.py](./admin_routes.py) - Lines 1-587
+- Models: [src/models.py](../src/models.py) - EntityMapping, UnmappedLog, AuditLog
+- Database: [src/database.py](../src/database.py) - Azure AD connection
 
 ---
 
-**Last Updated**: 2026-03-05  
+**Document Updated**: 2026-03-05  
 **Author**: GitHub Copilot  
-**Status**: Planning Phase - Ready for Sprint 1 kickoff
+**Status**: DNR-57 Complete | DNR-58 Ready | Roadmap Active
