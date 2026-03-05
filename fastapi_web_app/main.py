@@ -24,6 +24,7 @@ import csv
 import glob
 import logging
 import json
+import sys
 from pathlib import Path
 from datetime import datetime
 import asyncio
@@ -35,6 +36,12 @@ logging.basicConfig(level=logging.INFO)
 
 # Get the directory where main.py is located
 BASE_DIR = Path(__file__).resolve().parent
+
+# Ensure project root (parent of fastapi_web_app/) is on the path so that
+# `from src.xxx import ...` works regardless of how uvicorn is launched.
+_PROJECT_ROOT = str(BASE_DIR.parent)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
 
 # ── Lifespan: startup tasks (replaces @app.on_event) ──────────────────────────
 
