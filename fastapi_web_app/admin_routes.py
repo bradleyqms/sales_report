@@ -369,18 +369,28 @@ async def get_unmapped(unmapped_id: int):
         if not unmapped:
             raise HTTPException(status_code=404, detail="Unmapped entity not found")
         
-        return {
+        # Map entity_name to customer_name or sales_employee based on entity_type
+        result = {
             "id": unmapped.id,
             "entity_name": unmapped.entity_name,
+            "entity_type": unmapped.entity_type,
             "customer_code": unmapped.customer_code,
-            "customer_name": unmapped.customer_name,
-            "sales_employee": unmapped.sales_employee,
             "count": unmapped.count,
             "total_ar_value_keur": float(unmapped.total_ar_value_keur) if unmapped.total_ar_value_keur else 0,
             "status": unmapped.status,
             "last_seen": unmapped.last_seen.isoformat() if unmapped.last_seen else None,
             "first_seen": unmapped.first_seen.isoformat() if unmapped.first_seen else None
         }
+        
+        # Add entity-specific fields based on type
+        if unmapped.entity_type == 'customer':
+            result["customer_name"] = unmapped.entity_name
+            result["sales_employee"] = None
+        else:  # employee
+            result["customer_name"] = None
+            result["sales_employee"] = unmapped.entity_name
+        
+        return result
     finally:
         session.close()
 
@@ -543,8 +553,8 @@ async def create_mapping_and_resolve(
 @router.get("/api/mappings/search")
 async def search_mappings(q: str = Query(..., min_length=2)):
     """
-    Search for mappings by entity name (for dropdown autocomplete).
-    Returns simplified results for quick selection.
+    Search for mappings by entity name (for link workflow and autocomplete).
+    Returns full mapping data for suggestion matching.
     """
     session = SessionLocal()
     try:
@@ -559,16 +569,20 @@ async def search_mappings(q: str = Query(..., min_length=2)):
         
         results = []
         for m in mappings:
-            entity_name = m.customer_name or m.sales_employee
             results.append({
                 "id": m.id,
-                "entity_name": entity_name,
+                "customer_code": m.customer_code,
+                "customer_name": m.customer_name,
+                "sales_employee": m.sales_employee,
+                "entity": m.entity,
                 "region": m.region,
+                "sub_region": m.sub_region,
                 "market_group": m.market_group,
-                "label": f"{entity_name} → {m.region}/{m.market_group}"
+                "channel_level": m.channel_level,
+                "company_group": m.company_group
             })
         
-        return {"results": results}
+        return {"mappings": results}
         
     finally:
         session.close()
