@@ -14,11 +14,17 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from typing import Generator
 
 try:
-    from azure.identity import DefaultAzureCredential, ManagedIdentityCredential
+    from azure.identity import AzureCliCredential, ManagedIdentityCredential
 except ImportError:
     raise ImportError(
         "azure-identity package is required. Install with: pip install azure-identity"
     )
+
+# Local dev: ensure az CLI is on PATH regardless of which terminal launched the server.
+# On Azure App Service, AZURE_CLIENT_ID is set so this block is skipped entirely.
+_AZ_CLI_DIR = r"C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin"
+if not os.getenv("AZURE_CLIENT_ID") and _AZ_CLI_DIR not in os.environ.get("PATH", ""):
+    os.environ["PATH"] = _AZ_CLI_DIR + os.pathsep + os.environ.get("PATH", "")
 
 # SQL Server access token constant (not always available as pyodbc.SQL_COPT_SS_ACCESS_TOKEN)
 SQL_COPT_SS_ACCESS_TOKEN = 1256  # ODBC constant for Azure AD access token
@@ -51,12 +57,10 @@ def get_azure_sql_token() -> bytes:
             print("[Database] Using Managed Identity for authentication")
             credential = ManagedIdentityCredential()
         else:
-            # Local development: Use DefaultAzureCredential (Azure CLI, VS Code, etc.)
-            # exclude_interactive_browser_credential=True so a stale CLI token raises an
-            # error immediately instead of opening a browser and hanging startup.
-            # If you see a token error, run: az login
-            print("[Database] Using DefaultAzureCredential (Azure CLI/VS Code)")
-            credential = DefaultAzureCredential(exclude_interactive_browser_credential=True)
+            # Local development: use AzureCliCredential directly — explicit, fast,
+            # no credential-chain guessing.  If this fails, run: az login
+            print("[Database] Using AzureCliCredential (local dev)")
+            credential = AzureCliCredential()
         
         # Get token for Azure SQL Database
         token = credential.get_token("https://database.windows.net/.default")
