@@ -70,6 +70,171 @@ def load_mappings_from_db():
         logging.error(f"❌ Failed to load mappings from database: {e}")
         raise
 
+def persist_unmapped_entities(unmapped_entities, run_timestamp=None, use_database=False):
+    """
+    Persist unmapped entity statistics to the database.
+    
+    Args:
+        unmapped_entities: Dict of {(entity_type, entity_name): stats} from collect_unmapped_stats
+        run_timestamp: Optional run identifier (defaults to current timestamp)
+        use_database: If True, persist to database; if False, skip persistence
+        
+    Returns:
+        int: Number of unmapped entities persisted
+    """
+    if not use_database:
+        return 0
+    
+    if not unmapped_entities:
+        logging.info("No unmapped entities to persist")
+        return 0
+    
+    try:
+        from .database import engine
+        from .models import UnmappedLog
+        from sqlalchemy.orm import sessionmaker
+        from sqlalchemy import and_
+        
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        
+        if run_timestamp is None:
+            run_timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        persisted_count = 0
+        updated_count = 0
+        
+        try:
+            for (entity_type, entity_name), data in unmapped_entities.items():
+                # Parse dates
+                dates = []
+                if data.get('dates'):
+                    for d in data['dates']:
+                        if isinstance(d, str):
+                            try:
+                                parsed = pd.to_datetime(d)
+                                # Make timezone-aware if not already
+                                if parsed.tzinfo is None:
+                                    parsed = parsed.tz_localize('UTC')
+                                dates.append(parsed)
+                            except:
+                                pass
+                        elif isinstance(d, (pd.Timestamp, datetime.datetime)):
+                            ts = pd.Timestamp(d)
+                            # Make timezone-aware if not already
+                            if ts.tzinfo is None:
+                                ts = ts.tz_localize('UTC')
+                            dates.append(ts)
+                
+                first_seen = min(dates) if dates else None
+                last_seen = max(dates) if dates else None
+                
+                # Calculate total AR value
+                total_ar_value = 0.0
+                if data.get('values'):
+                    try:
+                        total_value = sum([float(v) for v in data['values'] if pd.notna(v)])
+                        total_ar_value = round(total_value / 1000, 2) if total_value > 100 else round(total_value, 2)
+                    except Exception:
+                        total_ar_value = 0.0
+                
+                # Get unique source files
+                sap_extract_files = None
+                if data.get('sources'):
+                    unique_sources = list(set([s for s in data['sources'] if s and s not in ['nan', 'None', '']]))
+                    if unique_sources:
+                        sap_extract_files = '; '.join(sorted(unique_sources))
+                
+                # Get customer code
+                customer_code = None
+                if data.get('customer_codes'):
+                    unique_codes = list(set([c for c in data['customer_codes'] if c and c not in ['nan', 'None', '']]))
+                    if unique_codes:
+                        customer_code = '; '.join(sorted(unique_codes))
+                
+                # Check if this entity already exists in pending state
+                existing = session.query(UnmappedLog).filter(
+                    and_(
+                        UnmappedLog.entity_type == entity_type,
+                        UnmappedLog.entity_name == entity_name,
+                        UnmappedLog.status == 'pending'
+                    )
+                ).first()
+                
+                if existing:
+                    # Update existing record
+                    existing.count += data['count']
+                    
+                    # Handle timezone-aware date comparisons
+                    if first_seen:
+                        if not existing.first_seen:
+                            existing.first_seen = first_seen
+                        else:
+                            # Ensure both are timezone-aware for comparison
+                            existing_first = existing.first_seen
+                            if existing_first.tzinfo is None:
+                                existing_first = existing_first.replace(tzinfo=datetime.timezone.utc)
+                            if first_seen < existing_first:
+                                existing.first_seen = first_seen
+                    
+                    if last_seen:
+                        if not existing.last_seen:
+                            existing.last_seen = last_seen
+                        else:
+                            # Ensure both are timezone-aware for comparison
+                            existing_last = existing.last_seen
+                            if existing_last.tzinfo is None:
+                                existing_last = existing_last.replace(tzinfo=datetime.timezone.utc)
+                            if last_seen > existing_last:
+                                existing.last_seen = last_seen
+                    
+                    existing.total_ar_value_keur += total_ar_value
+                    existing.run_timestamp = run_timestamp
+                    if sap_extract_files:
+                        # Merge source files
+                        if existing.sap_extract_files:
+                            combined = set(existing.sap_extract_files.split('; ')) | set(sap_extract_files.split('; '))
+                            existing.sap_extract_files = '; '.join(sorted(combined))
+                        else:
+                            existing.sap_extract_files = sap_extract_files
+                    updated_count += 1
+                else:
+                    # Create new record
+                    unmapped_log = UnmappedLog(
+                        entity_type=entity_type,
+                        entity_name=entity_name,
+                        customer_code=customer_code,
+                        count=data['count'],
+                        first_seen=first_seen,
+                        last_seen=last_seen,
+                        total_ar_value_keur=total_ar_value,
+                        sap_extract_files=sap_extract_files,
+                        status='pending',
+                        run_timestamp=run_timestamp
+                    )
+                    session.add(unmapped_log)
+                    persisted_count += 1
+            
+            session.commit()
+            
+            total = persisted_count + updated_count
+            logging.info(f"✅ Persisted {total} unmapped entities to database ({persisted_count} new, {updated_count} updated)")
+            return total
+            
+        except Exception as e:
+            session.rollback()
+            logging.error(f"❌ Failed to persist unmapped entities: {e}")
+            raise
+        finally:
+            session.close()
+            
+    except ImportError:
+        logging.warning("⚠️  Database modules not available - skipping unmapped entity persistence")
+        return 0
+    except Exception as e:
+        logging.error(f"❌ Failed to persist unmapped entities: {e}")
+        return 0
+
 def collect_unmapped_stats(unmapped_df, entity_type, entity_col):
     """
     Vectorized collection of unmapped entity statistics.
@@ -129,7 +294,7 @@ def collect_unmapped_stats(unmapped_df, entity_type, entity_col):
     
     return result
 
-def apply_mappings(sales_df, mapping_df=None, output_dir=None, use_database=False):
+def apply_mappings(sales_df, mapping_df=None, output_dir=None, use_database=False, persist_to_db=False):
     """
     Applies entity mappings to the sales DataFrame.
     
@@ -139,6 +304,7 @@ def apply_mappings(sales_df, mapping_df=None, output_dir=None, use_database=Fals
         output_dir: Optional path to output directory for unmapped entities CSV.
                    If None, defaults to ../data/outputs relative to this file.
         use_database: If True, load mappings from database instead of using mapping_df
+        persist_to_db: If True, persist unmapped entities to database (in addition to CSV export)
     
     Returns:
         Mapped sales DataFrame
@@ -150,6 +316,8 @@ def apply_mappings(sales_df, mapping_df=None, output_dir=None, use_database=Fals
         - count: Number of records for this entity
         - first_seen: Earliest date in data
         - last_seen: Latest date in data
+        
+        If persist_to_db=True, also persists unmapped entities to UnmappedLog table
     """
     # Load mappings from database if requested
     if use_database:
@@ -289,6 +457,11 @@ def apply_mappings(sales_df, mapping_df=None, output_dir=None, use_database=Fals
     if 'Region' in sales_df.columns:
         sales_df['Region'] = sales_df['Region'].replace('eCommerce (excl. USA)', 'eCommerce EU (incl. UK)')
     
+    # Persist unmapped entities to database (if enabled)
+    if unmapped_entities and persist_to_db:
+        run_timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        persist_unmapped_entities(unmapped_entities, run_timestamp=run_timestamp, use_database=True)
+    
     # Export unmapped entities to CSV
     if unmapped_entities:
         if output_dir is None:
@@ -388,8 +561,8 @@ if __name__ == "__main__":
     # Try to use database first, fall back to CSV if database unavailable
     try:
         logging.info("Attempting to load mappings from database...")
-        mapped_df = apply_mappings(sales_df, use_database=True, output_dir=outputs_folder)
-        logging.info("✅ Successfully used database for entity mappings")
+        mapped_df = apply_mappings(sales_df, use_database=True, persist_to_db=True, output_dir=outputs_folder)
+        logging.info("✅ Successfully used database for entity mappings and unmapped entity tracking")
     except Exception as e:
         logging.warning(f"⚠️  Database unavailable, falling back to CSV: {e}")
         
