@@ -72,6 +72,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Sales Report Generator", lifespan=lifespan)
 
 # ── Auth middleware (runs once per request, populates request.state.user) ──────
+# ORDERING NOTE: FastAPI stacks middlewares — the LAST add_middleware call is
+# outermost (first to handle requests). AuthMiddleware should be added FIRST so
+# that any future CORS/GZip middleware added later becomes outermost and correct.
 try:
     from middleware import AuthMiddleware
     app.add_middleware(AuthMiddleware)

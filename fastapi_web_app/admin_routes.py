@@ -219,11 +219,9 @@ async def admin_unmapped_page(
 # ================================
 
 @router.get("/api/mappings/search")
-async def search_mappings(q: str = Query(..., min_length=2)):
-    """
-    Search for mappings by entity name (for link workflow and autocomplete).
-    Returns full mapping data for suggestion matching.
-    """
+async def search_mappings(request: Request, q: str = Query(..., min_length=2)):
+    assert_admin(request)
+    """Search for mappings by entity name (for link workflow and autocomplete)."""
     session = SessionLocal()
     try:
         search_term = f"%{q}%"
@@ -257,7 +255,8 @@ async def search_mappings(q: str = Query(..., min_length=2)):
 
 
 @router.get("/api/mappings/{mapping_id}")
-async def get_mapping(mapping_id: int):
+async def get_mapping(request: Request, mapping_id: int):
+    assert_admin(request)
     """Get a single mapping by ID."""
     session = SessionLocal()
     try:
@@ -462,7 +461,8 @@ async def delete_mapping(
 # ================================
 
 @router.get("/api/unmapped/{unmapped_id}")
-async def get_unmapped(unmapped_id: int):
+async def get_unmapped(request: Request, unmapped_id: int):
+    assert_admin(request)
     """Get a single unmapped entity by ID."""
     session = SessionLocal()
     try:
@@ -667,7 +667,8 @@ async def create_mapping_and_resolve(
 # ================================
 
 @router.get("/api/reference/regions")
-async def get_regions():
+async def get_regions(request: Request):
+    assert_admin(request)
     """Get list of unique regions for dropdown."""
     session = SessionLocal()
     try:
@@ -682,7 +683,8 @@ async def get_regions():
 
 
 @router.get("/api/reference/market-groups")
-async def get_market_groups():
+async def get_market_groups(request: Request):
+    assert_admin(request)
     """Get list of unique market groups for dropdown."""
     session = SessionLocal()
     try:
@@ -697,7 +699,8 @@ async def get_market_groups():
 
 
 @router.get("/api/reference/channel-levels")
-async def get_channel_levels():
+async def get_channel_levels(request: Request):
+    assert_admin(request)
     """Get list of unique channel levels for dropdown."""
     session = SessionLocal()
     try:
