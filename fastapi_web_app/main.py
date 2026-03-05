@@ -95,6 +95,19 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         return await forbidden_handler(request, exc)
     raise exc
 
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    import traceback
+    logging.error(
+        "💥 Unhandled exception on %s %s\n%s",
+        request.method, request.url.path,
+        traceback.format_exc(),
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc), "type": type(exc).__name__},
+    )
+
 # ── Route helpers ────────────────────────────────────────────────────────────
 try:
     from access import check_access, assert_admin  # noqa: F401
@@ -401,8 +414,11 @@ def _get_pending_unmapped_count() -> int:
 
 
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
+async def home(request: Request, background_tasks: BackgroundTasks):
     user = getattr(request.state, "user", None)
+    if user and user.email != "anonymous@unknown":
+        background_tasks.add_task(_bg_log_page_view, user.email, "/")
+        background_tasks.add_task(_bg_log_login, user.email)
     return templates.TemplateResponse("index.html", {
         "request": request,
         "view": "management",
@@ -537,6 +553,27 @@ def _bg_log_page_view(user_email: str, page_id: str) -> None:
             _sess.close()
     except Exception as _e:
         logging.warning("[telemetry] _bg_log_page_view failed: %s", _e)
+
+
+def _bg_log_login(user_email: str) -> None:
+    """Record a login event (fires once per home page visit)."""
+    try:
+        import sys as _sys
+        _sys.path.insert(0, str(BASE_DIR.parent))
+        from src.database import engine as _engine
+        from src.models import TelemetryLog as _TLog
+        _sess = sessionmaker(bind=_engine)()
+        try:
+            _sess.add(_TLog(
+                user_email=user_email.lower().strip(),
+                event_type="login",
+                page_id="/",
+            ))
+            _sess.commit()
+        finally:
+            _sess.close()
+    except Exception as _e:
+        logging.warning("[telemetry] _bg_log_login failed: %s", _e)
 
 
 def _bg_log_export(user_email: str, file_format: str, report_type: str) -> None:

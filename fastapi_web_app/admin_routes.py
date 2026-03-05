@@ -25,9 +25,10 @@ except Exception:
     def assert_admin(request): pass  # type: ignore
 
 try:
-    from telemetry import log_admin_click as _log_admin_click
+    from telemetry import log_admin_click as _log_admin_click, log_page_view as _log_page_view
 except Exception:
     def _log_admin_click(*a, **kw): pass  # type: ignore
+    def _log_page_view(*a, **kw): pass  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,18 @@ def _bg_admin_click(user_email: str, action: str, entity_id: int | None = None) 
             _sess.close()
     except Exception as _e:
         logger.warning("[telemetry] admin_click log failed: %s", _e)
+
+
+def _bg_log_page(user_email: str, page_id: str) -> None:
+    """Background wrapper for page_view telemetry in admin routes."""
+    try:
+        _sess = SessionLocal()
+        try:
+            _log_page_view(_sess, user_email, page_id)
+        finally:
+            _sess.close()
+    except Exception as _e:
+        logger.warning("[telemetry] page_view log failed: %s", _e)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -59,21 +72,21 @@ SessionLocal = sessionmaker(bind=engine)
 @router.get("/mappings", response_class=HTMLResponse)
 async def admin_mappings_page(
     request: Request,
+    background_tasks: BackgroundTasks,
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=10, le=500),
     search: Optional[str] = None,
     filter_by: Optional[str] = None
 ):
     assert_admin(request)
-    """
-    Main admin page for viewing and managing entity mappings.
-    Displays a searchable, filterable grid of all active mappings.
-    """
+    user = getattr(request.state, "user", None)
+    if user and user.email != "anonymous@unknown":
+        background_tasks.add_task(_bg_log_page, user.email, "/admin/mappings")
     session = SessionLocal()
     try:
         # Build query
         query = session.query(EntityMapping).filter_by(is_active=True)
-        
+
         # Apply search filter
         if search:
             search_term = f"%{search}%"
@@ -124,6 +137,7 @@ async def admin_mappings_page(
 @router.get("/unmapped", response_class=HTMLResponse)
 async def admin_unmapped_page(
     request: Request,
+    background_tasks: BackgroundTasks,
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=10, le=500),
     status: Optional[str] = "pending",
@@ -135,6 +149,9 @@ async def admin_unmapped_page(
     Shows entities that need mapping decisions.
     """
     assert_admin(request)
+    user = getattr(request.state, "user", None)
+    if user and user.email != "anonymous@unknown":
+        background_tasks.add_task(_bg_log_page, user.email, "/admin/unmapped")
     session = SessionLocal()
     try:
         # Build query
@@ -699,10 +716,12 @@ async def get_channel_levels():
 # ============================================================
 
 @router.get("/usage", response_class=HTMLResponse)
-async def admin_usage_page(request: Request):
+async def admin_usage_page(request: Request, background_tasks: BackgroundTasks):
     """Admin usage / telemetry Pulse dashboard (last 30 days)."""
     assert_admin(request)
     user = getattr(request.state, "user", None)
+    if user and user.email != "anonymous@unknown":
+        background_tasks.add_task(_bg_log_page, user.email, "/admin/usage")
 
     # Import permission sets for group labelling (already parsed at startup)
     try:
@@ -723,10 +742,17 @@ async def admin_usage_page(request: Request):
     try:
         cutoff = datetime.utcnow() - timedelta(days=30)
 
-        # ── Card 1: Active Users (distinct emails, page_view, last 30d)
+        # ── Card 1: Active Users (distinct emails with any event, last 30d)
         active_users_count = (
             session.query(func.count(func.distinct(TelemetryLog.user_email)))
-            .filter(TelemetryLog.event_type == "page_view", TelemetryLog.timestamp >= cutoff)
+            .filter(TelemetryLog.timestamp >= cutoff)
+            .scalar() or 0
+        )
+
+        # ── Card 1b: Logins — distinct emails who hit / in last 30d
+        logins_count = (
+            session.query(func.count(func.distinct(TelemetryLog.user_email)))
+            .filter(TelemetryLog.event_type == "login", TelemetryLog.timestamp >= cutoff)
             .scalar() or 0
         )
 
@@ -784,6 +810,7 @@ async def admin_usage_page(request: Request):
                 "request":            request,
                 "user":               user,
                 "active_users_count": active_users_count,
+                "logins_count":       logins_count,
                 "total_exports":      total_exports,
                 "page_chart":         page_chart,
                 "user_table":         user_table,

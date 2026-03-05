@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sales Report Generator</title>
     <link rel="icon" href="/static/images/qms-favicon.ico">
-    <link rel="stylesheet" href="/static/styles.css?v=8">
+    <link rel="stylesheet" href="/static/styles.css?v=9">
 </head>
 <body>
     <!-- Splash Screen -->
@@ -45,16 +45,10 @@
             {% if user and user.is_admin %}
             <div style="border-top: 1px solid #e0e0e0; margin: 15px 0;"></div>
             <a href="/admin/mappings" class="nav-drawer-item" style="color: #0066cc; display: flex; align-items: center; justify-content: space-between;">
-                <span><span style="font-size: 20px; margin-right: 8px;">⚙️</span> Admin — Mappings</span>
+                <span><span style="font-size: 20px; margin-right: 8px;">⚙️</span> Admin</span>
                 {% if pending_unmapped and pending_unmapped > 0 %}
                 <span style="background: #e53935; color: white; border-radius: 10px; padding: 1px 7px; font-size: 11px; font-weight: 700; margin-left: 6px;">{{ pending_unmapped }}</span>
                 {% endif %}
-            </a>
-            <a href="/admin/unmapped" class="nav-drawer-item" style="color: #0066cc;">
-                <span><span style="font-size: 20px; margin-right: 8px;">⚙️</span> Admin — Unmapped Queue</span>
-            </a>
-            <a href="/admin/usage" class="nav-drawer-item" style="color: #0066cc;">
-                <span><span style="font-size: 20px; margin-right: 8px;">⚙️</span> Admin — Usage Dashboard</span>
             </a>
             {% endif %}
         </nav>
@@ -86,25 +80,27 @@
                     <div class="sub-module">Sales Report module</div>
                 </div>
             </div>
-            <div class="status-indicator">
-                <div class="status-dot"></div>
-                <span class="status-text">Ready to run</span>
-            </div>
-            <div class="version-info" id="versionInfo">
-                <span class="version-label">Version:</span>
-                <span class="version-value" id="versionValue">Loading...</span>
-            </div>
-            {% if user and user.email != 'anonymous@unknown' %}
-            <div class="user-chip" id="userChip">
-                <div class="user-chip-avatar">{{ user.avatar_char }}</div>
-                <span class="user-chip-name">{{ user.display_name }}</span>
-                <span class="user-chip-badge user-chip-badge--{{ user.group_label | lower | replace(' ', '-') }}">{{ user.group_label }}</span>
-                <div class="user-chip-dropdown" id="userChipDropdown">
-                    <span class="user-chip-email">{{ user.email }}</span>
-                    <a href="/.auth/logout" class="user-chip-signout">Sign out</a>
+            <div class="top-bar-right">
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span class="status-text">Ready to run</span>
                 </div>
+                <div class="version-info" id="versionInfo">
+                    <span class="version-label">Version:</span>
+                    <span class="version-value" id="versionValue">Loading...</span>
+                </div>
+                {% if user and user.email != 'anonymous@unknown' %}
+                <div class="user-chip" id="userChip">
+                    <div class="user-chip-avatar">{{ user.avatar_char }}</div>
+                    <span class="user-chip-name">{{ user.display_name }}</span>
+                    <span class="user-chip-badge user-chip-badge--{{ user.group_label | lower | replace(' ', '-') }}">{{ user.group_label }}</span>
+                    <div class="user-chip-dropdown" id="userChipDropdown">
+                        <span class="user-chip-email">{{ user.email }}</span>
+                        <a href="/.auth/logout" class="user-chip-signout">Sign out</a>
+                    </div>
+                </div>
+                {% endif %}
             </div>
-            {% endif %}
         </header>
 
         <main>
