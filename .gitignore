@@ -82,3 +82,5 @@ fastapi_web_app/static/combined_reports_*.zip
 
 # Generated at deploy time — do not commit
 version.json
+
+fastapi_web_app/.env

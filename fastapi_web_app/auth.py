@@ -30,6 +30,9 @@ MANAGEMENT: frozenset[str] = get_env_set("HUB_MANAGEMENT_EMAILS")
 CORE:       frozenset[str] = get_env_set("HUB_CORE_EMAILS")
 USA:        frozenset[str] = get_env_set("HUB_USA_EMAILS")
 
+logger.info("[auth] Permission sets loaded — ADMINS=%s | MANAGEMENT=%s | CORE=%s | USA=%s",
+            set(ADMINS), set(MANAGEMENT), set(CORE), set(USA))
+
 
 # ============================================================
 # Part A — UserContext frozen dataclass

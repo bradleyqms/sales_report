@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+# Load .env FIRST — must run before any local module (auth.py, middleware.py) is
+# imported, because auth.py builds its frozensets at module-import time.
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _load_dotenv()  # reads fastapi_web_app/.env into os.environ
+except ImportError:
+    pass  # python-dotenv not installed — rely on shell env vars
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Form, BackgroundTasks, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
