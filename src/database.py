@@ -8,10 +8,10 @@ Local Development: DefaultAzureCredential (uses Azure CLI login)
 
 import os
 import struct
+import pyodbc
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, declarative_base
 from typing import Generator
-import pyodbc
 
 try:
     from azure.identity import DefaultAzureCredential, ManagedIdentityCredential
@@ -19,6 +19,9 @@ except ImportError:
     raise ImportError(
         "azure-identity package is required. Install with: pip install azure-identity"
     )
+
+# SQL Server access token constant (not always available as pyodbc.SQL_COPT_SS_ACCESS_TOKEN)
+SQL_COPT_SS_ACCESS_TOKEN = 1256  # ODBC constant for Azure AD access token
 
 # SQLAlchemy 2.0 declarative base
 Base = declarative_base()
@@ -82,11 +85,13 @@ def get_connection_string() -> str:
     
     print(f"[Database] Connecting to {server}/{database} with Azure AD authentication")
     
-    # Connection string without username/password - authentication via token
+    # Connection string for Azure AD token authentication
+    # Must NOT include: Authentication, UID, PWD, Trusted_Connection, or @ symbol
     connection_string = (
-        f"mssql+pyodbc://@{server}/{database}"
+        f"mssql+pyodbc://{server}/{database}"
         f"?driver=ODBC+Driver+18+for+SQL+Server"
         f"&Encrypt=yes"
+        f"&TrustServerCertificate=no"
     )
     
     return connection_string
@@ -108,24 +113,36 @@ def create_db_engine():
     Returns:
         Engine: Configured SQLAlchemy engine with Azure AD authentication
     """
-    connection_string = get_connection_string()
+    server = os.getenv("DATABASE_SERVER", "dnr-sql-server-qmsmedicosmetics.database.windows.net")
+    database = os.getenv("DATABASE_NAME", "dnr-mapping-db")
     
-    # Get Azure AD token for authentication
-    azure_token = get_azure_sql_token()
+    def creator():
+        """Create pyodbc connection with Azure AD token"""
+        # Build ODBC connection string (no authentication parameters)
+        # TrustServerCertificate=yes is required for Azure AD token auth in some configs
+        odbc_conn_str = (
+            f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+            f"SERVER={server};"
+            f"DATABASE={database};"
+            f"Encrypt=yes;"
+            f"TrustServerCertificate=yes;"
+        )
+        
+        # Get fresh token for each connection
+        token_struct = get_azure_sql_token()
+        
+        # Create connection with token
+        conn = pyodbc.connect(odbc_conn_str, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
+        return conn
     
     engine = create_engine(
-        connection_string,
+        "mssql+pyodbc://",
+        creator=creator,
         pool_size=4,
         max_overflow=8,
         pool_pre_ping=True,
         pool_recycle=3600,  # Critical: Recycle before token expires (1 hour)
-        echo=os.getenv("SQL_ECHO", "false").lower() == "true",
-        connect_args={
-            "attrs_before": {
-                # Pass Azure AD token to pyodbc for authentication
-                pyodbc.SQL_COPT_SS_ACCESS_TOKEN: azure_token
-            }
-        }
+        echo=os.getenv("SQL_ECHO", "false").lower() == "true"
     )
     
     # Set isolation level for SQL Server
