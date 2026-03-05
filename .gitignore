@@ -73,7 +73,17 @@ fastapi_web_app/static/combined_reports_*.zip
 # Ignore any generated static artifacts
 /fastapi_web_app/static/*
 !/fastapi_web_app/static/images/
+!/fastapi_web_app/static/images/**
+!/fastapi_web_app/static/css/
+!/fastapi_web_app/static/css/**
+!/fastapi_web_app/static/js/
+!/fastapi_web_app/static/js/**
 /static/
 
 # Generated at deploy time — do not commit
 version.json
+
+fastapi_web_app/.env
+
+# PII — real recipient names/emails; keep the .example.json version in the repo
+config/dispatch_recipients.json

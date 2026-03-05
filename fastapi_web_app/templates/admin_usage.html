@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Usage Dashboard — Admin Pulse</title>
+    <link rel="stylesheet" href="/static/css/admin.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
+            integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g"
+            crossorigin="anonymous"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+        /* ── Header ── */
+        header {
+            background: white;
+            padding: 20px 30px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { font-size: 24px; margin-bottom: 8px; }
+        nav { margin-top: 15px; display: flex; gap: 15px; }
+        nav a {
+            color: #0066cc; text-decoration: none;
+            padding: 8px 16px; border-radius: 4px; transition: background 0.2s;
+        }
+        nav a:hover { background: #f0f0f0; }
+        nav a.active { background: #0066cc; color: white; }
+
+        /* ── Row grids ── */
+        .row { display: grid; gap: 20px; margin-bottom: 24px; }
+        .row-2 { grid-template-columns: 1fr 1fr; }
+        .row-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+        /* ── Stat cards ── */
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            padding: 28px 30px;
+            text-align: center;
+        }
+        .stat-number { font-size: 48px; font-weight: 700; color: #0066cc; }
+        .stat-label { font-size: 14px; color: #666; margin-top: 6px; }
+
+        /* ── Chart card ── */
+        .chart-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            padding: 24px;
+        }
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 18px;
+            color: #222;
+        }
+
+        /* ── User table ── */
+        .data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .data-table th {
+            text-align: left; padding: 10px 14px;
+            background: #f8f8f8; border-bottom: 2px solid #e0e0e0;
+            font-weight: 600; color: #555;
+        }
+        .data-table td { padding: 10px 14px; border-bottom: 1px solid #f0f0f0; }
+        .data-table tr:hover td { background: #fafafa; }
+        .badge {
+            display: inline-block;
+            padding: 2px 9px; border-radius: 10px;
+            font-size: 11px; font-weight: 600;
+            background: #e8f0fe; color: #1a56db;
+        }
+        .badge-admin     { background: #fde8e8; color: #9b1c1c; }
+        .badge-management{ background: #e8f0fe; color: #1a56db; }
+        .badge-core-markets { background: #e0f0e9; color: #166534; }
+        .badge-usa-spa   { background: #f3eaff; color: #6b21a8; }
+        .badge-viewer    { background: #f0f0f0; color: #555; }
+
+        /* ── Pulse alert card ── */
+        .pulse-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            padding: 24px;
+        }
+        .pulse-header {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+        }
+        .pulse-dot {
+            width: 12px; height: 12px; border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .pulse-dot--red   { background: #e53935; box-shadow: 0 0 0 4px rgba(229,57,53,.15); }
+        .pulse-dot--green { background: #43a047; box-shadow: 0 0 0 4px rgba(67,160,71,.15); }
+        .pulse-entity-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 0; border-bottom: 1px solid #f0f0f0;
+        }
+        .pulse-entity-row:last-child { border-bottom: none; }
+        .pulse-entity-name { font-weight: 500; font-size: 14px; }
+        .pulse-ar { color: #e53935; font-weight: 600; font-size: 14px; }
+        .pulse-action {
+            color: #0066cc; text-decoration: none; font-size: 13px;
+            padding: 4px 10px; border: 1px solid #c5cff0; border-radius: 4px;
+        }
+        .pulse-action:hover { background: #f0f4ff; }
+        .pulse-all-clear {
+            color: #43a047; font-weight: 600; font-size: 15px;
+            padding: 16px 0; text-align: center;
+        }
+
+        /* ── Empty state ── */
+        .empty { color: #888; font-size: 14px; padding: 20px 0; text-align: center; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+            <div>
+                <h1>📊 Usage Dashboard — Pulse</h1>
+                <p style="color: #666; font-size: 14px; margin-top: 4px;">Last 30 days · refreshed on page load</p>
+            </div>
+            {% if user %}
+            <div style="display: flex; align-items: center; gap: 8px; background: #f0f4ff; border: 1px solid #c5cff0; border-radius: 20px; padding: 6px 14px; font-size: 13px; color: #3a4a8a;">
+                <span style="background: #0066cc; color: white; border-radius: 50%; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; font-weight: bold;">{{ user.avatar_char }}</span>
+                <span>{{ user.display_name }}</span>
+                <span style="background: #0066cc; color: white; border-radius: 10px; padding: 2px 8px; font-size: 11px; font-weight: 600;">{{ user.group_label }}</span>
+            </div>
+            {% endif %}
+        </div>
+        <nav>
+            <a href="/admin/mappings">Mappings</a>
+            <a href="/admin/unmapped">Unmapped Queue</a>
+            <a href="/admin/usage" class="active">Usage Dashboard</a>
+            <a href="/">← Back to Reports</a>
+        </nav>
+    </header>
+
+    <!-- Row 1: Stat cards -->
+    <div class="row row-3">
+        <div class="stat-card">
+            <div class="stat-number">{{ active_users_count }}</div>
+            <div class="stat-label">Active Users (30 days)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ logins_count }}</div>
+            <div class="stat-label">Logins (30 days)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ total_exports }}</div>
+            <div class="stat-label">Total Exports (30 days)</div>
+        </div>
+    </div>
+
+    <!-- Row 2: Bar chart + Pulse alert -->
+    <div class="row row-2" style="margin-bottom: 24px;">
+        <div class="chart-card">
+            <div class="card-title">Most Viewed Pages</div>
+            {% if page_chart %}
+            <div style="position: relative; height: 260px;">
+                <canvas id="pageChart"></canvas>
+            </div>
+            {% else %}
+            <p class="empty">No page view data yet.</p>
+            {% endif %}
+        </div>
+
+        <div class="pulse-card">
+            <div class="pulse-header">
+                {% if top_unmapped %}
+                <div class="pulse-dot pulse-dot--red"></div>
+                <span class="card-title" style="margin: 0;">Top 3 Unmapped by AR Value</span>
+                {% else %}
+                <div class="pulse-dot pulse-dot--green"></div>
+                <span class="card-title" style="margin: 0;">Top 3 Unmapped by AR Value</span>
+                {% endif %}
+            </div>
+
+            {% if top_unmapped %}
+            {% for item in top_unmapped %}
+            <div class="pulse-entity-row">
+                <div>
+                    <div class="pulse-entity-name">{{ item.entity_name }}</div>
+                    <div style="font-size: 12px; color: #888;">{{ item.entity_type }} · seen {{ item.count }}×</div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span class="pulse-ar">{{ "%.1f"|format(item.total_ar_value_keur) }} kEUR</span>
+                    <a href="/admin/unmapped" class="pulse-action">Resolve →</a>
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="pulse-all-clear">✅ All entities mapped — no pending gaps</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Row 3: User activity table -->
+    <div class="chart-card" style="margin-bottom: 24px;">
+        <div class="card-title">Active User Activity</div>
+        {% if user_table %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Email</th>
+                    <th>Group</th>
+                    <th>Last Seen</th>
+                    <th>Events (30d)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in user_table %}
+                <tr>
+                    <td>{{ row.email }}</td>
+                    <td>
+                        <span class="badge badge-{{ row.group | lower | replace(' ', '-') }}">{{ row.group }}</span>
+                    </td>
+                    <td>{{ row.last_seen }}</td>
+                    <td>{{ row.actions }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty">No telemetry events recorded yet. Events appear here after users visit pages.</p>
+        {% endif %}
+    </div>
+</div>
+
+{% if page_chart %}
+<script>
+const labels = {{ page_chart | map(attribute='page') | list | tojson }};
+const values = {{ page_chart | map(attribute='count') | list | tojson }};
+new Chart(document.getElementById('pageChart'), {
+    type: 'bar',
+    data: {
+        labels: labels,
+        datasets: [{
+            label: 'Page Views',
+            data: values,
+            backgroundColor: 'rgba(0, 102, 204, 0.75)',
+            borderRadius: 4,
+        }]
+    },
+    options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { beginAtZero: true, ticks: { precision: 0 } },
+            y: { ticks: { font: { size: 12 } } }
+        },
+        responsive: true,
+        maintainAspectRatio: false,
+    }
+});
+</script>
+{% endif %}
+</body>
+</html>
