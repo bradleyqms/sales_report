@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request, Form, BackgroundTasks, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import subprocess
 import os
@@ -28,27 +29,34 @@ logging.basicConfig(level=logging.INFO)
 BASE_DIR = Path(__file__).resolve().parent
 
 # ── Lifespan: startup tasks (replaces @app.on_event) ──────────────────────────
+
+def _prune_telemetry() -> None:
+    """Sync DB call — run in a thread pool so it never blocks the event loop."""
+    import sys as _sys
+    _sys.path.insert(0, str(BASE_DIR.parent))
+    from src.database import engine as _engine
+    _sess = sessionmaker(bind=_engine)()
+    try:
+        _sess.execute(text(
+            "DELETE FROM telemetry_logs WHERE timestamp < DATEADD(day, -90, GETDATE())"
+        ))
+        _sess.commit()
+    finally:
+        _sess.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. Pre-populate report_status from disk
+    # 1. Recover metrics from disk — always safe, no DB needed
     _recover_status_from_disk()
 
-    # 2. Prune telemetry older than 90 days (best-effort)
+    # 2. Telemetry prune — risky (DB may be unavailable); run in threadpool
+    #    so it never stalls the event loop, and always allow the app to start.
     try:
-        import sys as _sys
-        _sys.path.insert(0, str(BASE_DIR.parent))
-        from src.database import engine as _engine
-        _sess = sessionmaker(bind=_engine)()
-        try:
-            _sess.execute(text(
-                "DELETE FROM telemetry_logs WHERE timestamp < DATEADD(day, -90, GETDATE())"
-            ))
-            _sess.commit()
-            logging.info("[startup] telemetry_logs pruned to last 90 days")
-        finally:
-            _sess.close()
+        await run_in_threadpool(_prune_telemetry)
+        logging.info("[startup] Telemetry prune successful.")
     except Exception as _e:
-        logging.warning("[startup] telemetry prune failed (non-fatal): %s", _e)
+        logging.warning("[startup] Telemetry prune failed (non-fatal): %s", _e)
 
     yield  # app is running
 
