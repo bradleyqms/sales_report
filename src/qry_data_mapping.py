@@ -5,8 +5,70 @@ import numpy as np
 import logging
 import datetime
 from collections import defaultdict
+from sqlalchemy.orm import sessionmaker
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def load_mappings_from_db():
+    """
+    Load entity mappings from Azure SQL Database.
+    
+    Returns:
+        DataFrame with columns matching the CSV format:
+        - Sales_Employee
+        - Customer_Name
+        - Market_Group
+        - Region
+        - Sub Region
+        - Channel_Level
+        - Company_Group
+        - Sales_Employee_Cleaned
+        
+    Raises:
+        Exception: If database connection fails or no mappings found
+    """
+    try:
+        from .database import engine
+        from .models import EntityMapping
+        
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        
+        try:
+            # Query active mappings only
+            mappings = session.query(EntityMapping).filter_by(is_active=True).all()
+            
+            if not mappings:
+                raise ValueError("No active entity mappings found in database")
+            
+            # Convert to DataFrame matching CSV structure
+            data = []
+            for m in mappings:
+                data.append({
+                    'Sales_Employee': m.sales_employee,
+                    'Customer_Name': m.customer_name,
+                    'Customer_Code': m.customer_code,
+                    'Market_Group': m.market_group,
+                    'Region': m.region,
+                    'Sub Region': m.sub_region,
+                    'Channel_Level': m.channel_level,
+                    'Company_Group': m.company_group,
+                    'Sales_Employee_Cleaned': m.sales_employee_cleaned if m.sales_employee_cleaned else m.sales_employee
+                })
+            
+            df = pd.DataFrame(data)
+            logging.info(f"✅ Loaded {len(df)} entity mappings from database")
+            return df
+            
+        finally:
+            session.close()
+            
+    except ImportError:
+        logging.error("❌ Database modules not available. Install requirements: pip install sqlalchemy pyodbc azure-identity")
+        raise
+    except Exception as e:
+        logging.error(f"❌ Failed to load mappings from database: {e}")
+        raise
 
 def collect_unmapped_stats(unmapped_df, entity_type, entity_col):
     """
@@ -67,15 +129,16 @@ def collect_unmapped_stats(unmapped_df, entity_type, entity_col):
     
     return result
 
-def apply_mappings(sales_df, mapping_df, output_dir=None):
+def apply_mappings(sales_df, mapping_df=None, output_dir=None, use_database=False):
     """
     Applies entity mappings to the sales DataFrame.
     
     Args:
         sales_df: DataFrame containing sales data
-        mapping_df: DataFrame containing entity mappings
+        mapping_df: DataFrame containing entity mappings (optional if use_database=True)
         output_dir: Optional path to output directory for unmapped entities CSV.
                    If None, defaults to ../data/outputs relative to this file.
+        use_database: If True, load mappings from database instead of using mapping_df
     
     Returns:
         Mapped sales DataFrame
@@ -88,6 +151,13 @@ def apply_mappings(sales_df, mapping_df, output_dir=None):
         - first_seen: Earliest date in data
         - last_seen: Latest date in data
     """
+    # Load mappings from database if requested
+    if use_database:
+        logging.info("📊 Loading entity mappings from database...")
+        mapping_df = load_mappings_from_db()
+    elif mapping_df is None:
+        raise ValueError("Either mapping_df must be provided or use_database must be True")
+    
     # Initialize unmapped entity tracking with expanded fields
     unmapped_entities = defaultdict(lambda: {'count': 0, 'dates': [], 'values': [], 'sources': [], 'customer_codes': [], 'rows': []})
     
@@ -312,21 +382,34 @@ if __name__ == "__main__":
     inputs_folder = Path(__file__).parent.parent / "data/inputs"
     outputs_folder = Path(__file__).parent.parent / "data/outputs"
 
-    # Find the mapping file
-    mapping_file = inputs_folder / "mappings/entity_mappings.csv"
-
-    # Read the data
+    # Read the sales data
     sales_df = pd.read_csv(outputs_folder / "qry_unified_2025.csv")
 
-    if mapping_file.suffix.lower() == '.xlsx':
-        mapping_df = pd.read_excel(mapping_file)
-    elif mapping_file.suffix.lower() == '.csv':
-        mapping_df = pd.read_csv(mapping_file)
-    else:
-        print("Unsupported mapping file format")
-        exit(1)
+    # Try to use database first, fall back to CSV if database unavailable
+    try:
+        logging.info("Attempting to load mappings from database...")
+        mapped_df = apply_mappings(sales_df, use_database=True, output_dir=outputs_folder)
+        logging.info("✅ Successfully used database for entity mappings")
+    except Exception as e:
+        logging.warning(f"⚠️  Database unavailable, falling back to CSV: {e}")
         
-    mapped_df = apply_mappings(sales_df, mapping_df)
+        # Fall back to CSV file
+        mapping_file = inputs_folder / "mappings/entity_mappings.csv"
+        
+        if not mapping_file.exists():
+            logging.error(f"❌ Mapping file not found: {mapping_file}")
+            exit(1)
+        
+        if mapping_file.suffix.lower() == '.xlsx':
+            mapping_df = pd.read_excel(mapping_file)
+        elif mapping_file.suffix.lower() == '.csv':
+            mapping_df = pd.read_csv(mapping_file)
+        else:
+            print("Unsupported mapping file format")
+            exit(1)
+        
+        mapped_df = apply_mappings(sales_df, mapping_df, output_dir=outputs_folder)
+        logging.info("✅ Used CSV fallback for entity mappings")
 
     # Save output
     output_path = outputs_folder / "qry_unified_mapped_2025.csv"
