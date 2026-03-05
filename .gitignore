@@ -84,3 +84,6 @@ fastapi_web_app/static/combined_reports_*.zip
 version.json
 
 fastapi_web_app/.env
+
+# PII — real recipient names/emails; keep the .example.json version in the repo
+config/dispatch_recipients.json

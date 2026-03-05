@@ -430,7 +430,7 @@ async def home(request: Request, background_tasks: BackgroundTasks):
         "request": request,
         "view": "management",
         "user": user,
-        "pending_unmapped": _get_pending_unmapped_count() if (user and user.is_admin) else 0,
+        "pending_unmapped": (await run_in_threadpool(_get_pending_unmapped_count)) if (user and user.is_admin) else 0,
     })
 
 @app.get("/coremarkets", response_class=HTMLResponse)
@@ -444,7 +444,7 @@ async def core_markets_view(request: Request, background_tasks: BackgroundTasks)
         "request": request,
         "view": "coremarkets",
         "user": user,
-        "pending_unmapped": _get_pending_unmapped_count() if (user and user.is_admin) else 0,
+        "pending_unmapped": (await run_in_threadpool(_get_pending_unmapped_count)) if (user and user.is_admin) else 0,
     })
 
 @app.get("/usaspa", response_class=HTMLResponse)
@@ -458,7 +458,7 @@ async def usa_spa_view(request: Request, background_tasks: BackgroundTasks):
         "request": request,
         "view": "usaspa",
         "user": user,
-        "pending_unmapped": _get_pending_unmapped_count() if (user and user.is_admin) else 0,
+        "pending_unmapped": (await run_in_threadpool(_get_pending_unmapped_count)) if (user and user.is_admin) else 0,
     })
 
 @app.get("/version")

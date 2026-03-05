@@ -7,6 +7,7 @@ Local Development: DefaultAzureCredential (uses Azure CLI login)
 """
 
 import os
+import sys
 import struct
 import pyodbc
 from sqlalchemy import create_engine, event
@@ -22,9 +23,10 @@ except ImportError:
 
 # Local dev: ensure az CLI is on PATH regardless of which terminal launched the server.
 # On Azure App Service, AZURE_CLIENT_ID is set so this block is skipped entirely.
-_AZ_CLI_DIR = r"C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin"
-if not os.getenv("AZURE_CLIENT_ID") and _AZ_CLI_DIR not in os.environ.get("PATH", ""):
-    os.environ["PATH"] = _AZ_CLI_DIR + os.pathsep + os.environ.get("PATH", "")
+if sys.platform == "win32":
+    _AZ_CLI_DIR = r"C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin"
+    if not os.getenv("AZURE_CLIENT_ID") and _AZ_CLI_DIR not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = _AZ_CLI_DIR + os.pathsep + os.environ.get("PATH", "")
 
 # SQL Server access token constant (not always available as pyodbc.SQL_COPT_SS_ACCESS_TOKEN)
 SQL_COPT_SS_ACCESS_TOKEN = 1256  # ODBC constant for Azure AD access token
@@ -113,10 +115,10 @@ def create_db_engine():
         - pool_size=4: One connection per Gunicorn worker (typical setup)
         - max_overflow=8: Allow burst connections
         - pool_pre_ping=True: Verify connections before use (handles disconnects)
-        - pool_recycle=3600: Recycle connections every hour
+        - pool_recycle=1800: Recycle connections every 30 minutes
     
-    Note: Azure AD tokens expire after 1 hour, so pool_recycle=3600 ensures
-          connections are refreshed before token expiration.
+    Note: Azure AD tokens expire after 1 hour, so pool_recycle=1800 ensures
+          connections are always recycled well before token expiration.
     
     Returns:
         Engine: Configured SQLAlchemy engine with Azure AD authentication
@@ -149,7 +151,7 @@ def create_db_engine():
         pool_size=4,
         max_overflow=8,
         pool_pre_ping=True,
-        pool_recycle=3600,  # Critical: Recycle before token expires (1 hour)
+        pool_recycle=1800,  # Recycle at 30 min — tokens expire at 60 min (safety margin)
         echo=os.getenv("SQL_ECHO", "false").lower() == "true"
     )
     

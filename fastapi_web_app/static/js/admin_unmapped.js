@@ -342,14 +342,35 @@ function showToast(type, title, message = '') {
     
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    toast.innerHTML = `
-        <div class="toast-icon">${icons[type] || 'ℹ'}</div>
-        <div class="toast-content">
-            <div class="toast-title">${title}</div>
-            ${message ? `<div class="toast-message">${message}</div>` : ''}
-        </div>
-        <button class="toast-close" onclick="this.parentElement.remove()">×</button>
-    `;
+
+    // Build DOM nodes with textContent to prevent XSS from server error messages
+    const iconEl = document.createElement('div');
+    iconEl.className = 'toast-icon';
+    iconEl.textContent = icons[type] || 'ℹ';
+
+    const contentEl = document.createElement('div');
+    contentEl.className = 'toast-content';
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'toast-title';
+    titleEl.textContent = title;
+    contentEl.appendChild(titleEl);
+
+    if (message) {
+        const msgEl = document.createElement('div');
+        msgEl.className = 'toast-message';
+        msgEl.textContent = message;
+        contentEl.appendChild(msgEl);
+    }
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'toast-close';
+    closeBtn.textContent = '×';
+    closeBtn.onclick = () => closeBtn.closest('.toast').remove();
+
+    toast.appendChild(iconEl);
+    toast.appendChild(contentEl);
+    toast.appendChild(closeBtn);
     
     container.appendChild(toast);
     

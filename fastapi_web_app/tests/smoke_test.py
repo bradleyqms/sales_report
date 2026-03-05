@@ -49,7 +49,8 @@ pytestmark = [
 # ── Headers ────────────────────────────────────────────────────────────────────
 # Simulates what Azure Easy Auth injects. The server falls back to DEV_USER_EMAIL
 # in .env for local dev, so these headers are only needed in prod-parity tests.
-ADMIN_HEADERS    = {"X-MS-CLIENT-PRINCIPAL-NAME": "bradley@qmsmedicosmetics.com"}
+# Real admin email injected at runtime via SMOKE_ADMIN_EMAIL env var (keep PII out of source).
+ADMIN_HEADERS    = {"X-MS-CLIENT-PRINCIPAL-NAME": os.getenv("SMOKE_ADMIN_EMAIL", "admin@example.com")}
 NON_ADMIN_HEADERS = {"X-MS-CLIENT-PRINCIPAL-NAME": "nobody@external.com"}
 # When running locally the .env DEV_USER_EMAIL is used, not the header.
 # For max coverage, test both the header-injection path (prod-parity) AND

@@ -117,7 +117,7 @@ def persist_unmapped_entities(unmapped_entities, run_timestamp=None, use_databas
                                 if parsed.tzinfo is None:
                                     parsed = parsed.tz_localize('UTC')
                                 dates.append(parsed)
-                            except:
+                            except Exception:
                                 pass
                         elif isinstance(d, (pd.Timestamp, datetime.datetime)):
                             ts = pd.Timestamp(d)
@@ -492,7 +492,7 @@ def apply_mappings(sales_df, mapping_df=None, output_dir=None, use_database=Fals
                         if isinstance(d, str):
                             try:
                                 dates.append(pd.to_datetime(d))
-                            except:
+                            except Exception:
                                 pass
                         elif isinstance(d, (pd.Timestamp, datetime.datetime)):
                             dates.append(pd.Timestamp(d))
