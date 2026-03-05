@@ -113,7 +113,7 @@ async def admin_unmapped_page(
         
         # Filter by status
         if status and status != "all":
-            query = query.filter_by(resolution_status=status)
+            query = query.filter_by(status=status)
         
         # Filter by entity type
         if entity_type and entity_type != "all":
@@ -121,13 +121,13 @@ async def admin_unmapped_page(
         
         # Apply sorting
         if sort_by == "ar_value":
-            query = query.order_by(desc(UnmappedLog.total_ar_value))
+            query = query.order_by(desc(UnmappedLog.total_ar_value_keur))
         elif sort_by == "count":
-            query = query.order_by(desc(UnmappedLog.occurrence_count))
+            query = query.order_by(desc(UnmappedLog.count))
         elif sort_by == "recent":
             query = query.order_by(desc(UnmappedLog.last_seen))
         else:
-            query = query.order_by(desc(UnmappedLog.total_ar_value))
+            query = query.order_by(desc(UnmappedLog.total_ar_value_keur))
         
         # Get total count
         total_count = query.count()
@@ -138,9 +138,9 @@ async def admin_unmapped_page(
         
         # Get statistics
         stats = {
-            "pending": session.query(UnmappedLog).filter_by(resolution_status='pending').count(),
-            "resolved": session.query(UnmappedLog).filter_by(resolution_status='resolved').count(),
-            "ignored": session.query(UnmappedLog).filter_by(resolution_status='ignored').count(),
+            "pending": session.query(UnmappedLog).filter_by(status='pending').count(),
+            "resolved": session.query(UnmappedLog).filter_by(status='resolved').count(),
+            "ignored": session.query(UnmappedLog).filter_by(status='ignored').count(),
         }
         stats["total"] = stats["pending"] + stats["resolved"] + stats["ignored"]
         

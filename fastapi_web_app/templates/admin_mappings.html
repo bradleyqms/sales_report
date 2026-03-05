@@ -300,6 +300,7 @@
                     <th>Entity Name</th>
                     <th>Code</th>
                     <th>Region</th>
+                    <th>Sub-Region</th>
                     <th>Market</th>
                     <th>Channel</th>
                     <th>Company</th>
@@ -318,6 +319,7 @@
                     </td>
                     <td>{{ mapping.customer_code or '—' }}</td>
                     <td><span class="tag tag-region">{{ mapping.region }}</span></td>
+                    <td><span class="tag tag-region">{{ mapping.sub_region or '—' }}</span></td>
                     <td><span class="tag tag-market">{{ mapping.market_group }}</span></td>
                     <td><span class="tag tag-channel">{{ mapping.channel_level }}</span></td>
                     <td>{{ mapping.company_group or '—' }}</td>
@@ -343,7 +345,9 @@
             </button>
             {% endif %}
             
-            {% for p in range(max(1, page - 2), min(total_pages + 1, page + 3)) %}
+            {% set start_page = page - 2 if page > 2 else 1 %}
+            {% set end_page = page + 2 if page + 2 < total_pages else total_pages %}
+            {% for p in range(start_page, end_page + 1) %}
             <button 
                 class="page-btn {% if p == page %}active{% endif %}"
                 onclick="window.location.href='?page={{ p }}&search={{ search }}&filter_by={{ filter_by }}'"
