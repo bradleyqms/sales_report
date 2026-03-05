@@ -170,6 +170,44 @@ async def admin_unmapped_page(
 # API ENDPOINTS - Mappings
 # ================================
 
+@router.get("/api/mappings/search")
+async def search_mappings(q: str = Query(..., min_length=2)):
+    """
+    Search for mappings by entity name (for link workflow and autocomplete).
+    Returns full mapping data for suggestion matching.
+    """
+    session = SessionLocal()
+    try:
+        search_term = f"%{q}%"
+        mappings = session.query(EntityMapping).filter(
+            EntityMapping.is_active == True,
+            or_(
+                EntityMapping.customer_name.ilike(search_term),
+                EntityMapping.sales_employee.ilike(search_term)
+            )
+        ).limit(20).all()
+        
+        results = []
+        for m in mappings:
+            results.append({
+                "id": m.id,
+                "customer_code": m.customer_code,
+                "customer_name": m.customer_name,
+                "sales_employee": m.sales_employee,
+                "entity": m.entity,
+                "region": m.region,
+                "sub_region": m.sub_region,
+                "market_group": m.market_group,
+                "channel_level": m.channel_level,
+                "company_group": m.company_group
+            })
+        
+        return {"mappings": results}
+        
+    finally:
+        session.close()
+
+
 @router.get("/api/mappings/{mapping_id}")
 async def get_mapping(mapping_id: int):
     """Get a single mapping by ID."""
@@ -549,44 +587,6 @@ async def create_mapping_and_resolve(
 # ================================
 # API ENDPOINTS - Lookups/Reference
 # ================================
-
-@router.get("/api/mappings/search")
-async def search_mappings(q: str = Query(..., min_length=2)):
-    """
-    Search for mappings by entity name (for link workflow and autocomplete).
-    Returns full mapping data for suggestion matching.
-    """
-    session = SessionLocal()
-    try:
-        search_term = f"%{q}%"
-        mappings = session.query(EntityMapping).filter(
-            EntityMapping.is_active == True,
-            or_(
-                EntityMapping.customer_name.ilike(search_term),
-                EntityMapping.sales_employee.ilike(search_term)
-            )
-        ).limit(20).all()
-        
-        results = []
-        for m in mappings:
-            results.append({
-                "id": m.id,
-                "customer_code": m.customer_code,
-                "customer_name": m.customer_name,
-                "sales_employee": m.sales_employee,
-                "entity": m.entity,
-                "region": m.region,
-                "sub_region": m.sub_region,
-                "market_group": m.market_group,
-                "channel_level": m.channel_level,
-                "company_group": m.company_group
-            })
-        
-        return {"mappings": results}
-        
-    finally:
-        session.close()
-
 
 @router.get("/api/reference/regions")
 async def get_regions():
