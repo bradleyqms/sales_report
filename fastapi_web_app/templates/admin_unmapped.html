@@ -221,20 +221,6 @@
         .btn-ignore:hover {
             background: #616161;
         }
-        .btn-link {
-            padding: 6px 12px;
-            background: white;
-            color: #0066cc;
-            border: 1px solid #0066cc;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 13px;
-            transition: all 0.2s;
-        }
-        .btn-link:hover {
-            background: #0066cc;
-            color: white;
-        }
         .pagination {
             margin-top: 20px;
             display: flex;
@@ -398,13 +384,6 @@
                     <td class="actions">
                         {% if item.status == 'pending' %}
                         <button 
-                            class="btn-link"
-                            onclick="window.adminUnmapped.openLinkDrawer({{ item.id }})"
-                            title="Link to existing mapping"
-                        >
-                            🔗 Link
-                        </button>
-                        <button 
                             class="btn-resolve"
                             onclick="window.adminUnmapped.openCreateFromUnmappedModal({{ item.id }})"
                             title="Create new mapping"
@@ -416,7 +395,7 @@
                             onclick="if(confirm('Ignore this entity?')) { fetch('/admin/api/unmapped/{{ item.id }}/ignore', {method: 'POST'}).then(() => location.reload()); }"
                             title="Ignore entity"
                         >
-                            🚫 Ignore
+                            ✖️ Ignore
                         </button>
                         {% else %}
                         <span style="color: #999; font-size: 12px;">No actions available</span>
@@ -460,60 +439,6 @@
             <p>{% if status == 'pending' %}No pending unmapped entities{% else %}No unmapped entities with status: {{ status }}{% endif %}</p>
         </div>
         {% endif %}
-    </div>
-
-    <!-- Link to Existing Mapping Drawer -->
-    <div id="linkDrawer" class="drawer-overlay">
-        <div class="drawer-container">
-            <div class="drawer-header">
-                <h2>🔗 Link to Existing Mapping</h2>
-                <p>Find and link this unmapped entity to an existing mapping</p>
-            </div>
-            <div class="drawer-body">
-                <!-- Unmapped Entity Details -->
-                <div id="unmappedDetails" class="entity-details">
-                    <!-- Populated by JavaScript -->
-                </div>
-
-                <!-- Search Box -->
-                <div class="form-group">
-                    <label for="mappingSearch">Search existing mappings</label>
-                    <input 
-                        type="text" 
-                        id="mappingSearch" 
-                        placeholder="Search by name, code, region..."
-                        autocomplete="off"
-                    >
-                </div>
-
-                <!-- Suggested Matches -->
-                <div class="search-results">
-                    <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">💡 Suggested Matches</h4>
-                    <div id="suggestedMatches">
-                        <!-- Populated by JavaScript -->
-                    </div>
-                </div>
-
-                <!-- Search Results -->
-                <div id="searchResults" class="search-results" style="margin-top: 20px;">
-                    <!-- Populated by JavaScript on search -->
-                </div>
-            </div>
-            <div class="drawer-footer">
-                <button type="button" class="btn btn-secondary" onclick="window.adminUnmapped.closeDrawer()">
-                    Cancel
-                </button>
-                <button 
-                    type="button" 
-                    id="confirmLinkBtn"
-                    class="btn btn-primary" 
-                    onclick="window.adminUnmapped.confirmLink()"
-                    disabled
-                >
-                    Confirm Link
-                </button>
-            </div>
-        </div>
     </div>
 
     <!-- Create from Unmapped Modal -->
