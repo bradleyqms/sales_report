@@ -52,8 +52,11 @@ def get_azure_sql_token() -> bytes:
             credential = ManagedIdentityCredential()
         else:
             # Local development: Use DefaultAzureCredential (Azure CLI, VS Code, etc.)
+            # exclude_interactive_browser_credential=True so a stale CLI token raises an
+            # error immediately instead of opening a browser and hanging startup.
+            # If you see a token error, run: az login
             print("[Database] Using DefaultAzureCredential (Azure CLI/VS Code)")
-            credential = DefaultAzureCredential(exclude_interactive_browser_credential=False)
+            credential = DefaultAzureCredential(exclude_interactive_browser_credential=True)
         
         # Get token for Azure SQL Database
         token = credential.get_token("https://database.windows.net/.default")
