@@ -299,17 +299,46 @@ def get_version_info():
             "deployed_at": datetime.now().isoformat()
         }
 
+def _get_pending_unmapped_count() -> int:
+    """Return count of unmapped entities with status='pending' for the nav badge."""
+    try:
+        import sys as _sys
+        _sys.path.insert(0, str(BASE_DIR.parent))
+        from src.database import engine as _engine
+        from src.models import UnmappedLog
+        from sqlalchemy.orm import sessionmaker
+        session = sessionmaker(bind=_engine)()
+        try:
+            return session.query(UnmappedLog).filter_by(status='pending').count()
+        finally:
+            session.close()
+    except Exception:
+        return 0
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request, "view": "management"})
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "view": "management",
+        "pending_unmapped": _get_pending_unmapped_count(),
+    })
 
 @app.get("/coremarkets", response_class=HTMLResponse)
 async def core_markets_view(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request, "view": "coremarkets"})
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "view": "coremarkets",
+        "pending_unmapped": _get_pending_unmapped_count(),
+    })
 
 @app.get("/usaspa", response_class=HTMLResponse)
 async def usa_spa_view(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request, "view": "usaspa"})
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "view": "usaspa",
+        "pending_unmapped": _get_pending_unmapped_count(),
+    })
 
 @app.get("/version")
 async def version():
