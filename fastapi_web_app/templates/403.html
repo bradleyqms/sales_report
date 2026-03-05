@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Denied — Reporting Hub</title>
+    <link rel="icon" href="/static/images/qms-favicon.ico">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+            padding: 48px 52px;
+            max-width: 520px;
+            width: 100%;
+            text-align: center;
+        }
+        .logo {
+            height: 40px;
+            margin-bottom: 32px;
+        }
+        .icon {
+            font-size: 56px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: #c62828;
+        }
+        p {
+            font-size: 14px;
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+        .email-chip {
+            display: inline-block;
+            background: #f0f4ff;
+            border: 1px solid #c5cff0;
+            border-radius: 20px;
+            padding: 4px 14px;
+            font-size: 13px;
+            color: #3a4a8a;
+            margin: 8px 0 24px;
+            word-break: break-all;
+        }
+        .btn-request {
+            display: inline-block;
+            background: #0066cc;
+            color: white;
+            padding: 12px 28px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            transition: background 0.2s;
+        }
+        .btn-request:hover { background: #0055aa; }
+        .btn-back {
+            display: block;
+            margin-top: 12px;
+            font-size: 13px;
+            color: #0066cc;
+            text-decoration: none;
+        }
+        .btn-back:hover { text-decoration: underline; }
+        .divider {
+            border: none;
+            border-top: 1px solid #eee;
+            margin: 28px 0;
+        }
+        .note {
+            font-size: 12px;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <img class="logo" src="/static/images/qms-logo.png" alt="QMS Medicosmetics" />
+        <div class="icon">🔒</div>
+        <h1>You don't have access to this page</h1>
+        <p>Your account is signed in but doesn't have permission to view this section of the Reporting Hub.</p>
+
+        {% if user and user.email != "anonymous@unknown" %}
+        <div class="email-chip">{{ user.email }}</div>
+        {% endif %}
+
+        <p>To request access, click below — the email will be pre-filled for you.</p>
+
+        {% set subject = "Hub Access Request" %}
+        {% set body = "Hi Bradley,\n\nPlease grant Reporting Hub access for the following account:\n\n" + (user.email if user else "my account") + "\n\nThank you." %}
+        <a class="btn-request"
+           href="mailto:bradley@qmsmedicosmetics.com?subject={{ subject | urlencode }}&body={{ body | urlencode }}">
+            ✉️ Request Access
+        </a>
+
+        <hr class="divider" />
+        <a class="btn-back" href="/">← Back to Hub</a>
+        <p class="note" style="margin-top: 16px;">If you believe this is an error, contact your administrator.</p>
+    </div>
+</body>
+</html>

@@ -243,11 +243,23 @@
 <body>
     <div class="container">
         <header>
-            <h1>🗂️ Entity Mappings Admin</h1>
-            <p class="subtitle">Manage customer and employee mappings for sales reporting</p>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <h1>🗂️ Entity Mappings Admin</h1>
+                    <p class="subtitle">Manage customer and employee mappings for sales reporting</p>
+                </div>
+                {% if user %}
+                <div style="display: flex; align-items: center; gap: 8px; background: #f0f4ff; border: 1px solid #c5cff0; border-radius: 20px; padding: 6px 14px; font-size: 13px; color: #3a4a8a;">
+                    <span style="background: #0066cc; color: white; border-radius: 50%; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px;">{{ user.avatar_char }}</span>
+                    <span>{{ user.display_name }}</span>
+                    <span style="background: #0066cc; color: white; border-radius: 10px; padding: 2px 8px; font-size: 11px; font-weight: 600;">{{ user.group_label }}</span>
+                </div>
+                {% endif %}
+            </div>
             <nav>
                 <a href="/admin/mappings" class="active">Mappings</a>
-                <a href="/admin/unmapped">Unmapped Entities</a>
+                <a href="/admin/unmapped">Unmapped Queue</a>
+                <a href="/admin/usage">Usage Dashboard</a>
                 <a href="/">← Back to Reports</a>
             </nav>
         </header>

@@ -2,7 +2,7 @@
 Admin UI routes for managing entity mappings and resolving unmapped entities.
 Part of DNR-57 Phase 4: Admin UI implementation.
 """
-from fastapi import APIRouter, Request, Form, HTTPException, Query
+from fastapi import APIRouter, Request, Form, HTTPException, Query, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
@@ -10,13 +10,38 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import desc, func, or_
 from typing import Optional
 import sys
+import logging
 
 # Add parent directory to path to import from src
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.database import engine
-from src.models import EntityMapping, UnmappedLog, AuditLog
-from datetime import datetime
+from src.models import EntityMapping, UnmappedLog, AuditLog, TelemetryLog
+from datetime import datetime, timedelta
+
+try:
+    from access import assert_admin
+except Exception:
+    def assert_admin(request): pass  # type: ignore
+
+try:
+    from telemetry import log_admin_click as _log_admin_click
+except Exception:
+    def _log_admin_click(*a, **kw): pass  # type: ignore
+
+logger = logging.getLogger(__name__)
+
+
+def _bg_admin_click(user_email: str, action: str, entity_id: int | None = None) -> None:
+    """Background wrapper that opens its own DB session for best-effort telemetry."""
+    try:
+        _sess = SessionLocal()
+        try:
+            _log_admin_click(_sess, user_email, action, entity_id)
+        finally:
+            _sess.close()
+    except Exception as _e:
+        logger.warning("[telemetry] admin_click log failed: %s", _e)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -39,6 +64,7 @@ async def admin_mappings_page(
     search: Optional[str] = None,
     filter_by: Optional[str] = None
 ):
+    assert_admin(request)
     """
     Main admin page for viewing and managing entity mappings.
     Displays a searchable, filterable grid of all active mappings.
@@ -76,6 +102,7 @@ async def admin_mappings_page(
         # Calculate pagination
         total_pages = (total_count + per_page - 1) // per_page
         
+        user = getattr(request.state, "user", None)
         return templates.TemplateResponse(
             "admin_mappings.html",
             {
@@ -86,7 +113,8 @@ async def admin_mappings_page(
                 "total_count": total_count,
                 "total_pages": total_pages,
                 "search": search or "",
-                "filter_by": filter_by or "all"
+                "filter_by": filter_by or "all",
+                "user": user,
             }
         )
     finally:
@@ -106,6 +134,7 @@ async def admin_unmapped_page(
     Admin page for reviewing and resolving unmapped entities.
     Shows entities that need mapping decisions.
     """
+    assert_admin(request)
     session = SessionLocal()
     try:
         # Build query
@@ -147,6 +176,7 @@ async def admin_unmapped_page(
         # Calculate pagination
         total_pages = (total_count + per_page - 1) // per_page
         
+        user = getattr(request.state, "user", None)
         return templates.TemplateResponse(
             "admin_unmapped.html",
             {
@@ -159,7 +189,8 @@ async def admin_unmapped_page(
                 "status": status or "pending",
                 "sort_by": sort_by or "ar_value",
                 "entity_type": entity_type or "all",
-                "stats": stats
+                "stats": stats,
+                "user": user,
             }
         )
     finally:
@@ -239,6 +270,8 @@ async def get_mapping(mapping_id: int):
 
 @router.post("/api/mappings")
 async def create_mapping(
+    request: Request,
+    background_tasks: BackgroundTasks,
     customer_code: Optional[int] = Form(None),
     customer_name: Optional[str] = Form(None),
     sales_employee: Optional[str] = Form(None),
@@ -249,8 +282,10 @@ async def create_mapping(
     channel_level: str = Form(...),
     company_group: Optional[str] = Form(None),
     sales_employee_cleaned: Optional[str] = Form(None),
-    user_email: str = Form("admin@qmsmedicosmetics.com")
 ):
+    assert_admin(request)
+    _user = getattr(request.state, "user", None)
+    user_email = _user.email if _user else "admin@qmsmedicosmetics.com"
     """Create a new entity mapping."""
     session = SessionLocal()
     try:
@@ -283,7 +318,8 @@ async def create_mapping(
         )
         session.add(audit)
         session.commit()
-        
+
+        background_tasks.add_task(_bg_admin_click, user_email, "create_mapping", new_mapping.id)
         return {"success": True, "mapping_id": new_mapping.id}
         
     except Exception as e:
@@ -295,6 +331,8 @@ async def create_mapping(
 
 @router.put("/api/mappings/{mapping_id}")
 async def update_mapping(
+    request: Request,
+    background_tasks: BackgroundTasks,
     mapping_id: int,
     customer_code: Optional[int] = Form(None),
     customer_name: Optional[str] = Form(None),
@@ -306,8 +344,10 @@ async def update_mapping(
     channel_level: str = Form(...),
     company_group: Optional[str] = Form(None),
     sales_employee_cleaned: Optional[str] = Form(None),
-    user_email: str = Form("admin@qmsmedicosmetics.com")
 ):
+    assert_admin(request)
+    _user = getattr(request.state, "user", None)
+    user_email = _user.email if _user else "admin@qmsmedicosmetics.com"
     """Update an existing entity mapping."""
     session = SessionLocal()
     try:
@@ -349,7 +389,8 @@ async def update_mapping(
             )
             session.add(audit)
             session.commit()
-        
+
+        background_tasks.add_task(_bg_admin_click, user_email, "update_mapping", mapping_id)
         return {"success": True}
         
     except Exception as e:
@@ -361,9 +402,13 @@ async def update_mapping(
 
 @router.delete("/api/mappings/{mapping_id}")
 async def delete_mapping(
+    request: Request,
+    background_tasks: BackgroundTasks,
     mapping_id: int,
-    user_email: str = Form("admin@qmsmedicosmetics.com")
 ):
+    assert_admin(request)
+    _user = getattr(request.state, "user", None)
+    user_email = _user.email if _user else "admin@qmsmedicosmetics.com"
     """Soft delete a mapping (set is_active=False)."""
     session = SessionLocal()
     try:
@@ -384,7 +429,8 @@ async def delete_mapping(
         )
         session.add(audit)
         session.commit()
-        
+
+        background_tasks.add_task(_bg_admin_click, user_email, "delete_mapping", mapping_id)
         return {"success": True}
         
     except Exception as e:
@@ -435,10 +481,14 @@ async def get_unmapped(unmapped_id: int):
 
 @router.post("/api/unmapped/{unmapped_id}/resolve")
 async def resolve_unmapped(
+    request: Request,
+    background_tasks: BackgroundTasks,
     unmapped_id: int,
     mapping_id: int = Form(...),
-    user_email: str = Form("admin@qmsmedicosmetics.com")
 ):
+    assert_admin(request)
+    _user = getattr(request.state, "user", None)
+    user_email = _user.email if _user else "admin@qmsmedicosmetics.com"
     """
     Resolve an unmapped entity by linking it to an existing mapping.
     """
@@ -470,7 +520,8 @@ async def resolve_unmapped(
         )
         session.add(audit)
         session.commit()
-        
+
+        background_tasks.add_task(_bg_admin_click, user_email, "resolve_unmapped", unmapped_id)
         return {"success": True}
         
     except Exception as e:
@@ -482,9 +533,13 @@ async def resolve_unmapped(
 
 @router.post("/api/unmapped/{unmapped_id}/ignore")
 async def ignore_unmapped(
+    request: Request,
+    background_tasks: BackgroundTasks,
     unmapped_id: int,
-    user_email: str = Form("admin@qmsmedicosmetics.com")
 ):
+    assert_admin(request)
+    _user = getattr(request.state, "user", None)
+    user_email = _user.email if _user else "admin@qmsmedicosmetics.com"
     """Mark an unmapped entity as ignored."""
     session = SessionLocal()
     try:
@@ -508,7 +563,8 @@ async def ignore_unmapped(
         )
         session.add(audit)
         session.commit()
-        
+
+        background_tasks.add_task(_bg_admin_click, user_email, "ignore_unmapped", unmapped_id)
         return {"success": True}
         
     except Exception as e:
@@ -520,6 +576,8 @@ async def ignore_unmapped(
 
 @router.post("/api/unmapped/{unmapped_id}/create-and-resolve")
 async def create_mapping_and_resolve(
+    request: Request,
+    background_tasks: BackgroundTasks,
     unmapped_id: int,
     entity: str = Form(...),
     market_group: str = Form(...),
@@ -527,8 +585,10 @@ async def create_mapping_and_resolve(
     sub_region: Optional[str] = Form(None),
     channel_level: str = Form(...),
     company_group: Optional[str] = Form(None),
-    user_email: str = Form("admin@qmsmedicosmetics.com")
 ):
+    assert_admin(request)
+    _user = getattr(request.state, "user", None)
+    user_email = _user.email if _user else "admin@qmsmedicosmetics.com"
     """
     Create a new mapping for an unmapped entity and resolve it in one step.
     """
@@ -574,7 +634,8 @@ async def create_mapping_and_resolve(
         )
         session.add(audit)
         session.commit()
-        
+
+        background_tasks.add_task(_bg_admin_click, user_email, "create_and_resolve", new_mapping.id)
         return {"success": True, "mapping_id": new_mapping.id}
         
     except Exception as e:
@@ -629,5 +690,105 @@ async def get_channel_levels():
         ).distinct().order_by(EntityMapping.channel_level).all()
         
         return {"channel_levels": [c[0] for c in channels if c[0]]}
+    finally:
+        session.close()
+
+
+# ============================================================
+# USAGE DASHBOARD — /admin/usage  (Pulse)
+# ============================================================
+
+@router.get("/usage", response_class=HTMLResponse)
+async def admin_usage_page(request: Request):
+    """Admin usage / telemetry Pulse dashboard (last 30 days)."""
+    assert_admin(request)
+    user = getattr(request.state, "user", None)
+
+    # Import permission sets for group labelling (already parsed at startup)
+    try:
+        from auth import ADMINS, MANAGEMENT, CORE, USA
+
+        def _group_label(email: str) -> str:
+            e = email.lower().strip()
+            if e in ADMINS:      return "Admin"
+            if e in MANAGEMENT:  return "Management"
+            if e in CORE:        return "Core Markets"
+            if e in USA:         return "USA Spa"
+            return "Viewer"
+    except Exception:
+        def _group_label(email: str) -> str:
+            return "—"
+
+    session = SessionLocal()
+    try:
+        cutoff = datetime.utcnow() - timedelta(days=30)
+
+        # ── Card 1: Active Users (distinct emails, page_view, last 30d)
+        active_users_count = (
+            session.query(func.count(func.distinct(TelemetryLog.user_email)))
+            .filter(TelemetryLog.event_type == "page_view", TelemetryLog.timestamp >= cutoff)
+            .scalar() or 0
+        )
+
+        # ── Card 2: Total Exports (last 30d)
+        total_exports = (
+            session.query(func.count(TelemetryLog.id))
+            .filter(TelemetryLog.event_type == "export", TelemetryLog.timestamp >= cutoff)
+            .scalar() or 0
+        )
+
+        # ── Bar chart: page views by page_id (last 30d)
+        page_rows = (
+            session.query(TelemetryLog.page_id, func.count(TelemetryLog.id).label("cnt"))
+            .filter(TelemetryLog.event_type == "page_view", TelemetryLog.timestamp >= cutoff)
+            .group_by(TelemetryLog.page_id)
+            .order_by(desc("cnt"))
+            .all()
+        )
+        page_chart = [{"page": r.page_id or "unknown", "count": r.cnt} for r in page_rows]
+
+        # ── User activity table (last 30d)
+        user_rows = (
+            session.query(
+                TelemetryLog.user_email,
+                func.max(TelemetryLog.timestamp).label("last_seen"),
+                func.count(TelemetryLog.id).label("actions"),
+            )
+            .filter(TelemetryLog.timestamp >= cutoff)
+            .group_by(TelemetryLog.user_email)
+            .order_by(desc("last_seen"))
+            .all()
+        )
+        user_table = [
+            {
+                "email":       r.user_email,
+                "group":       _group_label(r.user_email),
+                "last_seen":   r.last_seen.strftime("%Y-%m-%d %H:%M") if r.last_seen else "—",
+                "actions":     r.actions,
+            }
+            for r in user_rows
+        ]
+
+        # ── Pulse: Top 3 Unmapped by AR value (pending only)
+        top_unmapped = (
+            session.query(UnmappedLog)
+            .filter(UnmappedLog.status == "pending")
+            .order_by(desc(UnmappedLog.total_ar_value_keur))
+            .limit(3)
+            .all()
+        )
+
+        return templates.TemplateResponse(
+            "admin_usage.html",
+            {
+                "request":            request,
+                "user":               user,
+                "active_users_count": active_users_count,
+                "total_exports":      total_exports,
+                "page_chart":         page_chart,
+                "user_table":         user_table,
+                "top_unmapped":       top_unmapped,
+            },
+        )
     finally:
         session.close()

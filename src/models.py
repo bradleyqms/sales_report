@@ -148,3 +148,31 @@ class AuditLog(Base):
     
     def __repr__(self):
         return f"<AuditLog(id={self.id}, user={self.user_email}, action={self.action}, target={self.target_type})>"
+
+
+class TelemetryLog(Base):
+    """
+    Usage telemetry for the Reporting Hub.
+    Best-effort — failures are logged to console only, never raised to users.
+    Pruned automatically to 90 days on each App Service cold-start.
+    """
+    __tablename__ = "telemetry_logs"
+
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    user_email   = Column(String(255), nullable=False)                       # lowercased
+    event_type   = Column(String(20),  nullable=False)                       # page_view | export | admin_click
+    page_id      = Column(String(50),  nullable=True)                        # /coremarkets, /admin/mappings, etc.
+    load_time_ms = Column(Integer,     nullable=True)
+    action       = Column(String(50),  nullable=True)
+    entity_id    = Column(Integer,     nullable=True)
+    file_format  = Column(String(10),  nullable=True)                        # csv | xlsx | pdf | zip
+    report_type  = Column(String(50),  nullable=True)
+    timestamp    = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index('idx_telemetry_event_ts',  'event_type', 'timestamp'),
+        Index('idx_telemetry_user_ts',   'user_email',  'timestamp'),
+    )
+
+    def __repr__(self):
+        return f"<TelemetryLog(id={self.id}, user={self.user_email}, event={self.event_type}, page={self.page_id})>"

@@ -29,24 +29,44 @@
             <a href="/" class="nav-drawer-item {% if view == 'management' %}nav-drawer-item--active{% endif %}">
                 <img src="/static/images/globe_icon.png" class="nav-drawer-flag" alt="Management" /> Management
             </a>
+
+            {% if user and (user.is_core or user.is_management or user.is_admin) %}
             <a href="/coremarkets" class="nav-drawer-item {% if view == 'coremarkets' %}nav-drawer-item--active{% endif %}">
                 <img src="/static/images/eu_flag.png" class="nav-drawer-flag" alt="Core Markets" /> Core Markets
             </a>
+            {% endif %}
+
+            {% if user and (user.is_usa or user.is_management or user.is_admin) %}
             <a href="/usaspa" class="nav-drawer-item {% if view == 'usaspa' %}nav-drawer-item--active{% endif %}">
                 <img src="/static/images/us_flag.png" class="nav-drawer-flag" alt="USA Spa" /> USA Spa
             </a>
-            
+            {% endif %}
+
+            {% if user and user.is_admin %}
             <div style="border-top: 1px solid #e0e0e0; margin: 15px 0;"></div>
-            
             <a href="/admin/mappings" class="nav-drawer-item" style="color: #0066cc; display: flex; align-items: center; justify-content: space-between;">
-                <span><span style="font-size: 20px; margin-right: 8px;">⚙️</span> Admin</span>
+                <span><span style="font-size: 20px; margin-right: 8px;">⚙️</span> Admin — Mappings</span>
                 {% if pending_unmapped and pending_unmapped > 0 %}
                 <span style="background: #e53935; color: white; border-radius: 10px; padding: 1px 7px; font-size: 11px; font-weight: 700; margin-left: 6px;">{{ pending_unmapped }}</span>
                 {% endif %}
             </a>
+            <a href="/admin/unmapped" class="nav-drawer-item" style="color: #0066cc;">
+                <span><span style="font-size: 20px; margin-right: 8px;">⚙️</span> Admin — Unmapped Queue</span>
+            </a>
+            <a href="/admin/usage" class="nav-drawer-item" style="color: #0066cc;">
+                <span><span style="font-size: 20px; margin-right: 8px;">⚙️</span> Admin — Usage Dashboard</span>
+            </a>
+            {% endif %}
         </nav>
         <div class="nav-drawer-footer">
             <span class="nav-drawer-current">Current view: <strong>{% if view == 'management' %}Management{% elif view == 'coremarkets' %}Core Markets{% else %}USA Spa{% endif %}</strong></span>
+            {% if user and user.email != 'anonymous@unknown' %}
+            <div class="nav-login-status">
+                <span class="status-dot-green"></span>
+                Signed in as <strong>{{ user.email }}</strong>
+                <span class="nav-group-badge">{{ user.group_label }}</span>
+            </div>
+            {% endif %}
         </div>
     </aside>
 
@@ -74,6 +94,17 @@
                 <span class="version-label">Version:</span>
                 <span class="version-value" id="versionValue">Loading...</span>
             </div>
+            {% if user and user.email != 'anonymous@unknown' %}
+            <div class="user-chip" id="userChip">
+                <div class="user-chip-avatar">{{ user.avatar_char }}</div>
+                <span class="user-chip-name">{{ user.display_name }}</span>
+                <span class="user-chip-badge user-chip-badge--{{ user.group_label | lower | replace(' ', '-') }}">{{ user.group_label }}</span>
+                <div class="user-chip-dropdown" id="userChipDropdown">
+                    <span class="user-chip-email">{{ user.email }}</span>
+                    <a href="/.auth/logout" class="user-chip-signout">Sign out</a>
+                </div>
+            </div>
+            {% endif %}
         </header>
 
         <main>
