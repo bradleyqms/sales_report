@@ -30,8 +30,14 @@ MANAGEMENT: frozenset[str] = get_env_set("HUB_MANAGEMENT_EMAILS")
 CORE:       frozenset[str] = get_env_set("HUB_CORE_EMAILS")
 USA:        frozenset[str] = get_env_set("HUB_USA_EMAILS")
 
-logger.info("[auth] Permission sets loaded — ADMINS=%s | MANAGEMENT=%s | CORE=%s | USA=%s",
-            set(ADMINS), set(MANAGEMENT), set(CORE), set(USA))
+logger.info(
+    "[auth] Permission sets loaded — ADMINS=%d | MANAGEMENT=%d | CORE=%d | USA=%d",
+    len(ADMINS), len(MANAGEMENT), len(CORE), len(USA),
+)
+logger.debug(
+    "[auth] Permission set members — ADMINS=%s | MANAGEMENT=%s | CORE=%s | USA=%s",
+    set(ADMINS), set(MANAGEMENT), set(CORE), set(USA),
+)
 
 
 # ============================================================

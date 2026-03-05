@@ -150,20 +150,23 @@ function populateCreateFromUnmappedForm(item) {
     // Set unmapped ID
     form.dataset.unmappedId = item.id;
     
-    // Determine entity type
-    const entityType = item.customer_name ? 'Customer' : 'Employee';
+    // Determine entity type from model fields (with legacy fallback)
+    const rawEntityType = (item.entity_type || '').toString().toLowerCase();
+    const entityType = (rawEntityType === 'employee' || rawEntityType === 'sales_employee')
+        ? 'Employee' : 'Customer';
     
     // Populate read-only fields
     document.getElementById('cfu_entity_type_display').textContent = entityType;
     document.getElementById('cfu_entity').value = entityType;
     
-    if (item.customer_name) {
-        document.getElementById('cfu_customer_name').value = item.customer_name;
+    const entityName = item.entity_name || item.customer_name || item.sales_employee || '';
+    if (entityType === 'Customer') {
+        document.getElementById('cfu_customer_name').value = entityName;
         document.getElementById('cfu_customer_code').value = item.customer_code || '';
         document.getElementById('cfuCustomerFields').style.display = 'block';
         document.getElementById('cfuEmployeeFields').style.display = 'none';
-    } else if (item.sales_employee) {
-        document.getElementById('cfu_sales_employee').value = item.sales_employee;
+    } else {
+        document.getElementById('cfu_sales_employee').value = entityName;
         document.getElementById('cfuCustomerFields').style.display = 'none';
         document.getElementById('cfuEmployeeFields').style.display = 'block';
     }
@@ -196,7 +199,9 @@ async function applySmartDefaults(item) {
         
         if (referenceData.channelLevels.length > 0) {
             // Default channel level - prefer Retail for customers, Direct for employees
-            const entityType = item.customer_name ? 'Customer' : 'Employee';
+            const rawEntityType = (item.entity_type || '').toString().toLowerCase();
+            const entityType = (rawEntityType === 'employee' || rawEntityType === 'sales_employee')
+                ? 'Employee' : 'Customer';
             let defaultChannel = referenceData.channelLevels[0];
             
             if (entityType === 'Customer' && referenceData.channelLevels.includes('Retail')) {

@@ -72,9 +72,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Sales Report Generator", lifespan=lifespan)
 
 # ── Auth middleware (runs once per request, populates request.state.user) ──────
-# ORDERING NOTE: FastAPI stacks middlewares — the LAST add_middleware call is
-# outermost (first to handle requests). AuthMiddleware should be added FIRST so
-# that any future CORS/GZip middleware added later becomes outermost and correct.
+# ORDERING NOTE: FastAPI stacks middlewares in reverse — the LAST add_middleware
+# call is outermost (first to handle requests). To keep AuthMiddleware outermost,
+# it must remain the LAST add_middleware call. Add any future CORS/GZip middleware
+# BEFORE this line so it runs after auth.
 try:
     from middleware import AuthMiddleware
     app.add_middleware(AuthMiddleware)
@@ -429,7 +430,7 @@ async def home(request: Request, background_tasks: BackgroundTasks):
         "request": request,
         "view": "management",
         "user": user,
-        "pending_unmapped": _get_pending_unmapped_count(),
+        "pending_unmapped": _get_pending_unmapped_count() if (user and user.is_admin) else 0,
     })
 
 @app.get("/coremarkets", response_class=HTMLResponse)
@@ -443,7 +444,7 @@ async def core_markets_view(request: Request, background_tasks: BackgroundTasks)
         "request": request,
         "view": "coremarkets",
         "user": user,
-        "pending_unmapped": _get_pending_unmapped_count(),
+        "pending_unmapped": _get_pending_unmapped_count() if (user and user.is_admin) else 0,
     })
 
 @app.get("/usaspa", response_class=HTMLResponse)
@@ -457,7 +458,7 @@ async def usa_spa_view(request: Request, background_tasks: BackgroundTasks):
         "request": request,
         "view": "usaspa",
         "user": user,
-        "pending_unmapped": _get_pending_unmapped_count(),
+        "pending_unmapped": _get_pending_unmapped_count() if (user and user.is_admin) else 0,
     })
 
 @app.get("/version")

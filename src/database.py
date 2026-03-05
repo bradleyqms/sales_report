@@ -93,9 +93,10 @@ def get_connection_string() -> str:
     print(f"[Database] Connecting to {server}/{database} with Azure AD authentication")
     
     # Connection string for Azure AD token authentication
-    # Must NOT include: Authentication, UID, PWD, Trusted_Connection, or @ symbol
+    # Uses empty username (@ separator) so pyodbc treats the server name as the host
+    # Must NOT include: Authentication, UID, PWD, or Trusted_Connection
     connection_string = (
-        f"mssql+pyodbc://{server}/{database}"
+        f"mssql+pyodbc://@{server}/{database}"
         f"?driver=ODBC+Driver+18+for+SQL+Server"
         f"&Encrypt=yes"
         f"&TrustServerCertificate=no"

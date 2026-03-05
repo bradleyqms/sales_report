@@ -90,7 +90,7 @@
                     <span class="version-value" id="versionValue">Loading...</span>
                 </div>
                 {% if user and user.email != 'anonymous@unknown' %}
-                <div class="user-chip" id="userChip">
+                <div class="user-chip" id="userChip" tabindex="0" role="button" aria-haspopup="true" aria-expanded="false">
                     <div class="user-chip-avatar">{{ user.avatar_char }}</div>
                     <span class="user-chip-name">{{ user.display_name }}</span>
                     <span class="user-chip-badge user-chip-badge--{{ user.group_label | lower | replace(' ', '-') }}">{{ user.group_label }}</span>

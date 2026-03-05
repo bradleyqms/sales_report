@@ -133,8 +133,9 @@ def persist_unmapped_entities(unmapped_entities, run_timestamp=None, use_databas
                 total_ar_value = 0.0
                 if data.get('values'):
                     try:
-                        total_value = sum([float(v) for v in data['values'] if pd.notna(v)])
-                        total_ar_value = round(total_value / 1000, 2) if total_value > 100 else round(total_value, 2)
+                        total_value = sum(float(v) for v in data['values'] if pd.notna(v))
+                        # Always convert EUR → kEUR for consistent storage units
+                        total_ar_value = round(total_value / 1000, 2)
                     except Exception:
                         total_ar_value = 0.0
                 
@@ -512,8 +513,9 @@ def apply_mappings(sales_df, mapping_df=None, output_dir=None, use_database=Fals
             # Calculate total AR value (kEUR)
             if data['values']:
                 try:
-                    total_value = sum([float(v) for v in data['values'] if pd.notna(v)])
-                    record['total_ar_value_keur'] = round(total_value / 1000, 2) if total_value > 100 else round(total_value, 2)
+                    total_value = sum(float(v) for v in data['values'] if pd.notna(v))
+                    # Always convert EUR → kEUR for consistent storage units
+                    record['total_ar_value_keur'] = round(total_value / 1000, 2)
                 except Exception:
                     record['total_ar_value_keur'] = 'N/A'
             else:

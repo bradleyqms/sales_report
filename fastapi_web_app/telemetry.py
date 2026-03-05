@@ -9,13 +9,8 @@ Intended to be called via FastAPI BackgroundTasks:
     background_tasks.add_task(log_page_view, db, user.email, "/coremarkets")
 """
 import logging
-import sys
-from pathlib import Path
 
-# Allow importing src models when called from fastapi_web_app context
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from src.models import TelemetryLog  # noqa: E402  (added in Step 10)
+from src.models import TelemetryLog
 
 logger = logging.getLogger(__name__)
 

@@ -68,7 +68,7 @@ class UnmappedLog(Base):
     first_seen = Column(DateTime(timezone=True), nullable=True)
     last_seen = Column(DateTime(timezone=True), nullable=True)
     total_ar_value_keur = Column(Float, nullable=False, default=0.0)
-    sap_extract_files = Column(Text, nullable=True)  # Comma-separated list of source files
+    sap_extract_files = Column(Text, nullable=True)  # '; '-separated list of source files
     
     # Status tracking
     status = Column(String(20), nullable=False, default='pending', index=True)  # 'pending', 'resolved', 'ignored'

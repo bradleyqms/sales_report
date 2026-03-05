@@ -75,12 +75,6 @@ function setupEventListeners() {
             closeModal();
         }
     });
-    
-    // Entity type change handler
-    const entitySelect = document.getElementById('entity');
-    if (entitySelect) {
-        entitySelect.addEventListener('change', handleEntityTypeChange);
-    }
 }
 
 // ================================
@@ -133,30 +127,6 @@ function populateDropdown(fieldId, options) {
         opt.textContent = option;
         select.appendChild(opt);
     });
-}
-
-function handleEntityTypeChange(e) {
-    const entityType = e.target.value;
-    const customerFields = document.getElementById('customerFields');
-    const employeeFields = document.getElementById('employeeFields');
-    
-    if (entityType === 'Customer') {
-        customerFields.style.display = 'block';
-        employeeFields.style.display = 'none';
-        
-        // Make customer fields optional (at least one required)
-        document.getElementById('customer_name').removeAttribute('required');
-        document.getElementById('customer_code').removeAttribute('required');
-        document.getElementById('sales_employee').removeAttribute('required');
-    } else if (entityType === 'Employee') {
-        customerFields.style.display = 'none';
-        employeeFields.style.display = 'block';
-        
-        // Make employee field required
-        document.getElementById('sales_employee').setAttribute('required', 'required');
-        document.getElementById('customer_name').removeAttribute('required');
-        document.getElementById('customer_code').removeAttribute('required');
-    }
 }
 
 async function submitCreateMapping(event) {
