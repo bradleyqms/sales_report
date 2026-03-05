@@ -54,12 +54,9 @@ def seed_entity_mappings():
     
     missing_cols = set(expected_cols) - set(df.columns)
     if missing_cols:
-        # Try alternative column names
-        alt_mapping = {
-            'Sub Region': 'Sub_Region',
-            'Sub_Region': 'Sub Region'
-        }
-        
+        missing_list = ", ".join(sorted(missing_cols))
+        print(f"❌ Error: CSV is missing required columns: {missing_list}")
+        sys.exit(1)
     print(f"✅ CSV columns validated")
     
     # Create database session

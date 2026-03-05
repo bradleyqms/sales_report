@@ -179,7 +179,7 @@ This setup uses **Azure AD authentication everywhere**:
   5. Azure PowerShell
 
 ### **Connection String** (Same for both environments)
-```**"Failed to get Azure AD token"**
+### **"Failed to get Azure AD token"**
 - **Local**: Run `az login` to authenticate with Azure
 - **Production**: Verify Managed Identity is enabled on App Service
 

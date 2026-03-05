@@ -160,7 +160,7 @@ class TelemetryLog(Base):
 
     id           = Column(Integer, primary_key=True, autoincrement=True)
     user_email   = Column(String(255), nullable=False)                       # lowercased
-    event_type   = Column(String(20),  nullable=False)                       # page_view | export | admin_click
+    event_type   = Column(String(20),  nullable=False)                       # page_view | export | admin_click | login
     page_id      = Column(String(50),  nullable=True)                        # /coremarkets, /admin/mappings, etc.
     load_time_ms = Column(Integer,     nullable=True)
     action       = Column(String(50),  nullable=True)

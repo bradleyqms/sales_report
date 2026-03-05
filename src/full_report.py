@@ -176,8 +176,8 @@ def main():
             # --- Unmapped entity alert ---
             _unmapped_pending = 0
             try:
-                from database import engine as _db_engine
-                from models import UnmappedLog as _UnmappedLog, AuditLog as _AuditLog
+                from src.database import engine as _db_engine
+                from src.models import UnmappedLog as _UnmappedLog, AuditLog as _AuditLog
                 from sqlalchemy.orm import sessionmaker as _sm
                 _session = _sm(bind=_db_engine)()
                 try:

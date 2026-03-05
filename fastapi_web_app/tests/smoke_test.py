@@ -26,11 +26,25 @@ What it checks:
 """
 
 import sys
+import os
 import time
 import requests
 import pytest
 
 BASE = "http://127.0.0.1:8000"
+
+# Skip by default — these tests require a running FastAPI server and live DB.
+# To enable: set RUN_SMOKE_TESTS=1 in your environment.
+pytestmark = [
+    pytest.mark.smoke,
+    pytest.mark.skipif(
+        not os.getenv("RUN_SMOKE_TESTS"),
+        reason=(
+            "Smoke tests require a running FastAPI server and live database. "
+            "Set RUN_SMOKE_TESTS=1 to enable."
+        ),
+    ),
+]
 
 # ── Headers ────────────────────────────────────────────────────────────────────
 # Simulates what Azure Easy Auth injects. The server falls back to DEV_USER_EMAIL

@@ -8,7 +8,8 @@ from azure.identity import DefaultAzureCredential
 # SQL_COPT_SS_ACCESS_TOKEN constant
 SQL_COPT_SS_ACCESS_TOKEN = 1256
 
-print("Step 1: Getting Azure AD token...")
+if __name__ == "__main__":
+    print("Step 1: Getting Azure AD token...")
 credential = DefaultAzureCredential()
 token = credential.get_token("https://database.windows.net/.default")
 token_bytes = token.token.encode("utf-16-le")

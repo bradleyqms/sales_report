@@ -1,6 +1,6 @@
 """Quick verification of Phase 1 setup"""
 from src.database import engine
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect
 from src.models import EntityMapping
 from sqlalchemy.orm import sessionmaker
 

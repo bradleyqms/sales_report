@@ -96,7 +96,10 @@ async def forbidden_handler(request: Request, exc):
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     if exc.status_code == 403:
         return await forbidden_handler(request, exc)
-    raise exc
+    # Return a JSON response that preserves status code and detail rather than
+    # re-raising, which would bypass Starlette's renderer and cause a 500.
+    from fastapi.responses import JSONResponse
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):

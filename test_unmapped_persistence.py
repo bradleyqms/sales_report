@@ -5,14 +5,15 @@ import sys
 from pathlib import Path
 import datetime
 
-# Add project root to path
-project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root))
+if __name__ == "__main__":
+    # Add project root to path
+    project_root = Path(__file__).parent
+    sys.path.insert(0, str(project_root))
 
-print("=" * 70)
-print("Testing Unmapped Entity Persistence")
-print("=" * 70)
-print()
+    print("=" * 70)
+    print("Testing Unmapped Entity Persistence")
+    print("=" * 70)
+    print()
 
 try:
     from src.qry_data_mapping import persist_unmapped_entities
