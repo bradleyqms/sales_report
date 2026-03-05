@@ -179,6 +179,18 @@ This setup uses **Azure AD authentication everywhere**:
   5. Azure PowerShell
 
 ### **Connection String** (Same for both environments)
+
+The SQLAlchemy URL uses an empty-username `@` separator so the driver treats the server
+name as the host (not credentials). The actual auth token is injected at connection time:
+
+```
+mssql+pyodbc://@<server>/<database>?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes
+```
+
+---
+
+## 🔧 Troubleshooting
+
 ### **"Failed to get Azure AD token"**
 - **Local**: Run `az login` to authenticate with Azure
 - **Production**: Verify Managed Identity is enabled on App Service
@@ -205,15 +217,6 @@ This setup uses **Azure AD authentication everywhere**:
 - Install: `winget install Microsoft.AzureCLI` (Windows)
 - Or download from: https://aka.ms/installazurecliwindows
 - Re-run SQL grant commands in Query Editor
-
-### "Cannot open database requested by the login"
-- Check DATABASE_NAME matches in .env
-
-### "TCP Provider: No connection could be made"
-- Add your IP to SQL Server firewall rules (Azure Portal → SQL Server → Networking)
-
-### "Data source name not found" (ODBC error)
-- Install ODBC Driver 18: Download from [Microsoft](https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server)
 
 ---
 
