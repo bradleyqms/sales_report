@@ -25,6 +25,7 @@ from dispatch_reports.config import (
     report_date_str,
 )
 from dispatch_reports.graph_client import send_via_graph
+from dispatch_reports.health_alerts import send_healthcheck_alert
 from dispatch_reports.html_builder import build_html_body
 from dispatch_reports.report_collector import find_files, refresh_reports, resolve_outputs_path, derive_report_date
 
@@ -50,46 +51,52 @@ def _collect_usa_spa_html(outputs_dir: Path) -> list[Path]:
 # ---- Azure Functions entry point ----------------------------------------
 
 def main(mytimer: func.TimerRequest) -> None:
-    outputs_dir = resolve_outputs_path()
-
-    _test_recip = os.getenv("TEST_USA_SPA_RECIPIENTS", "").strip()
-    if _test_recip:
-        LOG.info("TEST mode: overriding recipients with TEST_USA_SPA_RECIPIENTS")
-        recipients = parse_recipients(_test_recip)
-    else:
-        recipients = parse_recipients(os.getenv("USA_SPA_DISPATCH_RECIPIENTS"))
-    if not recipients:
-        LOG.warning("No recipients configured (USA_SPA_DISPATCH_RECIPIENTS is empty)")
-        return
-
-    refresh_reports(outputs_dir)
-    report_date = derive_report_date(outputs_dir)
-
-    html_files = _collect_usa_spa_html(outputs_dir)
-    if not html_files:
-        LOG.warning("No USA Spa HTML files found in %s — skipping", outputs_dir)
-        return
-    LOG.info("USA Spa HTML files (%d): %s", len(html_files), [p.name for p in html_files])
-
-    plain_intro = os.getenv(
-        "USA_SPA_DISPATCH_BODY",
-        "Please find the latest QMS USA Spa sales report below.",
-    )
-    body_type, body_content = build_html_body(
-        html_files,
-        plain_intro,
-        banner_title="USA Spa Sales Report",
-        footer_note="",
-    )
-
-    subject = os.getenv("USA_SPA_DISPATCH_SUBJECT") or (
-        f"QMS USA Spa Sales Report {report_date.strftime('%d.%m.%Y')}"
-        if report_date else
-        f"QMS USA Spa Sales Report {report_date_str()}"
-    )
-
     try:
-        send_via_graph(recipients, [], body_content, subject, body_type)
+        outputs_dir = resolve_outputs_path()
+
+        _test_recip = os.getenv("TEST_USA_SPA_RECIPIENTS", "").strip()
+        if _test_recip:
+            LOG.info("TEST mode: overriding recipients with TEST_USA_SPA_RECIPIENTS")
+            recipients = parse_recipients(_test_recip)
+        else:
+            recipients = parse_recipients(os.getenv("USA_SPA_DISPATCH_RECIPIENTS"))
+        if not recipients:
+            LOG.warning("No recipients configured (USA_SPA_DISPATCH_RECIPIENTS is empty)")
+            return
+
+        refreshed = refresh_reports(outputs_dir)
+        if not refreshed:
+            raise RuntimeError("Report refresh failed; aborting USA Spa dispatch")
+        report_date = derive_report_date(outputs_dir)
+
+        html_files = _collect_usa_spa_html(outputs_dir)
+        if not html_files:
+            LOG.warning("No USA Spa HTML files found in %s — skipping", outputs_dir)
+            return
+        LOG.info("USA Spa HTML files (%d): %s", len(html_files), [p.name for p in html_files])
+
+        plain_intro = os.getenv(
+            "USA_SPA_DISPATCH_BODY",
+            "Please find the latest QMS USA Spa sales report below.",
+        )
+        body_type, body_content = build_html_body(
+            html_files,
+            plain_intro,
+            banner_title="USA Spa Sales Report",
+            footer_note="",
+        )
+
+        subject = os.getenv("USA_SPA_DISPATCH_SUBJECT") or (
+            f"QMS USA Spa Sales Report {report_date.strftime('%d.%m.%Y')}"
+            if report_date else
+            f"QMS USA Spa Sales Report {report_date_str()}"
+        )
+
+        try:
+            send_via_graph(recipients, [], body_content, subject, body_type)
+        except Exception as exc:  # pylint: disable=broad-except
+            LOG.exception("Graph USA Spa dispatch failed: %s", exc)
+            raise
     except Exception as exc:  # pylint: disable=broad-except
-        LOG.exception("Graph USA Spa dispatch failed: %s", exc)
+        send_healthcheck_alert("dispatch_usa_spa_reports", exc)
         raise

@@ -31,6 +31,7 @@ from dispatch_reports.config import (
 
 
 from dispatch_reports.graph_client import send_via_graph
+from dispatch_reports.health_alerts import send_healthcheck_alert
 from dispatch_reports.html_builder import build_html_body
 from dispatch_reports.report_collector import find_files, refresh_reports, resolve_outputs_path, derive_report_date
 
@@ -80,52 +81,58 @@ def _collect_core_market_pdf(outputs_dir: Path) -> list[Path]:
 # ---- Azure Functions entry point ----------------------------------------
 
 def main(mytimer: func.TimerRequest) -> None:
-    outputs_dir = resolve_outputs_path()
-    _test_recip = os.getenv("TEST_CORE_MARKETS_RECIPIENTS", "").strip()
-    if _test_recip:
-        LOG.info("TEST mode: overriding recipients with TEST_CORE_MARKETS_RECIPIENTS")
-        recipients = parse_recipients(_test_recip)
-    else:
-        recipients = parse_recipients(os.getenv("CORE_MARKET_DISPATCH_RECIPIENTS"))
-    if not recipients:
-        LOG.warning("No recipients configured (CORE_MARKET_DISPATCH_RECIPIENTS is empty)")
-        return
-
-    refresh_reports(outputs_dir)
-    report_date = derive_report_date(outputs_dir)
-
-    # HTML → email body
-    html_files = _collect_core_market_html(outputs_dir)
-    if not html_files:
-        LOG.warning("No core market HTML files found in %s", outputs_dir)
-        return
-    LOG.info("Core market HTML files (%d): %s", len(html_files), [p.name for p in html_files])
-
-    plain_intro = os.getenv(
-        "CORE_MARKET_DISPATCH_BODY",
-        "Please find the latest QMS core market report attached.",
-    )
-    body_type, body_content = build_html_body(
-        html_files, plain_intro,
-        banner_title="Core Market Sales Report",
-        footer_note="The PDF report is attached.",
-    )
-
-    # PDF → attachment
-    attachments = _collect_core_market_pdf(outputs_dir)
-    if not attachments:
-        LOG.warning("No core market PDF files found in %s — sending without attachment", outputs_dir)
-    else:
-        LOG.info("Core market PDF attachments (%d): %s", len(attachments), [p.name for p in attachments])
-
-    subject = os.getenv("CORE_MARKET_DISPATCH_SUBJECT") or (
-        f"QMS Core Market Sales Report {report_date.strftime('%d.%m.%Y')}"
-        if report_date else
-        f"QMS Core Market Sales Report {report_date_str()}"
-    )
-
     try:
-        send_via_graph(recipients, attachments, body_content, subject, body_type)
+        outputs_dir = resolve_outputs_path()
+        _test_recip = os.getenv("TEST_CORE_MARKETS_RECIPIENTS", "").strip()
+        if _test_recip:
+            LOG.info("TEST mode: overriding recipients with TEST_CORE_MARKETS_RECIPIENTS")
+            recipients = parse_recipients(_test_recip)
+        else:
+            recipients = parse_recipients(os.getenv("CORE_MARKET_DISPATCH_RECIPIENTS"))
+        if not recipients:
+            LOG.warning("No recipients configured (CORE_MARKET_DISPATCH_RECIPIENTS is empty)")
+            return
+
+        refreshed = refresh_reports(outputs_dir)
+        if not refreshed:
+            raise RuntimeError("Report refresh failed; aborting core market dispatch")
+        report_date = derive_report_date(outputs_dir)
+
+        # HTML → email body
+        html_files = _collect_core_market_html(outputs_dir)
+        if not html_files:
+            LOG.warning("No core market HTML files found in %s", outputs_dir)
+            return
+        LOG.info("Core market HTML files (%d): %s", len(html_files), [p.name for p in html_files])
+
+        plain_intro = os.getenv(
+            "CORE_MARKET_DISPATCH_BODY",
+            "Please find the latest QMS core market report attached.",
+        )
+        body_type, body_content = build_html_body(
+            html_files, plain_intro,
+            banner_title="Core Market Sales Report",
+            footer_note="The PDF report is attached.",
+        )
+
+        # PDF → attachment
+        attachments = _collect_core_market_pdf(outputs_dir)
+        if not attachments:
+            LOG.warning("No core market PDF files found in %s — sending without attachment", outputs_dir)
+        else:
+            LOG.info("Core market PDF attachments (%d): %s", len(attachments), [p.name for p in attachments])
+
+        subject = os.getenv("CORE_MARKET_DISPATCH_SUBJECT") or (
+            f"QMS Core Market Sales Report {report_date.strftime('%d.%m.%Y')}"
+            if report_date else
+            f"QMS Core Market Sales Report {report_date_str()}"
+        )
+
+        try:
+            send_via_graph(recipients, attachments, body_content, subject, body_type)
+        except Exception as exc:  # pylint: disable=broad-except
+            LOG.exception("Graph core market dispatch failed: %s", exc)
+            raise
     except Exception as exc:  # pylint: disable=broad-except
-        LOG.exception("Graph core market dispatch failed: %s", exc)
+        send_healthcheck_alert("core_market_reports", exc)
         raise
