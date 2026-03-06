@@ -169,40 +169,9 @@ def main():
             # Step 4: Apply mappings
             print_progress(4, 6, "Applying entity mappings...")
             mapping_df = pd.read_csv(local_paths['mapping'])
-            mapped_df = apply_mappings(qry_df, mapping_df, persist_to_db=True)
+            mapped_df = apply_mappings(qry_df, mapping_df)
             print()
             print(f"[OK] Mapped {len(mapped_df)} records")
-
-            # --- Unmapped entity alert ---
-            _unmapped_pending = 0
-            try:
-                from src.database import engine as _db_engine
-                from src.models import UnmappedLog as _UnmappedLog, AuditLog as _AuditLog
-                from sqlalchemy.orm import sessionmaker as _sm
-                _session = _sm(bind=_db_engine)()
-                try:
-                    _unmapped_pending = _session.query(_UnmappedLog).filter_by(status='pending').count()
-                    if _unmapped_pending > 0:
-                        _session.add(_AuditLog(
-                            user_email='report_runner',
-                            action='system_alert',
-                            target_type='system_alert',
-                            detail=f'{_unmapped_pending} unmapped entities pending admin review after report run on {datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}'
-                        ))
-                        _session.commit()
-                finally:
-                    _session.close()
-            except Exception as _alert_err:
-                logging.warning(f"Could not write system alert to DB: {_alert_err}")
-
-            if _unmapped_pending > 0:
-                print()
-                print("!" * 80)
-                print("  ⚠️  ADMIN ALERT: UNMAPPED ENTITIES REQUIRE REVIEW")
-                print(f"  {_unmapped_pending} entity/entities could not be mapped and are pending admin verification.")
-                print(f"  Review at: http://localhost:8000/admin/unmapped")
-                print("!" * 80)
-                print()
             
             # Save unified mapped data
             current_year = get_current_year()

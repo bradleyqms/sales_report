@@ -1,20 +1,7 @@
-from __future__ import annotations
-
-# Load .env FIRST — must run before any local module (auth.py, middleware.py) is
-# imported, because auth.py builds its frozensets at module-import time.
-try:
-    from dotenv import load_dotenv as _load_dotenv
-    _load_dotenv()  # reads fastapi_web_app/.env into os.environ
-except ImportError:
-    pass  # python-dotenv not installed — rely on shell env vars
-
-from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Form, BackgroundTasks, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from starlette.concurrency import run_in_threadpool
-from starlette.exceptions import HTTPException as StarletteHTTPException
 import subprocess
 import os
 import zipfile
@@ -24,126 +11,17 @@ import csv
 import glob
 import logging
 import json
-import sys
 from pathlib import Path
 from datetime import datetime
 import asyncio
 from sse_starlette.sse import EventSourceResponse, ServerSentEvent
-from sqlalchemy import text
-from sqlalchemy.orm import sessionmaker
 
 logging.basicConfig(level=logging.INFO)
 
 # Get the directory where main.py is located
 BASE_DIR = Path(__file__).resolve().parent
 
-# Ensure project root (parent of fastapi_web_app/) is on the path so that
-# `from src.xxx import ...` works regardless of how uvicorn is launched.
-_PROJECT_ROOT = str(BASE_DIR.parent)
-if _PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, _PROJECT_ROOT)
-
-# ── Lifespan: startup tasks (replaces @app.on_event) ──────────────────────────
-
-def _prune_telemetry() -> None:
-    """Sync DB call — run in a thread pool so it never blocks the event loop."""
-    import sys as _sys
-    _sys.path.insert(0, str(BASE_DIR.parent))
-    from src.database import engine as _engine
-    _sess = sessionmaker(bind=_engine)()
-    try:
-        _sess.execute(text(
-            "DELETE FROM telemetry_logs WHERE timestamp < DATEADD(day, -90, GETDATE())"
-        ))
-        _sess.commit()
-    finally:
-        _sess.close()
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # 1. Recover metrics from disk — always safe, no DB needed
-    _recover_status_from_disk()
-
-    # 2. Telemetry prune — risky (DB may be unavailable); run in threadpool
-    #    so it never stalls the event loop, and always allow the app to start.
-    try:
-        await run_in_threadpool(_prune_telemetry)
-        logging.info("[startup] Telemetry prune successful.")
-    except Exception as _e:
-        logging.warning("[startup] Telemetry prune failed (non-fatal): %s", _e)
-
-    yield  # app is running
-
-
-app = FastAPI(title="Sales Report Generator", lifespan=lifespan)
-
-# ── Auth middleware (runs once per request, populates request.state.user) ──────
-# ORDERING NOTE: FastAPI stacks middlewares in reverse — the LAST add_middleware
-# call is outermost (first to handle requests). To keep AuthMiddleware outermost,
-# it must remain the LAST add_middleware call. Add any future CORS/GZip middleware
-# BEFORE this line so it runs after auth.
-try:
-    from middleware import AuthMiddleware
-    app.add_middleware(AuthMiddleware)
-    logging.info("✅ AuthMiddleware registered")
-except Exception as e:
-    logging.warning(f"⚠️  AuthMiddleware not loaded: {e}")
-
-# ── 403 exception handler — branded 'Request Access' page ──────────────────────
-@app.exception_handler(403)
-async def forbidden_handler(request: Request, exc):
-    user = getattr(request.state, "user", None)
-    return templates.TemplateResponse(
-        "403.html",
-        {"request": request, "user": user},
-        status_code=403,
-    )
-
-@app.exception_handler(StarletteHTTPException)
-async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    if exc.status_code == 403:
-        return await forbidden_handler(request, exc)
-    # Return a JSON response that preserves status code and detail rather than
-    # re-raising, which would bypass Starlette's renderer and cause a 500.
-    from fastapi.responses import JSONResponse
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
-
-@app.exception_handler(Exception)
-async def unhandled_exception_handler(request: Request, exc: Exception):
-    import traceback
-    logging.error(
-        "💥 Unhandled exception on %s %s\n%s",
-        request.method, request.url.path,
-        traceback.format_exc(),
-    )
-    return JSONResponse(
-        status_code=500,
-        content={"detail": str(exc), "type": type(exc).__name__},
-    )
-
-# ── Route helpers ────────────────────────────────────────────────────────────
-try:
-    from access import check_access, assert_admin  # noqa: F401
-except Exception as e:
-    logging.warning(f"⚠️  access.py not loaded: {e}")
-    def check_access(request, *tiers): pass  # type: ignore
-    def assert_admin(request): pass  # type: ignore
-
-try:
-    from telemetry import log_page_view, log_export  # noqa: F401
-except Exception as e:
-    logging.warning(f"⚠️  telemetry.py not loaded: {e}")
-    def log_page_view(*a, **kw): pass  # type: ignore
-    def log_export(*a, **kw): pass  # type: ignore
-
-# ── Include admin routes ─────────────────────────────────────────────────────
-try:
-    from admin_routes import router as admin_router
-    app.include_router(admin_router)
-    logging.info("✅ Admin UI routes loaded successfully")
-except Exception as e:
-    logging.warning(f"⚠️  Admin UI routes not available: {e}")
+app = FastAPI(title="Sales Report Generator")
 
 # Mount static files using absolute path
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
@@ -188,7 +66,10 @@ report_status = {
 }
 
 
-# startup_event replaced by the lifespan context manager above
+@app.on_event("startup")
+async def startup_event():
+    """Pre-populate report_status from disk on every startup so views work after server restarts."""
+    _recover_status_from_disk()
 
 
 def _parse_to_float(s):
@@ -410,63 +291,17 @@ def get_version_info():
             "deployed_at": datetime.now().isoformat()
         }
 
-def _get_pending_unmapped_count() -> int:
-    """Return count of unmapped entities with status='pending' for the nav badge."""
-    try:
-        import sys as _sys
-        _sys.path.insert(0, str(BASE_DIR.parent))
-        from src.database import engine as _engine
-        from src.models import UnmappedLog
-        from sqlalchemy.orm import sessionmaker
-        session = sessionmaker(bind=_engine)()
-        try:
-            return session.query(UnmappedLog).filter_by(status='pending').count()
-        finally:
-            session.close()
-    except Exception:
-        return 0
-
-
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request, background_tasks: BackgroundTasks):
-    user = getattr(request.state, "user", None)
-    if user and user.email != "anonymous@unknown":
-        background_tasks.add_task(_bg_log_page_view, user.email, "/")
-        background_tasks.add_task(_bg_log_login, user.email)
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "view": "management",
-        "user": user,
-        "pending_unmapped": (await run_in_threadpool(_get_pending_unmapped_count)) if (user and user.is_admin) else 0,
-    })
+async def home(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request, "view": "management"})
 
 @app.get("/coremarkets", response_class=HTMLResponse)
-async def core_markets_view(request: Request, background_tasks: BackgroundTasks):
-    check_access(request, "core", "management", "admin")
-    user = getattr(request.state, "user", None)
-    background_tasks.add_task(
-        _bg_log_page_view, user.email if user else "anonymous", "/coremarkets"
-    )
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "view": "coremarkets",
-        "user": user,
-        "pending_unmapped": (await run_in_threadpool(_get_pending_unmapped_count)) if (user and user.is_admin) else 0,
-    })
+async def core_markets_view(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request, "view": "coremarkets"})
 
 @app.get("/usaspa", response_class=HTMLResponse)
-async def usa_spa_view(request: Request, background_tasks: BackgroundTasks):
-    check_access(request, "usa", "management", "admin")
-    user = getattr(request.state, "user", None)
-    background_tasks.add_task(
-        _bg_log_page_view, user.email if user else "anonymous", "/usaspa"
-    )
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "view": "usaspa",
-        "user": user,
-        "pending_unmapped": (await run_in_threadpool(_get_pending_unmapped_count)) if (user and user.is_admin) else 0,
-    })
+async def usa_spa_view(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request, "view": "usaspa"})
 
 @app.get("/version")
 async def version():
@@ -526,82 +361,16 @@ async def get_segment_metrics():
     return extract_latest_segment_metrics()
 
 @app.get("/download/{filename}")
-async def download_file(request: Request, filename: str, background_tasks: BackgroundTasks):
-    check_access(request, "core", "usa", "management", "admin")
+async def download_file(filename: str):
     file_path = Path("static") / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
-
-    user = getattr(request.state, "user", None)
-    ext = Path(filename).suffix.lstrip(".").lower() or "unknown"
-    report_type = (
-        "core_markets" if "core_market" in filename
-        else "usa_spa" if "usa_spa" in filename
-        else "combined"
-    )
-    background_tasks.add_task(
-        _bg_log_export,
-        user.email if user else "anonymous",
-        ext,
-        report_type,
-    )
 
     return FileResponse(
         path=file_path,
         filename=filename,
         media_type='application/octet-stream'
     )
-
-
-# ── Background telemetry helpers (use their own DB session, errors swallowed) ──
-
-def _bg_log_page_view(user_email: str, page_id: str) -> None:
-    try:
-        import sys as _sys
-        _sys.path.insert(0, str(BASE_DIR.parent))
-        from src.database import engine as _engine
-        _sess = sessionmaker(bind=_engine)()
-        try:
-            log_page_view(_sess, user_email, page_id)
-        finally:
-            _sess.close()
-    except Exception as _e:
-        logging.warning("[telemetry] _bg_log_page_view failed: %s", _e)
-
-
-def _bg_log_login(user_email: str) -> None:
-    """Record a login event (fires once per home page visit)."""
-    try:
-        import sys as _sys
-        _sys.path.insert(0, str(BASE_DIR.parent))
-        from src.database import engine as _engine
-        from src.models import TelemetryLog as _TLog
-        _sess = sessionmaker(bind=_engine)()
-        try:
-            _sess.add(_TLog(
-                user_email=user_email.lower().strip(),
-                event_type="login",
-                page_id="/",
-            ))
-            _sess.commit()
-        finally:
-            _sess.close()
-    except Exception as _e:
-        logging.warning("[telemetry] _bg_log_login failed: %s", _e)
-
-
-def _bg_log_export(user_email: str, file_format: str, report_type: str) -> None:
-    try:
-        import sys as _sys
-        _sys.path.insert(0, str(BASE_DIR.parent))
-        from src.database import engine as _engine
-        _sess = sessionmaker(bind=_engine)()
-        try:
-            log_export(_sess, user_email, file_format, report_type)
-        finally:
-            _sess.close()
-    except Exception as _e:
-        logging.warning("[telemetry] _bg_log_export failed: %s", _e)
 
 def execute_report():
     global report_status
