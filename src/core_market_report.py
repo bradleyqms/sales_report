@@ -44,6 +44,26 @@ class CoreMarketReportGenerator(BaseReportGenerator):
             except Exception as e:
                 logging.warning(f"Could not load sales split summary: {e}")
         
+        # Define sub-region to region mapping
+        self.sub_region_to_region = {
+            'North': 'Germany',
+            'North East': 'Germany',
+            'NRW': 'Germany',
+            'Bayern': 'Germany',
+            'South West': 'Germany',
+            'Retail': 'Germany',
+            'DE Other': 'Germany',
+            'NL Central': 'Benelux',
+            'NL Other + BL': 'Benelux',
+            'NL Other': 'Benelux',
+            'German Switzerland': 'Switzerland',
+            'French Switzerland': 'Switzerland',
+            'Other Switzerland': 'Switzerland',
+            'Spain': 'Spain',
+            'France North': 'France',
+            'France South': 'France',
+        }
+        
         self._prepare_data()
     
     def get_report_headers(self) -> List[str]:
@@ -113,6 +133,13 @@ class CoreMarketReportGenerator(BaseReportGenerator):
             self.prior_df['Sub_Region_Cleaned'] = self.prior_df['Subchannel / Partner'].fillna('').str.strip()
         else:
             self.prior_df['Sub_Region_Cleaned'] = ''
+        
+        # Apply entity mappings to populate Sales_Employee_Cleaned for PY data
+        entity_mapping_path = Path(__file__).parent.parent / 'data/inputs/mappings/entity_mappings.csv'
+        if entity_mapping_path.exists():
+            entity_mappings_df = pd.read_csv(entity_mapping_path)
+            entity_mappings = entity_mappings_df.set_index('Sales_Employee')['Sales_Employee_Cleaned'].to_dict()
+            self.prior_df['Sales_Employee_Cleaned'] = self.prior_df['Sales Employee Name'].map(entity_mappings).fillna('')
         
         # Apply PY-specific regional mappings for missing Sub_Region_Cleaned
         py_mapping_path = Path(__file__).parent.parent / 'data/inputs/mappings/py25_regional_mappings.csv'
@@ -210,13 +237,13 @@ class CoreMarketReportGenerator(BaseReportGenerator):
                     self.new_budget_lookup[sub_region] += row['New_Budget_kEUR']
         
         self.prior_lookup = {}
-        if 'Sub_Region_Cleaned' in self.prior_month.columns and 'Value_kEUR' in self.prior_month.columns:
+        if 'Region' in self.prior_month.columns and 'Value_kEUR' in self.prior_month.columns:
             for _, row in self.prior_month.iterrows():
-                sub_region = row['Sub_Region_Cleaned']
-                if sub_region and pd.notna(sub_region) and sub_region.strip():
-                    if sub_region not in self.prior_lookup:
-                        self.prior_lookup[sub_region] = 0
-                    self.prior_lookup[sub_region] += row['Value_kEUR']
+                region = row['Region']
+                if region and pd.notna(region) and region.strip():
+                    if region not in self.prior_lookup:
+                        self.prior_lookup[region] = 0
+                    self.prior_lookup[region] += row['Value_kEUR']
         
     def _get_budget_value(self, sub_region):
         """Get budget value for a sub-region for the current month."""
@@ -232,7 +259,8 @@ class CoreMarketReportGenerator(BaseReportGenerator):
         
     def _get_prior_value(self, sub_region):
         """Get prior year value for a sub-region for the same month."""
-        return self.prior_lookup.get(sub_region, 0)
+        region = self.sub_region_to_region.get(sub_region, '')
+        return self.prior_lookup.get(region, 0)
         
     def _get_sales_by_type(self, entity, doc_type, sales_type):
         """
