@@ -30,10 +30,13 @@ class CoreMarketReportGenerator(BaseReportGenerator):
     """
     
     def __init__(self, config_path, sales_path, budget_path, prior_path, split_summary_path=None,
-                 report_date=None):
+                 report_date=None, py_mapping_path=None):
         # Call parent constructor (loads config, data files, prepares dates)
         super().__init__(config_path, sales_path, budget_path, prior_path,
                          report_date=report_date)
+        
+        # Store py_mapping_path for use in _prepare_data (falls back to default local path if not provided)
+        self._py_mapping_path = py_mapping_path
         
         # Load sales split summary if available (CoreMarket-specific)
         self.split_summary = None
@@ -113,6 +116,34 @@ class CoreMarketReportGenerator(BaseReportGenerator):
             self.prior_df['Sub_Region_Cleaned'] = self.prior_df['Subchannel / Partner'].fillna('').str.strip()
         else:
             self.prior_df['Sub_Region_Cleaned'] = ''
+        
+        # Derive Sales_Employee_Cleaned directly from Sales Employee / Account for prior data.
+        # GVL-format prior files use rep names (e.g. "Kerstin") as the account value;
+        # entity_mappings covers QRY sales data and won't have these names, so we use the
+        # raw value rather than going through entity_mappings (which would yield empty strings).
+        if 'Sales Employee / Account' in self.prior_df.columns:
+            self.prior_df['Sales_Employee_Cleaned'] = self.prior_df['Sales Employee / Account'].fillna('').str.strip()
+        else:
+            self.prior_df['Sales_Employee_Cleaned'] = ''
+
+        # Apply PY-specific regional mappings: override Sub_Region_Cleaned wherever a match
+        # exists in py25_regional_mappings (e.g. "Kerstin" → "North", "Marina" → "NRW").
+        # This handles GVL-format prior data where Subchannel / Partner holds employee names.
+        py_mapping_path = Path(self._py_mapping_path) if self._py_mapping_path else Path(__file__).parent.parent / 'data/inputs/mappings/py25_regional_mappings.csv'
+        if py_mapping_path.exists():
+            py_mappings_df = pd.read_csv(py_mapping_path)
+            py_mappings = py_mappings_df.set_index('Sales_Employee_Cleaned')['Sub_Region'].to_dict()
+            mapped_region = self.prior_df['Sales_Employee_Cleaned'].map(py_mappings)
+            has_mapping = mapped_region.notna()
+            self.prior_df.loc[has_mapping, 'Sub_Region_Cleaned'] = mapped_region[has_mapping]
+
+        # Fallback to entity mappings for any Sub_Region_Cleaned that is still empty
+        entity_mapping_path = Path(__file__).parent.parent / 'data/inputs/mappings/entity_mappings.csv'
+        if entity_mapping_path.exists():
+            entity_mappings_df = pd.read_csv(entity_mapping_path)
+            entity_mappings = entity_mappings_df.set_index('Sales_Employee_Cleaned')['Sub Region'].dropna().to_dict()
+            mask = self.prior_df['Sub_Region_Cleaned'] == ''
+            self.prior_df.loc[mask, 'Sub_Region_Cleaned'] = self.prior_df.loc[mask, 'Sales_Employee_Cleaned'].map(entity_mappings).fillna('')
         
         # Filter Budget for Current Month
         # Budget Date is DD/MM/YYYY
@@ -583,7 +614,8 @@ if __name__ == "__main__":
             other_paths = {
                 'mapping': '/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/entity_mappings.csv',
                 'budget': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/budget_GVL_{current_year}.csv',
-                'prior': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/prior_sales_{prior_year}_processed.csv'
+                'prior': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/prior_sales_{prior_year}_gvl.csv',
+                'py_mapping': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/py25_regional_mappings.csv'
             }
             
             local_paths = {}
@@ -602,7 +634,9 @@ if __name__ == "__main__":
                         if key == 'budget':
                             local_paths[key] = str(project_root / f'data/inputs/budget/budget_GVL_{current_year}.csv')
                         elif key == 'prior':
-                            local_paths[key] = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_processed.csv')
+                            local_paths[key] = str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv')
+                        elif key == 'py_mapping':
+                            local_paths[key] = str(project_root / 'data/inputs/mappings/py25_regional_mappings.csv')
             finally:
                 sys.stdout = original_stdout  # Restore stdout
             
@@ -630,7 +664,8 @@ if __name__ == "__main__":
                 mapped_path,
                 local_paths['budget'],
                 local_paths['prior'],
-                split_summary_path
+                split_summary_path,
+                py_mapping_path=local_paths.get('py_mapping')
             )
             df = generator.calculate_report()
             print()  # Move to new line before report output
@@ -663,7 +698,7 @@ if __name__ == "__main__":
             project_root / 'src/config/core_market_report_structure.json',
             project_root / f'data/outputs/qry_unified_mapped_{current_year}.csv',
             project_root / f'data/inputs/budget/budget_GVL_{current_year}.csv',
-            project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_processed.csv',
+            project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv',
             split_summary_path
         )
         df = generator.calculate_report()
