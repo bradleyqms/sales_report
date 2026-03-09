@@ -139,7 +139,7 @@ class CoreMarketReportGenerator(BaseReportGenerator):
         if entity_mapping_path.exists():
             entity_mappings_df = pd.read_csv(entity_mapping_path)
             entity_mappings = entity_mappings_df.set_index('Sales_Employee')['Sales_Employee_Cleaned'].to_dict()
-            self.prior_df['Sales_Employee_Cleaned'] = self.prior_df['Sales Employee Name'].map(entity_mappings).fillna('')
+            self.prior_df['Sales_Employee_Cleaned'] = self.prior_df['Sales Employee / Account'].map(entity_mappings).fillna('')
         
         # Apply PY-specific regional mappings for missing Sub_Region_Cleaned
         py_mapping_path = Path(__file__).parent.parent / 'data/inputs/mappings/py25_regional_mappings.csv'
