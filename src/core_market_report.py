@@ -114,6 +114,23 @@ class CoreMarketReportGenerator(BaseReportGenerator):
         else:
             self.prior_df['Sub_Region_Cleaned'] = ''
         
+        # Apply PY-specific regional mappings for missing Sub_Region_Cleaned
+        py_mapping_path = Path(__file__).parent.parent / 'data/inputs/mappings/py25_regional_mappings.csv'
+        if py_mapping_path.exists():
+            py_mappings_df = pd.read_csv(py_mapping_path)
+            py_mappings = py_mappings_df.set_index('Sales_Employee_Cleaned')['Sub_Region'].to_dict()
+            # Apply mapping where Sub_Region_Cleaned is empty
+            mask = self.prior_df['Sub_Region_Cleaned'] == ''
+            self.prior_df.loc[mask, 'Sub_Region_Cleaned'] = self.prior_df.loc[mask, 'Sales_Employee_Cleaned'].map(py_mappings).fillna('')
+        
+        # Fallback to entity mappings if still empty
+        entity_mapping_path = Path(__file__).parent.parent / 'data/inputs/mappings/entity_mappings.csv'
+        if entity_mapping_path.exists():
+            entity_mappings_df = pd.read_csv(entity_mapping_path)
+            entity_mappings = entity_mappings_df.set_index('Sales_Employee_Cleaned')['Sub Region'].dropna().to_dict()
+            mask = self.prior_df['Sub_Region_Cleaned'] == ''
+            self.prior_df.loc[mask, 'Sub_Region_Cleaned'] = self.prior_df.loc[mask, 'Sales_Employee_Cleaned'].map(entity_mappings).fillna('')
+        
         # Filter Budget for Current Month
         # Budget Date is DD/MM/YYYY
         self.budget_df['Date'] = pd.to_datetime(self.budget_df['Date'], format='%d/%m/%Y')
