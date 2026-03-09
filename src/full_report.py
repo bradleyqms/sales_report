@@ -130,7 +130,8 @@ def main():
                 'gvl_budget': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/budget_GVL_{current_year}.csv',
                 'gvl_prior': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/prior_sales_{prior_year}_gvl.csv',
                 'usa_spa_budget': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/budget_USA_spa_{current_year}.csv',
-                'usa_spa_prior': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/prior_sales_{prior_year}_usa.csv'
+                'usa_spa_prior': f'/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/prior_sales_{prior_year}_usa.csv',
+                'py_mapping': '/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/py25_regional_mappings.csv'
             }
             
             # Local fallback paths
@@ -141,7 +142,8 @@ def main():
                 'gvl_budget': str(project_root / f'data/inputs/budget/budget_GVL_{current_year}.csv'),
                 'gvl_prior': str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv'),
                 'usa_spa_budget': str(project_root / f'data/inputs/budget/budget_USA_spa_{current_year}.csv'),
-                'usa_spa_prior': str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_usa.csv')
+                'usa_spa_prior': str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_usa.csv'),
+                'py_mapping': str(project_root / 'data/inputs/mappings/py25_regional_mappings.csv')
             }
             
             def download_support_file(key_sp_path):
@@ -206,7 +208,8 @@ def main():
             'gvl_budget': str(project_root / f'data/inputs/budget/budget_GVL_{current_year}.csv'),
             'gvl_prior': str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv'),
             'usa_spa_budget': str(project_root / f'data/inputs/budget/budget_USA_spa_{current_year}.csv'),
-            'usa_spa_prior': str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_usa.csv')
+            'usa_spa_prior': str(project_root / f'data/inputs/prior_years/prior_sales_{prior_year}_usa.csv'),
+            'py_mapping': str(project_root / 'data/inputs/mappings/py25_regional_mappings.csv')
         }
         
         if not os.path.exists(mapped_path):
@@ -305,7 +308,8 @@ def main():
             str(project_root / 'src/config/core_market_report_structure.json'),
             mapped_path,
             core_market_budget_path,
-            core_market_prior_path
+            core_market_prior_path,
+            py_mapping_path=local_paths.get('py_mapping')
         )
         core_market_df = core_market_gen.calculate_report()
         core_market_gen.render_report(core_market_df)
