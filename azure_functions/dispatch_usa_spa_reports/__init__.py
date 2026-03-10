@@ -87,9 +87,9 @@ def main(mytimer: func.TimerRequest) -> None:
         )
 
         subject = os.getenv("USA_SPA_DISPATCH_SUBJECT") or (
-            f"QMS USA Spa Sales Report {report_date.strftime('%d.%m.%Y')}"
+            f"EOM QMS USA Spa Sales Report {report_date.strftime('%d.%m.%Y')}"
             if report_date else
-            f"QMS USA Spa Sales Report {report_date_str()}"
+            f"EOM QMS USA Spa Sales Report {report_date_str()}"
         )
 
         try:

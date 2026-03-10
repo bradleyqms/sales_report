@@ -39,7 +39,7 @@ _collect_pdf          = _mod._collect_core_market_pdf
 from dispatch_reports.config   import parse_recipients, report_date_str
 from dispatch_reports.graph_client import send_via_graph, acquire_graph_token
 from dispatch_reports.html_builder import build_html_body
-from dispatch_reports.report_collector import refresh_reports as _refresh, resolve_outputs_path
+from dispatch_reports.report_collector import refresh_reports as _refresh, resolve_outputs_path, derive_report_date
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,11 +65,9 @@ def run_test(skip_refresh: bool, skip_send: bool) -> None:
     else:
         recipients = parse_recipients(os.getenv("CORE_MARKET_DISPATCH_RECIPIENTS"))
     sender  = os.getenv("REPORT_DISPATCH_GRAPH_SENDER")
-    subject = os.getenv("CORE_MARKET_DISPATCH_SUBJECT") or f"QMS Core Market Sales Report {report_date_str()}"
     LOG.info("outputs_dir : %s", outputs_dir)
     LOG.info("recipients  : %s", recipients)
     LOG.info("sender      : %s", sender)
-    LOG.info("subject     : %s", subject)
     if not recipients:
         LOG.error("No recipients — cannot continue")
         sys.exit(1)
@@ -79,6 +77,14 @@ def run_test(skip_refresh: bool, skip_send: bool) -> None:
         LOG.info("Skipping refresh (--skip-refresh)")
     else:
         _refresh(outputs_dir)
+
+    report_date = derive_report_date(outputs_dir)
+    subject = os.getenv("CORE_MARKET_DISPATCH_SUBJECT") or (
+        f"EOM QMS Core Market Sales Report {report_date.strftime('%d.%m.%Y')}"
+        if report_date else f"EOM QMS Core Market Sales Report {report_date_str()}"
+    )
+    LOG.info("report_date : %s", report_date.strftime("%Y-%m-%d") if report_date else "N/A")
+    LOG.info("subject     : %s", subject)
 
     section("3 / HTML BODY")
     html_files = _collect_html(outputs_dir)

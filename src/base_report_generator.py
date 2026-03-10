@@ -9,6 +9,7 @@ table formatting, and multi-format exports.
 from abc import ABC, abstractmethod
 import json
 import datetime
+import calendar
 import pandas as pd
 import logging
 from pathlib import Path
@@ -496,7 +497,15 @@ class BaseReportGenerator(ABC):
         now = self.now
         headers = self.get_report_headers()
         title = self.get_report_title()
-        date_range = format_mtd_date_range()  # always real datetime.now()
+
+        is_eom_anchor = (
+            getattr(self, "_report_date", None) is not None
+            and now.day == calendar.monthrange(now.year, now.month)[1]
+        )
+        if is_eom_anchor:
+            date_range = f"{now.strftime('%B')} 1-{now.day}, {now.year}"
+        else:
+            date_range = format_mtd_date_range(now)
         
         # Build text and HTML content
         text_lines = []
