@@ -1,6 +1,7 @@
 import pandas as pd
 import json
 import datetime
+import calendar
 import os
 import tempfile
 import sys
@@ -432,7 +433,12 @@ class USASpaReportGenerator(BaseReportGenerator):
         col_budget = f"{month_name}-{year_short}B"
         col_prior = f"{month_name}-{prior_year_short}A"
         
-        print(f"USA Spa Report (Month-to-Date: {format_mtd_date_range()})")
+        if now.day == calendar.monthrange(now.year, now.month)[1]:
+            date_range = f"{now.strftime('%B')} 1-{now.day}, {now.year}"
+        else:
+            date_range = format_mtd_date_range(now)
+
+        print(f"USA Spa Report (Month-to-Date: {date_range})")
         print(f"{self.unit:<30} {col_curr:>14} {col_budget:>10} {f'{year_short}A vs {year_short}B':>12} {f'% {year_short}A vs {year_short}B':>14} {col_prior:>10} {f'% {year_short}A vs {prior_year_short}A':>14}")
         print("-" * 114)
         

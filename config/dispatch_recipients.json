@@ -1,0 +1,56 @@
+{
+  "management": {
+    "enabled": false,
+    "description": "Production management recipients (disabled by default for safety)",
+    "recipients": [
+      "Christoph Thoma <c.thoma@qmsmedicosmetics.de>",
+      "Clare Morgan <clare@cheyne-hudson.com>",
+      "Eva Vrabie <e.vrabie@qmsmedicosmetics.com>",
+      "Giovanni Russo <russo@qmsmedicosmetics.com>",
+      "Melissa Blamey <m.blamey@qmsmedicosmetics.com>",
+      "Rainer Anskinewitsch <r.anskinewitsch@qmsmedicosmetics.com>",
+      "Stefanie Wriedt <s.wriedt@qmsmedicosmetics.com>",
+      "Steve Byrom-Chadd <steve@qmsmedicosmetics.com>",
+      "Viola Kleist <v.kleist@qmsmedicosmetics.com>",
+      "Mehdi Salemi-Najafabadi <m.salemi@qmsmedicosmetics.de>",
+      "Jakob Armbruster <j.armbruster@qmsmedicosmetics.de>"
+    ]
+  },
+  "core": {
+    "enabled": false,
+    "description": "Core market production recipients",
+    "recipients": [
+      "Aracelli Gutierrez <a.gutierrez@qmsmedicosmetics.com>",
+      "Caroline da Costa Campos <dacostacampos@qmsmedicosmetics.com>",
+      "Christiane Rose <rose@qmsmedicosmetics.de>",
+      "Elena Grigoreva <southwest-eu@qmsmedicosmetics.com>",
+      "Gabrielle van Eykern <vaneykern@qmsmedicosmetics.com>",
+      "Heike Zils <zils@qmsmedicosmetics.com>",
+      "Kerstin Brunbauer <brunbauer@qmsmedicosmetics.com>",
+      "Marina Pfauch <pfauch@qmsmedicosmetics.com>",
+      "Marjelein Mijnheer <Mijnheer@qmsmedicosmetics.com>",
+      "Sibylle Woehrle <woehrle@qmsmedicosmetics.com>",
+      "Spain | QMS <spain@qmsmedicosmetics.com>",
+      "Ulrike Bensmann <bensmann@qmsmedicosmetics.com>",
+      "Yannick Januario <januario@qmsmedicosmetics.com>",
+      "Ioannis Papoulias <Papoulias@qmsmedicosmetics.com>"
+    ]
+  },
+  "usa": {
+    "enabled": false,
+    "description": "USA Spa production recipients",
+    "recipients": [
+      "Amy Chasko <a.chasko@qmsmedicosmetics.com>",
+      "Emily Kasprowicz <e.kasprowicz@qmsmedicosmetics.com>",
+      "Erin Shapiro <e.shapiro@qmsmedicosmetics.com>",
+      "Marcus Howard <m.howard@qmsmedicosmetics.com>"
+    ]
+  },
+  "test": {
+    "enabled": true,
+    "description": "Safe test recipients",
+    "recipients": [
+      "bradwilcock01@gmail.com"
+    ]
+  }
+}

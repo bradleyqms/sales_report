@@ -101,8 +101,8 @@ def run_test(skip_refresh: bool, skip_send: bool, dry_run: bool) -> None:
     report_date = _derive_report_date(outputs_dir)
     LOG.info("report_date : %s (derived from Extract_Date)", report_date.strftime("%Y-%m-%d"))
     subject = os.getenv("REPORT_DISPATCH_SUBJECT") or (
-        f"QMS Management Sales Report {report_date.strftime('%d.%m.%Y')}"
-        if report_date else f"QMS Management Sales Report {_mod.report_date_str()}"
+        f"EOM QMS Management Sales Report {report_date.strftime('%d.%m.%Y')}"
+        if report_date else f"EOM QMS Management Sales Report {_mod.report_date_str()}"
     )
     LOG.info("subject     : %s", subject)
 
