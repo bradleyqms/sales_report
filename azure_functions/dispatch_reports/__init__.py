@@ -31,6 +31,23 @@ _acquire_graph_token = acquire_graph_token
 _refresh_reports = refresh_reports
 
 
+def _build_subject(report_date: "datetime | None") -> str:
+    """Return the dispatch email subject line.
+
+    Reads ``V2_UNIFIED_REFRESH_REPORT_TYPE`` (default ``MTD``) to decide
+    whether to prefix with ``EOM``.  An explicit ``REPORT_DISPATCH_SUBJECT``
+    env var always wins.
+    """
+    mode = os.getenv("V2_UNIFIED_REFRESH_REPORT_TYPE", "MTD").strip().upper() or "MTD"
+    date_str = report_date.strftime('%d.%m.%Y') if report_date else report_date_str()
+    default = (
+        f"EOM QMS Management Sales Report {date_str}"
+        if mode == "EOM"
+        else f"QMS Management Sales Report {date_str}"
+    )
+    return os.getenv("REPORT_DISPATCH_SUBJECT") or default
+
+
 # ---- Azure Functions entry point ----------------------------------------
 
 def main(mytimer: func.TimerRequest) -> None:
@@ -82,11 +99,7 @@ def main(mytimer: func.TimerRequest) -> None:
                 "CSV attachments (%d): %s", len(attachments), [p.name for p in attachments]
             )
 
-        subject = os.getenv("REPORT_DISPATCH_SUBJECT") or (
-            f"EOM QMS Management Sales Report {report_date.strftime('%d.%m.%Y')}"
-            if report_date else
-            f"EOM QMS Management Sales Report {report_date_str()}"
-        )
+        subject = _build_subject(report_date)
 
         try:
             send_via_graph(recipients, attachments, body_content, subject, body_type)
