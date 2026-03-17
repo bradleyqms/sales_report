@@ -25,6 +25,7 @@ on:
       - main
     paths:
       - 'fastapi_web_app/**'
+      - 'src/**'
       - 'static/**'
       - 'templates/**'
       - 'requirements.txt'
