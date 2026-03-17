@@ -1,0 +1,49 @@
+{
+  "version": "v1",
+  "profiles": {
+    "MTD": {
+      "required": {
+        "Region": ["Region"],
+        "Entity_Type": ["Entity_Type", "Entity Type"],
+        "Entity_Name": ["Entity_Name", "Entity Name"],
+        "Net_Value": ["Net_Value", "Net Value"],
+        "Currency": ["Currency"],
+        "Extract_Date_Int": ["Extract_Date_Int", "Extract_Date", "Extract Date"],
+        "Entity_Code": ["Entity_Code", "Entity Code", "Customer Code"],
+        "Document_Type": ["Document_Type", "Document Type", "Doc Type"]
+      },
+      "optional": {
+        "Sales_Employee_Name": ["Sales Employee Name", "Sales Employee", "Salesperson"],
+        "Customer_Name": ["Customer Name", "Customer", "CardName"]
+      },
+      "types": {
+        "Net_Value": "numeric",
+        "Extract_Date_Int": "yyyymmdd_or_date",
+        "Currency": "string",
+        "Entity_Code": "string"
+      }
+    },
+    "EOM": {
+      "required": {
+        "Region": ["Region"],
+        "Entity_Type": ["Entity_Type", "Entity Type"],
+        "Entity_Name": ["Entity_Name", "Entity Name"],
+        "Net_Value": ["Net_Value", "Net Value"],
+        "Currency": ["Currency"],
+        "Extract_Date_Int": ["Extract_Date_Int", "Extract_Date", "Extract Date"],
+        "Entity_Code": ["Entity_Code", "Entity Code", "Customer Code"],
+        "Document_Type": ["Document_Type", "Document Type", "Doc Type"]
+      },
+      "optional": {
+        "Sales_Employee_Name": ["Sales Employee Name", "Sales Employee", "Salesperson"],
+        "Customer_Name": ["Customer Name", "Customer", "CardName"]
+      },
+      "types": {
+        "Net_Value": "numeric",
+        "Extract_Date_Int": "yyyymmdd_or_date",
+        "Currency": "string",
+        "Entity_Code": "string"
+      }
+    }
+  }
+}

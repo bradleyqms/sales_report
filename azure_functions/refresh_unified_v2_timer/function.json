@@ -5,7 +5,7 @@
       "name": "mytimer",
       "type": "timerTrigger",
       "direction": "in",
-      "schedule": "%CORE_MARKET_DISPATCH_SCHEDULE%",
+      "schedule": "%V2_UNIFIED_REFRESH_SCHEDULE%",
       "runOnStartup": false,
       "useMonitor": true
     }

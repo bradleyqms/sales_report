@@ -93,9 +93,15 @@ def main(mytimer: func.TimerRequest) -> None:
             LOG.warning("No recipients configured (CORE_MARKET_DISPATCH_RECIPIENTS is empty)")
             return
 
-        refreshed = refresh_reports(outputs_dir)
-        if not refreshed:
-            raise RuntimeError("Report refresh failed; aborting core market dispatch")
+        refresh_before_send = os.getenv("CORE_MARKET_REFRESH_BEFORE_SEND", "false").strip().lower() in {
+            "1", "true", "yes", "on"
+        }
+        if refresh_before_send:
+            refreshed = refresh_reports(outputs_dir)
+            if not refreshed:
+                raise RuntimeError("Report refresh failed; aborting core market dispatch")
+        else:
+            LOG.info("CORE_MARKET_REFRESH_BEFORE_SEND disabled; sending from existing outputs")
         report_date = derive_report_date(outputs_dir)
 
         # HTML → email body

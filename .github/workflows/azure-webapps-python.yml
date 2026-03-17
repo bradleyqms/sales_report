@@ -21,12 +21,19 @@ name: Deploy to Azure App Service
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
+    branches:
+      - main
+    paths:
+      - 'fastapi_web_app/**'
+      - 'static/**'
+      - 'templates/**'
+      - 'requirements.txt'
+      - '.github/workflows/azure-webapps-python.yml'
   workflow_dispatch:
 
 env:
   AZURE_WEBAPP_NAME: qms-sales-report
+  AZURE_WEBAPP_SLOT: staging
   PYTHON_VERSION: '3.11'
 
 jobs:
@@ -87,5 +94,6 @@ jobs:
       uses: azure/webapps-deploy@v2
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
-        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        slot-name: ${{ env.AZURE_WEBAPP_SLOT }}
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_STAGING }}
         package: release.zip

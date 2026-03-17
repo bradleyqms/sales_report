@@ -5,6 +5,7 @@ azure-functions
 msal
 requests
 python-dotenv
+azure-storage-blob>=12.26.0
 
 # Report generation — required by src/full_report.py subprocess
 pandas>=2.1.0

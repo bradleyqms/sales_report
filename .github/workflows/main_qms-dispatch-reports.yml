@@ -98,6 +98,6 @@ jobs:
         id: deploy-to-function
         with:
           app-name: 'qms-dispatch-reports'
-          slot-name: 'Production'
+          slot-name: 'staging'
           package: './release.zip'
           
