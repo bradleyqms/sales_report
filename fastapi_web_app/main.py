@@ -6,6 +6,7 @@ import subprocess
 import os
 import zipfile
 import re
+import base64
 import shutil
 import csv
 import glob
@@ -81,6 +82,94 @@ report_status = {
 
 _metrics_cache = {"signature": None, "expires_at": 0.0, "value": None}
 _segment_metrics_cache = {"signature": None, "expires_at": 0.0, "value": None}
+
+
+def _parse_email_list(raw: str | None) -> set[str]:
+    if not raw:
+        return set()
+    return {
+        token.strip().lower()
+        for token in re.split(r"[;,]", raw)
+        if token and token.strip()
+    }
+
+
+def _extract_user_email(request: Request) -> str | None:
+    direct = (request.headers.get("x-ms-client-principal-name") or "").strip().lower()
+    if "@" in direct:
+        return direct
+
+    encoded = (request.headers.get("x-ms-client-principal") or "").strip()
+    if not encoded:
+        return None
+
+    try:
+        padding = "=" * (-len(encoded) % 4)
+        decoded = base64.b64decode(encoded + padding).decode("utf-8")
+        payload = json.loads(decoded)
+    except Exception:
+        return None
+
+    preferred_types = {
+        "preferred_username",
+        "upn",
+        "email",
+        "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+    }
+
+    fallback_email = None
+    for claim in payload.get("claims", []):
+        typ = str(claim.get("typ", "")).strip().lower()
+        val = str(claim.get("val", "")).strip().lower()
+        if "@" not in val:
+            continue
+        if typ in preferred_types:
+            return val
+        if fallback_email is None:
+            fallback_email = val
+
+    return fallback_email
+
+
+def _authorized_emails_for_path(path: str) -> set[str]:
+    management = _parse_email_list(os.getenv("REPORT_DISPATCH_RECIPIENTS"))
+    core = _parse_email_list(os.getenv("CORE_MARKET_DISPATCH_RECIPIENTS"))
+    usa = _parse_email_list(os.getenv("USA_SPA_DISPATCH_RECIPIENTS"))
+    all_allowed = management | core | usa
+
+    if path == "/" or path == "/run-report":
+        return management
+    if path.startswith("/coremarkets"):
+        return core
+    if path.startswith("/usaspa"):
+        return usa
+    if path in {"/stream-logs", "/status", "/metrics", "/segment-metrics"}:
+        return all_allowed
+    if path.startswith("/download/"):
+        return all_allowed
+    return set()
+
+
+@app.middleware("http")
+async def enforce_slot_email_access(request: Request, call_next):
+    path = request.url.path
+
+    if (
+        path.startswith("/.auth")
+        or path.startswith("/static/")
+        or path in {"/version", "/health"}
+    ):
+        return await call_next(request)
+
+    allowed_emails = _authorized_emails_for_path(path)
+    if not allowed_emails:
+        return await call_next(request)
+
+    user_email = _extract_user_email(request)
+    if user_email and user_email in allowed_emails:
+        return await call_next(request)
+
+    return JSONResponse(status_code=403, content={"detail": "Forbidden"})
 
 
 @app.on_event("startup")

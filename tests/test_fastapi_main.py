@@ -1,14 +1,22 @@
 import io
 import sys
 import zipfile
+import json
+import base64
 from pathlib import Path
 
 import pytest
+import httpx
 
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastapi_web_app import main as app_main
+
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
 
 
 def _write_file(path: Path, content: str = "sample") -> Path:
@@ -111,3 +119,57 @@ def test_execute_report_adds_unmapped_file_to_zip(tmp_path, monkeypatch):
             usa.name,
             unmapped.name,
         ])
+
+
+def _easy_auth_header(email: str) -> dict[str, str]:
+    payload = {
+        "claims": [
+            {"typ": "preferred_username", "val": email}
+        ]
+    }
+    encoded = base64.b64encode(json.dumps(payload).encode("utf-8")).decode("utf-8")
+    return {
+        "x-ms-client-principal-name": email,
+        "x-ms-client-principal": encoded,
+    }
+
+
+@pytest.mark.parametrize(
+    "path,env_var,allowed_email,blocked_email",
+    [
+        ("/", "REPORT_DISPATCH_RECIPIENTS", "mgmt.allowed@qmsmedicosmetics.com", "mgmt.blocked@qmsmedicosmetics.com"),
+        ("/coremarkets", "CORE_MARKET_DISPATCH_RECIPIENTS", "core.allowed@qmsmedicosmetics.com", "core.blocked@qmsmedicosmetics.com"),
+        ("/usaspa", "USA_SPA_DISPATCH_RECIPIENTS", "usa.allowed@qmsmedicosmetics.com", "usa.blocked@qmsmedicosmetics.com"),
+    ],
+)
+@pytest.mark.anyio
+async def test_route_authorization_allows_and_blocks_by_recipient_lists(monkeypatch, path, env_var, allowed_email, blocked_email):
+    monkeypatch.setenv("REPORT_DISPATCH_RECIPIENTS", "")
+    monkeypatch.setenv("CORE_MARKET_DISPATCH_RECIPIENTS", "")
+    monkeypatch.setenv("USA_SPA_DISPATCH_RECIPIENTS", "")
+    monkeypatch.setenv(env_var, allowed_email)
+
+    transport = httpx.ASGITransport(app=app_main.app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        allowed_resp = await client.get(path, headers=_easy_auth_header(allowed_email))
+        blocked_resp = await client.get(path, headers=_easy_auth_header(blocked_email))
+
+    assert allowed_resp.status_code == 200
+    assert blocked_resp.status_code == 403
+
+
+@pytest.mark.anyio
+async def test_shared_api_endpoints_allow_users_from_any_audience_list(monkeypatch):
+    monkeypatch.setenv("REPORT_DISPATCH_RECIPIENTS", "mgmt.allowed@qmsmedicosmetics.com")
+    monkeypatch.setenv("CORE_MARKET_DISPATCH_RECIPIENTS", "core.allowed@qmsmedicosmetics.com")
+    monkeypatch.setenv("USA_SPA_DISPATCH_RECIPIENTS", "usa.allowed@qmsmedicosmetics.com")
+
+    transport = httpx.ASGITransport(app=app_main.app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        resp_core = await client.get("/status", headers=_easy_auth_header("core.allowed@qmsmedicosmetics.com"))
+        resp_usa = await client.get("/metrics", headers=_easy_auth_header("usa.allowed@qmsmedicosmetics.com"))
+        resp_blocked = await client.get("/segment-metrics", headers=_easy_auth_header("not.allowed@qmsmedicosmetics.com"))
+
+    assert resp_core.status_code == 200
+    assert resp_usa.status_code == 200
+    assert resp_blocked.status_code == 403
