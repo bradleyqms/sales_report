@@ -527,11 +527,20 @@ def main(argv=None):
         print(f"[DRY-RUN] combined:    {combined_base}.csv")
         return
 
+    _sp = _build_sp_handler(project_root)
+    _retries = max(1, args.download_retries)
+    _backoff = max(0.0, args.retry_backoff_seconds)
+
     mapping_path = resolve_mapping_file(
         project_root,
         args.mapping_file,
-        retries=max(1, args.download_retries),
-        retry_backoff_seconds=max(0.0, args.retry_backoff_seconds),
+        retries=_retries,
+        retry_backoff_seconds=_backoff,
+    )
+    py_mapping_path = resolve_input_file(
+        "py25_regional_mappings.csv",
+        project_root / "data/inputs/mappings/py25_regional_mappings.csv",
+        _sp, _retries, _backoff,
     )
     mapping_df = pd.read_csv(mapping_path)
 
@@ -542,10 +551,6 @@ def main(argv=None):
 
     current_year = report_date.year
     prior_year = report_date.year - 1
-
-    _sp = _build_sp_handler(project_root)
-    _retries = max(1, args.download_retries)
-    _backoff = max(0.0, args.retry_backoff_seconds)
 
     budget_path = resolve_input_file(
         f"budget_{current_year}_processed.csv",
@@ -608,6 +613,8 @@ def main(argv=None):
         str(mapped_path),
         str(gvl_budget_path),
         str(gvl_prior_path),
+        py_mapping_path=str(py_mapping_path),
+        entity_mapping_path=str(mapping_path),
         **core_kwargs,
     )
     apply_report_date_anchor(core, report_date)

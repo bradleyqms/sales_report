@@ -30,13 +30,14 @@ class CoreMarketReportGenerator(BaseReportGenerator):
     """
     
     def __init__(self, config_path, sales_path, budget_path, prior_path, split_summary_path=None,
-                 report_date=None, py_mapping_path=None):
+                 report_date=None, py_mapping_path=None, entity_mapping_path=None):
         # Call parent constructor (loads config, data files, prepares dates)
         super().__init__(config_path, sales_path, budget_path, prior_path,
                          report_date=report_date)
         
-        # Store py_mapping_path for use in _prepare_data (falls back to default local path if not provided)
+        # Store mapping paths for use in _prepare_data (fall back to default local paths if not provided)
         self._py_mapping_path = py_mapping_path
+        self._entity_mapping_path = entity_mapping_path
         
         # Load sales split summary if available (CoreMarket-specific)
         self.split_summary = None
@@ -130,7 +131,7 @@ class CoreMarketReportGenerator(BaseReportGenerator):
         # exists in py25_regional_mappings (e.g. "Kerstin" → "North", "Marina" → "NRW").
         # This handles GVL-format prior data where Subchannel / Partner holds employee names.
         py_mapping_path = Path(self._py_mapping_path) if self._py_mapping_path else Path(__file__).parent.parent / 'data/inputs/mappings/py25_regional_mappings.csv'
-        if py_mapping_path.exists():
+        if Path(py_mapping_path).exists():
             py_mappings_df = pd.read_csv(py_mapping_path)
             py_mappings = py_mappings_df.set_index('Sales_Employee_Cleaned')['Sub_Region'].to_dict()
             mapped_region = self.prior_df['Sales_Employee_Cleaned'].map(py_mappings)
@@ -138,8 +139,8 @@ class CoreMarketReportGenerator(BaseReportGenerator):
             self.prior_df.loc[has_mapping, 'Sub_Region_Cleaned'] = mapped_region[has_mapping]
 
         # Fallback to entity mappings for any Sub_Region_Cleaned that is still empty
-        entity_mapping_path = Path(__file__).parent.parent / 'data/inputs/mappings/entity_mappings.csv'
-        if entity_mapping_path.exists():
+        entity_mapping_path = Path(self._entity_mapping_path) if self._entity_mapping_path else Path(__file__).parent.parent / 'data/inputs/mappings/entity_mappings.csv'
+        if Path(entity_mapping_path).exists():
             entity_mappings_df = pd.read_csv(entity_mapping_path)
             entity_mappings = entity_mappings_df.set_index('Sales_Employee_Cleaned')['Sub Region'].dropna().to_dict()
             mask = self.prior_df['Sub_Region_Cleaned'] == ''
