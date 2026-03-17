@@ -77,6 +77,67 @@ def parse_force_period(force_period: str | None, report_type: str) -> datetime.d
     raise ValueError("--force-period must be YYYY-MM or YYYY-MM-DD")
 
 
+SP_EXTRACTS_PATH = "/sites/DATAANDREPORTING/Shared Documents/SAP Extracts"
+
+
+def _build_sp_handler(project_root: Path):
+    """Return an initialised SharePointHandler if SP credentials are configured, else None."""
+    load_dotenv(project_root / ".env")
+    site_url = os.getenv("SHAREPOINT_SITE_URL")
+    client_id = os.getenv("SHAREPOINT_CLIENT_ID")
+    client_secret = os.getenv("SHAREPOINT_CLIENT_SECRET")
+    if not all([site_url, client_id, client_secret]):
+        return None
+    tenant = os.getenv("SHAREPOINT_TENANT_ID") or os.getenv("SHAREPOINT_TENANT_DOMAIN")
+    try:
+        request_timeout = float(os.getenv("SHAREPOINT_REQUEST_TIMEOUT_SECONDS", "30"))
+    except ValueError:
+        request_timeout = 30.0
+    return SharePointHandler(
+        site_url, client_id, client_secret,
+        quiet=True, tenant=tenant, request_timeout=request_timeout,
+    )
+
+
+def resolve_input_file(
+    filename: str,
+    local_path: Path,
+    sp_handler,
+    retries: int = 1,
+    retry_backoff_seconds: float = 1.0,
+) -> Path:
+    """Return a local path for *filename*, downloading from SharePoint SAP Extracts if needed.
+
+    Priority: SharePoint (if credentials configured) → local fallback.
+    """
+    if sp_handler is not None:
+        try:
+            temp_dir = Path(tempfile.mkdtemp(prefix="v2_input_"))
+            dest = temp_dir / filename
+            download_unified_with_retry(
+                sp_handler,
+                f"{SP_EXTRACTS_PATH}/{filename}",
+                str(dest),
+                retries=retries,
+                base_backoff_seconds=retry_backoff_seconds,
+            )
+            logging.info("Downloaded from SharePoint: %s", filename)
+            return dest
+        except Exception as exc:
+            logging.warning(
+                "SharePoint download failed for %s: %s — trying local fallback", filename, exc
+            )
+
+    if local_path.exists():
+        logging.info("Using local file: %s", local_path)
+        return local_path
+
+    raise FileNotFoundError(
+        f"Required data file not found: {filename}. "
+        "Ensure it exists in SharePoint SAP Extracts or locally in data/inputs/."
+    )
+
+
 def resolve_mapping_file(
     project_root: Path,
     explicit_path: str | None,
@@ -91,65 +152,25 @@ def resolve_mapping_file(
             raise FileNotFoundError(f"Mapping file not found: {path}")
         return path
 
-    load_dotenv(project_root / ".env")
-    site_url = os.getenv("SHAREPOINT_SITE_URL")
-    client_id = os.getenv("SHAREPOINT_CLIENT_ID")
-    client_secret = os.getenv("SHAREPOINT_CLIENT_SECRET")
-    tenant = os.getenv("SHAREPOINT_TENANT_ID") or os.getenv("SHAREPOINT_TENANT_DOMAIN")
-    timeout_raw = os.getenv("SHAREPOINT_REQUEST_TIMEOUT_SECONDS", "30")
-
-    try:
-        request_timeout = float(timeout_raw)
-    except ValueError:
-        request_timeout = 30.0
-
-    # Preferred mapping filenames (try in order)
-    mapping_filenames = [
-        "entity_mappings.csv",
-        "py25_regional_mappings.csv",
-    ]
-
-    if all([site_url, client_id, client_secret]):
-        sp_handler = SharePointHandler(
-            site_url,
-            client_id,
-            client_secret,
-            quiet=True,
-            tenant=tenant,
-            request_timeout=request_timeout,
-        )
-        # Try to download each mapping file
-        for filename in mapping_filenames:
-            try:
-                temp_dir = Path(tempfile.mkdtemp(prefix="v2_mapping_"))
-                local_path = temp_dir / filename
-                sp_path = f"/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/{filename}"
-                download_unified_with_retry(
-                    sp_handler,
-                    sp_path,
-                    str(local_path),
-                    retries=retries,
-                    base_backoff_seconds=retry_backoff_seconds,
-                )
-                logging.info(f"Mapping file downloaded from SharePoint: {filename}")
-                return local_path
-            except Exception as exc:
-                logging.warning(f"Failed to download {filename} from SharePoint: {exc}")
-                continue
-
-    # Fall back to local files
-    local_locations = [
-        project_root / "data/inputs/mappings/entity_mappings.csv",
-        project_root / "data/inputs/mappings/py25_regional_mappings.csv",
-    ]
-    for path in local_locations:
-        if path.exists():
-            logging.info(f"Using local mapping file: {path}")
-            return path
+    sp_handler = _build_sp_handler(project_root)
+    for filename, local_rel in [
+        ("entity_mappings.csv", "data/inputs/mappings/entity_mappings.csv"),
+        ("py25_regional_mappings.csv", "data/inputs/mappings/py25_regional_mappings.csv"),
+    ]:
+        try:
+            return resolve_input_file(
+                filename,
+                project_root / local_rel,
+                sp_handler,
+                retries=retries,
+                retry_backoff_seconds=retry_backoff_seconds,
+            )
+        except FileNotFoundError:
+            continue
 
     raise FileNotFoundError(
-        "No mapping file found. Provide --mapping-file or configure SharePoint credentials "
-        "or ensure mapping files exist in data/inputs/mappings/"
+        "No mapping file found. Provide --mapping-file, configure SharePoint credentials, "
+        "or ensure mapping files exist in data/inputs/mappings/."
     )
 
 
@@ -521,12 +542,41 @@ def main(argv=None):
 
     current_year = report_date.year
     prior_year = report_date.year - 1
-    budget_path = project_root / f"data/inputs/budget/budget_{current_year}_processed.csv"
-    prior_path = project_root / f"data/inputs/prior_years/prior_sales_{prior_year}_processed.csv"
-    gvl_budget_path = project_root / f"data/inputs/budget/budget_GVL_{current_year}.csv"
-    gvl_prior_path = project_root / f"data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv"
-    usa_budget_path = project_root / f"data/inputs/budget/budget_USA_spa_{current_year}.csv"
-    usa_prior_path = project_root / f"data/inputs/prior_years/prior_sales_{prior_year}_usa.csv"
+
+    _sp = _build_sp_handler(project_root)
+    _retries = max(1, args.download_retries)
+    _backoff = max(0.0, args.retry_backoff_seconds)
+
+    budget_path = resolve_input_file(
+        f"budget_{current_year}_processed.csv",
+        project_root / f"data/inputs/budget/budget_{current_year}_processed.csv",
+        _sp, _retries, _backoff,
+    )
+    prior_path = resolve_input_file(
+        f"prior_sales_{prior_year}_processed.csv",
+        project_root / f"data/inputs/prior_years/prior_sales_{prior_year}_processed.csv",
+        _sp, _retries, _backoff,
+    )
+    gvl_budget_path = resolve_input_file(
+        f"budget_GVL_{current_year}.csv",
+        project_root / f"data/inputs/budget/budget_GVL_{current_year}.csv",
+        _sp, _retries, _backoff,
+    )
+    gvl_prior_path = resolve_input_file(
+        f"prior_sales_{prior_year}_gvl.csv",
+        project_root / f"data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv",
+        _sp, _retries, _backoff,
+    )
+    usa_budget_path = resolve_input_file(
+        f"budget_USA_spa_{current_year}.csv",
+        project_root / f"data/inputs/budget/budget_USA_spa_{current_year}.csv",
+        _sp, _retries, _backoff,
+    )
+    usa_prior_path = resolve_input_file(
+        f"prior_sales_{prior_year}_usa.csv",
+        project_root / f"data/inputs/prior_years/prior_sales_{prior_year}_usa.csv",
+        _sp, _retries, _backoff,
+    )
 
     receivables = ManagementReportGenerator(
         str(project_root / "src/config/report_structure.json"),
