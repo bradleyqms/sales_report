@@ -1,0 +1,13 @@
+{
+  "scriptFile": "__init__.py",
+  "bindings": [
+    {
+      "name": "mytimer",
+      "type": "timerTrigger",
+      "direction": "in",
+      "schedule": "%V2_UNIFIED_REFRESH_SCHEDULE%",
+      "runOnStartup": false,
+      "useMonitor": true
+    }
+  ]
+}

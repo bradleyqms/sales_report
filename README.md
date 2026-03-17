@@ -161,6 +161,44 @@ Add these keys to your Azure Function configuration or to `azure_functions/local
 The function also relies on the Microsoft Graph credentials already required elsewhere in the project (`GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`).
 
 Override `REPORT_DISPATCH_OUTPUTS_PATH` if your reports live outside `data/outputs`; the function logs a warning and falls back to `data/outputs` if the directory is missing.
+
+## V2 Unified Auto Refresh
+
+- **Function:** `refresh_unified_v2_timer` (Azure Functions timer trigger).
+- **Schedule:** set `V2_UNIFIED_REFRESH_SCHEDULE=0 15 * * * *` and keep timezone check active with `V2_UNIFIED_REFRESH_TIMEZONE=Europe/Berlin`.
+- **Window enforcement:** runs only Monday-Friday at `09:15` through `17:15` CET/CEST.
+- **Runner:** executes `src/full_report_v2.py` (default `MTD`) and writes outputs into partitioned folders:
+	- `data/outputs/report_type=MTD|EOM/date=YYYY-MM-DD/time=HHMMSS/`
+
+### App Settings for V2 Timer
+
+| Variable | Description |
+|---|---|
+| `V2_UNIFIED_REFRESH_SCHEDULE` | Azure timer schedule (recommended `0 15 * * * *`). |
+| `V2_UNIFIED_REFRESH_TIMEZONE` | Local timezone for business-window enforcement (`Europe/Berlin`). |
+| `V2_UNIFIED_REFRESH_REPORT_TYPE` | Refresh mode (`MTD` default, can be `EOM`). |
+| `V2_UNIFIED_REFRESH_OUTPUT_TAG` | Output naming tag for timer runs. |
+| `V2_UNIFIED_REFRESH_TIMEOUT_SECONDS` | Timeout for the V2 refresh command. |
+| `V2_UNIFIED_REFRESH_OUTPUTS_PATH` | Optional override for output root path. |
+| `V2_UNIFIED_REFRESH_COMMAND` | Optional full command override. |
+| `V2_UNIFIED_DRY_RUN` | Optional dry-run mode for verification (`true/false`). |
+
+### Web UI Auto-Refresh Mode
+
+- Set `AUTO_REFRESH_ENABLED=true` in the FastAPI app to hide manual run and switch to trigger-driven updates.
+- The UI polls `/status` every 60 seconds and refreshes links/metrics from the latest outputs.
+
+### Blob-Backed Output Discovery
+
+The FastAPI app can read latest files directly from Blob storage:
+
+| Variable | Description |
+|---|---|
+| `REPORT_OUTPUT_BLOB_CONNECTION_STRING` | Connection string for `stqmssaledatalakeprod` (or use `AZURE_STORAGE_CONNECTION_STRING`). |
+| `REPORT_OUTPUT_BLOB_CONTAINER` | Container name storing report outputs. |
+| `REPORT_OUTPUT_BLOB_PREFIX` | Optional blob prefix/folder root for report files. |
+
+When blob settings are configured, latest report artifacts are downloaded to web static cache and served through existing download links.
 ## License
 
 Proprietary - QMS Medicosmetics
