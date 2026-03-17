@@ -11,6 +11,7 @@ on:
     paths:
       - 'azure_functions/**'
       - 'src/**'
+      - 'data/inputs/**'
       - '.github/workflows/main_qms-dispatch-reports.yml'
   workflow_dispatch:
 
