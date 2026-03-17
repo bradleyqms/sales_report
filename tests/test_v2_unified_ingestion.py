@@ -123,6 +123,25 @@ def test_unified_ingestion_rejects_non_yyyymmdd_extract_date(tmp_path):
         load_unified_qry_csv(str(source), report_type="MTD", report_date=datetime.datetime(2026, 3, 10))
 
 
+def test_unified_ingestion_accepts_escaped_unit_separator_literal(tmp_path):
+    source = tmp_path / "escaped_usv.csv"
+    source.write_text(
+        "Region\\x1fCurrency\\x1fExtract_Date_Int\\x1fEntity_Type\\x1fEntity_Code\\x1fEntity_Name\\x1fNet_Value\\x1fDocument_Type\\x1f\n"
+        "USA\\x1fUSD\\x1f20260310\\x1fcustomer\\x1fC100\\x1fRetail Partner\\x1f1000,00\\x1fAR\\x1f\n",
+        encoding="utf-8",
+    )
+
+    result = load_unified_qry_csv(
+        str(source),
+        report_type="MTD",
+        report_date=datetime.datetime(2026, 3, 10),
+    )
+
+    assert len(result) == 1
+    assert result.iloc[0]["Customer Name"] == "Retail Partner"
+    assert result.iloc[0]["Document Type"] == "AR"
+
+
 def test_schema_manifest_version_is_loaded_from_default_manifest():
     version = get_schema_manifest_version()
     assert version == "v1"

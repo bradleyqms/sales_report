@@ -44,6 +44,7 @@ COLUMN_ALIASES = {
 
 DEFAULT_SCHEMA_MANIFEST = Path(__file__).resolve().parent / "config" / "schema_profiles_v1.json"
 UNIT_SEPARATOR = "\x1f"
+ESCAPED_UNIT_SEPARATORS = ("\\x1f", "\\u001f")
 
 
 def _fallback_schema_profiles() -> dict:
@@ -163,6 +164,23 @@ def _read_unified_source_csv(src: Path) -> pd.DataFrame:
 
     with open(src, "r", encoding="utf-8-sig", errors="replace") as fh:
         all_lines = fh.readlines()
+
+    # Some upstream exports may contain escaped separators ("\\x1f" / "\\u001f")
+    # instead of the raw ASCII unit-separator byte. Normalize those first.
+    if all_lines and UNIT_SEPARATOR not in all_lines[0]:
+        has_escaped_sep = any(token in all_lines[0] for token in ESCAPED_UNIT_SEPARATORS)
+        if has_escaped_sep:
+            logging.warning(
+                "_read_unified_source_csv: detected escaped unit separators in %s header; normalizing",
+                src.name,
+            )
+            normalized_lines: list[str] = []
+            for line in all_lines:
+                fixed = line
+                for token in ESCAPED_UNIT_SEPARATORS:
+                    fixed = fixed.replace(token, UNIT_SEPARATOR)
+                normalized_lines.append(fixed)
+            all_lines = normalized_lines
 
     if not all_lines:
         logging.warning("_read_unified_source_csv: file is empty: %s", src)
