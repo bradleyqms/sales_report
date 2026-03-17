@@ -64,9 +64,15 @@ def main(mytimer: func.TimerRequest) -> None:
             LOG.warning("No recipients configured (USA_SPA_DISPATCH_RECIPIENTS is empty)")
             return
 
-        refreshed = refresh_reports(outputs_dir)
-        if not refreshed:
-            raise RuntimeError("Report refresh failed; aborting USA Spa dispatch")
+        refresh_before_send = os.getenv("USA_SPA_REFRESH_BEFORE_SEND", "false").strip().lower() in {
+            "1", "true", "yes", "on"
+        }
+        if refresh_before_send:
+            refreshed = refresh_reports(outputs_dir)
+            if not refreshed:
+                raise RuntimeError("Report refresh failed; aborting USA Spa dispatch")
+        else:
+            LOG.info("USA_SPA_REFRESH_BEFORE_SEND disabled; sending from existing outputs")
         report_date = derive_report_date(outputs_dir)
 
         html_files = _collect_usa_spa_html(outputs_dir)

@@ -235,14 +235,37 @@ def resolve_unified_source_path(
     site_url = os.getenv("SHAREPOINT_SITE_URL")
     client_id = os.getenv("SHAREPOINT_CLIENT_ID")
     client_secret = os.getenv("SHAREPOINT_CLIENT_SECRET")
+    tenant = os.getenv("SHAREPOINT_TENANT_ID") or os.getenv("SHAREPOINT_TENANT_DOMAIN")
+    timeout_raw = os.getenv("SHAREPOINT_REQUEST_TIMEOUT_SECONDS", "30")
+    require_sharepoint = os.getenv("V2_UNIFIED_REQUIRE_SHAREPOINT", "false").strip().lower() in {
+        "1", "true", "yes", "on"
+    }
+
+    try:
+        request_timeout = float(timeout_raw)
+    except ValueError:
+        request_timeout = 30.0
 
     filename = resolve_unified_filename(report_type)
+
+    if require_sharepoint and not all([site_url, client_id, client_secret]):
+        raise RuntimeError(
+            "V2_UNIFIED_REQUIRE_SHAREPOINT is enabled, but SharePoint credentials are incomplete. "
+            "Set SHAREPOINT_SITE_URL, SHAREPOINT_CLIENT_ID, and SHAREPOINT_CLIENT_SECRET."
+        )
 
     if all([site_url, client_id, client_secret]):
         temp_dir = Path(tempfile.mkdtemp(prefix="v2_unified_qry_"))
         local_path = temp_dir / filename
 
-        sp_handler = SharePointHandler(site_url, client_id, client_secret, quiet=True)
+        sp_handler = SharePointHandler(
+            site_url,
+            client_id,
+            client_secret,
+            quiet=True,
+            tenant=tenant,
+            request_timeout=request_timeout,
+        )
         sp_path = f"/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/{filename}"
         download_unified_with_retry(
             sp_handler,
@@ -255,6 +278,11 @@ def resolve_unified_source_path(
 
     fallback = project_root / "data" / "inputs" / filename
     if fallback.exists():
+        if require_sharepoint:
+            raise RuntimeError(
+                "V2_UNIFIED_REQUIRE_SHAREPOINT is enabled; local fallback is disabled. "
+                "Fix SharePoint connectivity/credentials to continue."
+            )
         return fallback
 
     raise FileNotFoundError(

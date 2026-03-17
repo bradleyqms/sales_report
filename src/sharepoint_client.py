@@ -4,7 +4,7 @@ import requests
 import urllib.parse
 
 class SharePointHandler:
-    def __init__(self, site_url, client_id, client_secret, quiet=False):
+    def __init__(self, site_url, client_id, client_secret, quiet=False, tenant=None, request_timeout=None):
         """
         Initialize SharePoint connection using Microsoft Graph API.
         
@@ -18,10 +18,19 @@ class SharePointHandler:
         self.client_id = client_id
         self.client_secret = client_secret
         self.quiet = quiet
+        timeout_from_env = os.getenv("SHAREPOINT_REQUEST_TIMEOUT_SECONDS", "30")
+        try:
+            self.request_timeout = float(request_timeout if request_timeout is not None else timeout_from_env)
+        except (TypeError, ValueError):
+            self.request_timeout = 30.0
         
-        # Extract tenant from site URL or default to common
-        # Ideally should be provided, but we can guess or use common
-        self.tenant = "qmsmedicosmetics.onmicrosoft.com" 
+        # Resolve tenant from explicit arg or environment with legacy fallback.
+        self.tenant = (
+            tenant
+            or os.getenv("SHAREPOINT_TENANT_ID")
+            or os.getenv("SHAREPOINT_TENANT_DOMAIN")
+            or "qmsmedicosmetics.onmicrosoft.com"
+        )
         self.authority = f"https://login.microsoftonline.com/{self.tenant}"
         self.scope = ["https://graph.microsoft.com/.default"]
         
@@ -60,7 +69,7 @@ class SharePointHandler:
         # Graph API endpoint to get site by path
         endpoint = f"https://graph.microsoft.com/v1.0/sites/{hostname}:/{site_path}"
         
-        response = requests.get(endpoint, headers=self.headers)
+        response = requests.get(endpoint, headers=self.headers, timeout=self.request_timeout)
         if response.status_code == 200:
             self.site_id = response.json()['id']
             if not self.quiet:
@@ -117,7 +126,7 @@ class SharePointHandler:
             
         if not self.quiet:
             print(f"Downloading from: {endpoint}")
-        response = requests.get(endpoint, headers=self.headers)
+        response = requests.get(endpoint, headers=self.headers, timeout=self.request_timeout)
         
         if response.status_code == 200:
             with open(local_path, 'wb') as f:
@@ -129,7 +138,7 @@ class SharePointHandler:
              if not self.quiet:
                  print("File not found in default drive. Checking other drives...")
              drives_endpoint = f"https://graph.microsoft.com/v1.0/sites/{self.site_id}/drives"
-             drives_response = requests.get(drives_endpoint, headers=self.headers)
+             drives_response = requests.get(drives_endpoint, headers=self.headers, timeout=self.request_timeout)
              
              if drives_response.status_code == 200:
                  drives = drives_response.json().get('value', [])
@@ -147,7 +156,7 @@ class SharePointHandler:
                              if not self.quiet:
                                  print(f"Retrying download from: {new_endpoint}")
                              
-                             retry_response = requests.get(new_endpoint, headers=self.headers)
+                             retry_response = requests.get(new_endpoint, headers=self.headers, timeout=self.request_timeout)
                              if retry_response.status_code == 200:
                                  with open(local_path, 'wb') as f:
                                      f.write(retry_response.content)
@@ -193,7 +202,7 @@ class SharePointHandler:
         headers = self.headers.copy()
         headers['Content-Type'] = 'application/octet-stream'
         
-        response = requests.put(endpoint, headers=headers, data=content)
+        response = requests.put(endpoint, headers=headers, data=content, timeout=self.request_timeout)
         
         if response.status_code in [200, 201]:
             if not self.quiet:
