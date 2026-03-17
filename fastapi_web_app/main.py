@@ -30,6 +30,7 @@ logging.basicConfig(level=logging.INFO)
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR.parent / ".env")
 AUTO_REFRESH_ENABLED = os.getenv("AUTO_REFRESH_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
+AUTO_REFRESH_RUN_ON_EMPTY = os.getenv("AUTO_REFRESH_RUN_ON_EMPTY", "true").strip().lower() in {"1", "true", "yes", "on"}
 BLOB_CONNECTION_STRING = os.getenv("REPORT_OUTPUT_BLOB_CONNECTION_STRING", "").strip() or os.getenv("AZURE_STORAGE_CONNECTION_STRING", "").strip()
 BLOB_CONTAINER_NAME = os.getenv("REPORT_OUTPUT_BLOB_CONTAINER", "").strip()
 BLOB_PREFIX = os.getenv("REPORT_OUTPUT_BLOB_PREFIX", "").strip().strip("/")
@@ -82,6 +83,32 @@ report_status = {
 
 _metrics_cache = {"signature": None, "expires_at": 0.0, "value": None}
 _segment_metrics_cache = {"signature": None, "expires_at": 0.0, "value": None}
+_auto_refresh_bootstrap_triggered = False
+
+
+def _should_auto_bootstrap_run() -> bool:
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        return False
+    return (
+        AUTO_REFRESH_ENABLED
+        and AUTO_REFRESH_RUN_ON_EMPTY
+        and not report_status["running"]
+        and not report_status.get("last_run")
+        and not _latest_output_file("combined_management_report_*.csv")
+    )
+
+
+def _trigger_auto_bootstrap_run_if_needed() -> None:
+    global _auto_refresh_bootstrap_triggered
+
+    if _auto_refresh_bootstrap_triggered:
+        return
+    if not _should_auto_bootstrap_run():
+        return
+
+    _auto_refresh_bootstrap_triggered = True
+    logging.info("AUTO_REFRESH_RUN_ON_EMPTY enabled and no prior report found; triggering background run")
+    asyncio.create_task(asyncio.to_thread(execute_report))
 
 
 def _parse_email_list(raw: str | None) -> set[str]:
@@ -176,6 +203,7 @@ async def enforce_slot_email_access(request: Request, call_next):
 async def startup_event():
     """Pre-populate report_status from disk on every startup so views work after server restarts."""
     _recover_status_from_disk()
+    _trigger_auto_bootstrap_run_if_needed()
 
 
 def _parse_to_float(s):
@@ -573,7 +601,9 @@ async def stream_logs():
 async def get_status():
     if AUTO_REFRESH_ENABLED and not report_status["running"]:
         _recover_status_from_disk()
+        _trigger_auto_bootstrap_run_if_needed()
     report_status["auto_refresh_enabled"] = AUTO_REFRESH_ENABLED
+    report_status["auto_refresh_run_on_empty"] = AUTO_REFRESH_RUN_ON_EMPTY
     return report_status
 
 @app.get("/metrics")
