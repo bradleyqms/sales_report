@@ -58,7 +58,7 @@ def resolve_outputs_path() -> Path:
     return candidate
 
 
-_DEFAULT_REFRESH_SCRIPT = Path(__file__).resolve().parents[1] / "src" / "full_report.py"
+_DEFAULT_REFRESH_SCRIPT = Path(__file__).resolve().parents[1] / "src" / "full_report_v2.py"
 
 
 def build_refresh_command() -> list[str] | None:
@@ -134,7 +134,7 @@ def find_files(outputs_dir: Path, pattern: str, limit: int) -> list[Path]:
         LOG.warning("Outputs directory %s is missing", outputs_dir)
         return []
     candidates = sorted(
-        outputs_dir.glob(pattern),
+        outputs_dir.rglob(pattern),
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )
