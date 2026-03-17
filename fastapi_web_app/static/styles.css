@@ -94,11 +94,8 @@ body {
     color: #718096;
 }
 
-.status-indicator {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
+.status-indicator { display: none; }
+.version-info { display: none; }
 
 .status-dot {
     width: 8px;
@@ -159,6 +156,7 @@ main {
     display: flex;
     flex-direction: column;
     gap: 24px;
+    padding-top: 0;
 }
 
 /* Card styles */
@@ -387,14 +385,51 @@ main {
 
 
 /* Table Styles */
-.table-responsive {
-    overflow-x: auto;
-    margin-top: 16px;
+
+/*
+  Sticky layout strategy
+  ─────────────────────
+  .table-card                   → overflow: visible (no Y-scroll containment)
+  .table-card .card-header      → sticky, top: 0  (title bar sticks first)
+  .table-scroll-x               → overflow-x: auto only (horizontal scroll wrapper)
+  thead th                      → sticky, top: var(--thead-top) set by JS
+
+  The two-wrapper trick avoids the CSS rule that any overflow ≠ visible on a
+  parent breaks position:sticky for descendants on Y.
+*/
+
+.table-card {
+    overflow: visible !important; /* must not contain sticky children */
 }
+
+.table-card .card-header {
+    position: sticky;
+    top: 0;
+    z-index: 12;
+    background: #151b2b;
+    border-radius: 8px 8px 0 0;
+    /* MD3 elevation-level-2 shadow — toggled by .is-stuck class via JS */
+    transition: box-shadow 200ms cubic-bezier(0.2, 0, 0, 1);
+    margin: -32px -32px 24px -32px; /* re-extend to card edges */
+    padding: 24px 32px 16px;
+}
+
+.table-card .card-header.is-stuck {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.55);
+}
+
+.table-scroll-x {
+    overflow-x: auto; /* Keep horizontal scrolling */
+    margin-top: 0;
+    /* Remove max-height and overflow: auto so the window scrolls normally */
+}
+
+
 
 .data-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 14px;
     color: #e2e8f0;
 }
@@ -406,14 +441,69 @@ main {
     border-bottom: 1px solid #2d3748;
 }
 
-.data-table th:first-child,
+/* ── Sticky header row ── */
+.data-table thead th {
+    position: sticky;
+    top: var(--thead-top, 0px); /* set per-table by JS after card-header height known */
+    z-index: 11;
+    background: #151b2b;
+    transition: box-shadow 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* MD3 elevation when header row is stuck */
+.data-table thead.is-stuck th {
+    box-shadow: 0 3px 8px rgba(0,0,0,0.45);
+}
+
+/* ── Sticky first column (corner + data cells) ── */
+.data-table th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 13; /* above all — corner cell */
+    background: #151b2b;
+    text-align: left;
+}
+
 .data-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: #151b2b;
     text-align: left;
     font-weight: 600;
     color: #fff;
 }
 
-.data-table th {
+/* Row-type overrides keep sticky cell matching row bg */
+.data-table tr.row-grand-total td {
+    background: rgba(52, 211, 153, 0.08);
+}
+.data-table tr.row-grand-total td:first-child {
+    background: #132a22;
+}
+.data-table tr.row-subtotal td {
+    background: rgba(255,255,255,0.03);
+}
+.data-table tr.row-subtotal td:first-child {
+    background: #1a2030;
+}
+
+/* Separator line between frozen column and scrolling content */
+.data-table th:first-child,
+.data-table td:first-child {
+    border-right: 1px solid #2d3748;
+}
+
+.data-table th:not(:first-child) {
+    font-weight: 600;
+    color: #a0aec0;
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    padding-bottom: 16px;
+}
+
+.data-table th:first-child {
     font-weight: 600;
     color: #a0aec0;
     text-transform: uppercase;
@@ -429,6 +519,40 @@ main {
 .data-table tr:hover td {
     background-color: rgba(255, 255, 255, 0.02);
 }
+
+/* ── Floating sticky header bar ────────────────────────────────────────────────
+   Appears (fixed at top of viewport) when the card title scrolls off-screen,
+   showing both the report title and column headers so they stay readable.
+   Does not modify the table itself.
+──────────────────────────────────────────────────────────────────────────── */
+.float-header-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    background: #1a2235;
+    border-bottom: 2px solid #3b82f6;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.55);
+    padding: 8px 20px 6px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-100%);
+    transition: opacity 160ms ease, transform 160ms ease;
+}
+.float-header-bar.fhb-visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+.float-header-bar-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
 
 /* Responsive design */
 @media (max-width: 768px) {
@@ -977,4 +1101,200 @@ main {
 .row-grand-total td {
     font-weight: 700;
     border-top: 2px solid #4a5568;
+}
+
+/* 1. Ensure the card allows child elements to stick to the window */
+.card {
+    overflow: visible !important; 
+}
+
+/* 2. The Native Sticky Top Half */
+.sticky-top-section {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #151b2b; /* Using exact card background color */
+    border-bottom: 1px solid #374151; /* Divider between header and body */
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+}
+
+/* 3. The Wrappers */
+.header-scroll-container {
+    overflow: hidden; /* Hides the top scrollbar, but allows JS scrolling */
+    width: 100%;
+}
+
+.body-scroll-container {
+    overflow-x: auto; /* Handles the actual swiping/scrolling */
+    width: 100%;
+    border-radius: 0 0 12px 12px;
+}
+
+/* 4. Force tables to obey strict pixel widths */
+.data-table.strict-layout {
+    table-layout: fixed;
+    width: max-content; /* Allows horizontal scrolling beyond window width */
+    margin: 0; 
+}
+
+/* =======================================================================
+   TV MODE / WALLBOARD (DNR-Wallboard)
+   ======================================================================= */
+.tv-mode-btn {
+    background: transparent;
+    border: 1px solid rgba(160, 174, 192, 0.3);
+    color: #a0aec0;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.tv-mode-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* TV Header (Hidden in desktop mode) */
+.tv-header {
+    display: none;
+}
+
+/* TV Mode Wallboard Styles */
+.metrics-card.tv-mode {
+    height: 100vh;
+    width: 100vw;
+    max-width: none !important;
+    margin: 0;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: 10vh 5vw 5vh 5vw;
+    box-sizing: border-box;
+    border: none;
+    overflow-y: auto;
+    position: fixed;
+    top: 0;
+    left: 0;
+    background: var(--bg-card); /* Ensure solid background hides underlying app */
+    z-index: 9999;
+}
+
+/* Hide desktop elements inside Wallboard */
+.metrics-card.tv-mode .metrics-card-header,
+.metrics-card.tv-mode .metrics-timestamp {
+    display: none !important;
+}
+
+/* Show TV Header inside Wallboard */
+.metrics-card.tv-mode .tv-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 2.5vh 5vw;
+    background: rgba(14, 21, 28, 0.95);
+    border-bottom: 2px solid rgba(56, 189, 248, 0.2);
+    z-index: 10000;
+}
+
+.tv-header-title {
+    font-size: 2.5vw;
+    font-weight: 800;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 1vw;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.tv-header-time {
+    font-size: 1.5vw;
+    font-family: 'Courier New', monospace;
+    color: #bfcfdf;
+    font-weight: 600;
+}
+
+/* Pulsing Green Dot */
+.live-pulse {
+    width: 1.2vw;
+    height: 1.2vw;
+    background-color: #10b981;
+    border-radius: 50%;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    animation: pulse-green 2s infinite;
+}
+
+@keyframes pulse-green {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 1vw rgba(16, 185, 129, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* Enormous Global KPIs for Top Row */
+.metrics-card.tv-mode .kpi-row {
+    margin-top: 5vh;
+    margin-bottom: 5vh;
+    display: flex;
+    gap: 3vw;
+}
+
+.metrics-card.tv-mode .kpi-card {
+    padding: 5vh 4vw;
+    min-height: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border-radius: 1.5vw;
+    border-width: 0.2vw;
+}
+
+.metrics-card.tv-mode .kpi-label {
+    font-size: 1.8vw;
+    margin-bottom: 2vh;
+    letter-spacing: 0.1em;
+}
+
+.metrics-card.tv-mode .kpi-value {
+    font-size: 7vw;
+    line-height: 1;
+    font-weight: 800;
+}
+
+/* Scaled-down Region Grid for Bottom Row */
+.metrics-card.tv-mode .metrics-grid {
+    grid-template-columns: repeat(auto-fit, minmax(15vw, 1fr));
+    gap: 2vw;
+    margin-top: auto;
+}
+
+.metrics-card.tv-mode .metric-card {
+    padding: 3vh 2vw;
+    border-radius: 1vw;
+}
+
+.metrics-card.tv-mode .metric-title {
+    font-size: 1.5vw;
+    margin-bottom: 1.5vh;
+}
+
+.metrics-card.tv-mode .metric-sales {
+    font-size: 3.5vw;
+    font-weight: 700;
+}
+
+.metrics-card.tv-mode .metric-vs-budget {
+    font-size: 1.5vw;
+    margin-top: 1.5vh;
 }

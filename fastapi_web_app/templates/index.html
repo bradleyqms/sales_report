@@ -6,6 +6,47 @@
     <title>Sales Report Generator</title>
     <link rel="icon" href="/static/images/qms-favicon.ico">
     <link rel="stylesheet" href="/static/styles.css?v=8">
+    <style>
+        .metrics-timestamp { font-size: 0.72rem; letter-spacing: 0.06em; font-family: 'Courier New', monospace; }
+        .metrics-timestamp .ts-label { color: #6b7a8d; font-weight: 700; letter-spacing: 0.1em; }
+        .metrics-timestamp .ts-value { color: #bfcfdf; }
+        .metrics-timestamp .ts-sep { color: #4a5a6a; margin: 0 0.6em; }
+
+        /* Top-bar chip cluster */
+        .top-bar-chips {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+        }
+        .tb-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: rgba(45, 55, 72, 0.7);
+            border: 1px solid rgba(74, 85, 104, 0.5);
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.03em;
+            white-space: nowrap;
+            color: #a0aec0;
+        }
+        .tb-chip .chip-dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: #10b981;
+            box-shadow: 0 0 6px rgba(16,185,129,0.5);
+            flex-shrink: 0;
+        }
+        .tb-chip[data-role="running"] .chip-dot { background:#facc15; box-shadow:0 0 6px rgba(252,204,21,0.5); }
+        .tb-chip[data-role="running"] { color:#facc15; border-color: rgba(252,204,21,0.3); }
+        .tb-chip[data-role="results"] .chip-dot { background:#34d399; box-shadow:0 0 6px rgba(52,211,153,0.5); }
+        .tb-chip[data-role="results"] { color:#34d399; border-color: rgba(52,211,153,0.3); }
+        .tb-chip-version { font-family: 'Courier New', monospace; color: #718096; }
+        .tb-chip-version .chip-lbl { color: #4a5568; margin-right: 2px; }
+    </style>
 </head>
 <body>
     <!-- Splash Screen -->
@@ -57,33 +98,31 @@
                     <div class="sub-module">Sales Report module</div>
                 </div>
             </div>
-            <div class="status-indicator">
-                <div class="status-dot"></div>
-                <span class="status-text">Ready to run</span>
-            </div>
-            <div class="version-info" id="versionInfo">
-                <span class="version-label">Version:</span>
-                <span class="version-value" id="versionValue">Loading...</span>
+            <div class="top-bar-chips">
+                <div class="tb-chip" id="statusChip" data-role="idle">
+                    <span class="chip-dot"></span>
+                    <span id="statusChipText">Ready</span>
+                </div>
+                <div class="tb-chip tb-chip-version" id="versionChip" title="">
+                    <span class="chip-lbl">v</span><span id="versionValue">...</span>
+                </div>
             </div>
         </header>
 
         <main>
+            {% if not auto_refresh %}
             <div class="card main-card">
                 <div class="card-header">
                     <h2>Ready to run the Sales Report?</h2>
                     <p>The run fetches the latest SharePoint files, processes <strong>Month-to-Date (MTD)</strong> data, and streams the logs below. Scroll down to read the full report.</p>
                 </div>
-                
                 <div class="action-area">
-                    <button id="runButton" onclick="runReport()" class="primary-button">
-                        Start analysis
-                    </button>
+                    <button id="runButton" onclick="runReport()" class="primary-button">Start analysis</button>
                     <div id="loading" class="loading-indicator" style="display: none;">
                         <div class="spinner"></div>
                         <span id="stageLabel">Starting...</span>
                     </div>
                 </div>
-
                 <div class="log-accordion">
                     <button class="log-toggle" id="logToggle" onclick="toggleLogs()" aria-expanded="false">
                         <span class="log-toggle-label">Process Logs</span>
@@ -92,17 +131,41 @@
                     <div class="log-panel" id="logPanel">
                         <div class="terminal-window">
                             <div class="terminal-content">
-                                <textarea id="output" readonly class="terminal-output" placeholder="> Click &quot;Start analysis&quot; to begin."></textarea>
+                                <textarea id="output" readonly class="terminal-output" placeholder="> Waiting for start..."></textarea>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+            {% else %}
+            <!-- hidden log panel kept for error auto-expand in auto-refresh mode -->
+            <div id="logPanel" style="display:none">
+                <textarea id="output" readonly style="display:none"></textarea>
+            </div>
+            <div id="loading" style="display:none"><span id="stageLabel"></span></div>
+            {% endif %}
 
             <div class="card metrics-card" id="metricsCard">
+                <div class="tv-header">
+                    <div class="tv-header-title">
+                        <span class="live-pulse"></span>
+                        Live Sales Pacing
+                    </div>
+                    <div class="tv-header-time">
+                        Last Updated: <span id="tvModeTimestamp">—</span>
+                    </div>
+                </div>
+
                 <div class="metrics-card-header">
                     <h3>Summary Metrics (MTD)</h3>
-                    <span id="summaryState" class="summary-state">Awaiting fresh run</span>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span id="summaryState" class="summary-state">Awaiting fresh run</span>
+                        <button id="tvModeBtn" class="tv-mode-btn" onclick="toggleTvMode()" title="Enter Wallboard Mode">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
                 <div class="kpi-row">
                     <div class="kpi-card kpi-card--sales">
@@ -117,7 +180,7 @@
                 <div id="metricsContainer" class="metrics-grid">
                     <!-- Metrics will be populated by JavaScript, ordered largest to smallest -->
                 </div>
-                <div id="metricsTimestamp" class="metrics-timestamp">Refreshed: Never</div>
+                <div id="metricsTimestamp" class="metrics-timestamp"><span class="ts-label">LAST REFRESH</span> <span class="ts-value">—</span></div>
             </div>
 
             <div class="card export-strip">
@@ -161,6 +224,7 @@
 
     <script>
         const VIEW = "{{ view }}";
+        const AUTO_REFRESH = {{ 'true' if auto_refresh else 'false' }};
 
         const VIEW_CONFIG = {
             management: {
@@ -226,9 +290,8 @@
 
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
 
-        const statusIndicator = document.querySelector('.status-indicator');
-        const statusTextElement = statusIndicator?.querySelector('.status-text');
-        const statusDot = statusIndicator?.querySelector('.status-dot');
+        const statusChip = document.getElementById('statusChip');
+        const statusChipText = document.getElementById('statusChipText');
         const summaryState = document.getElementById('summaryState');
         const metricsCard = document.getElementById('metricsCard');
         const metricsTimestamp = document.getElementById('metricsTimestamp');
@@ -248,9 +311,9 @@
         };
 
         function setStatusRole(role) {
-            if (!statusIndicator || !statusTextElement) return;
-            statusIndicator.dataset.role = role;
-            statusTextElement.textContent = statusLabels[role] || statusLabels.idle;
+            if (!statusChip) return;
+            statusChip.dataset.role = role;
+            if (statusChipText) statusChipText.textContent = statusLabels[role] || statusLabels.idle;
         }
 
         function updateSummaryState(hasFreshData) {
@@ -260,14 +323,21 @@
         }
 
         function formatTimestamp(timestamp) {
-            if (!timestamp) return 'Never';
+            if (!timestamp) return '—';
             const year = timestamp.slice(0, 4);
             const month = timestamp.slice(4, 6);
             const day = timestamp.slice(6, 8);
             const hour = timestamp.slice(9, 11);
             const minute = timestamp.slice(11, 13);
-            const second = timestamp.slice(13, 15);
-            return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+            return `${day}-${month}-${year} ${hour}:${minute}`;
+        }
+
+        function nextRefreshLabel() {
+            const now = new Date();
+            let h = now.getHours();
+            const m = now.getMinutes();
+            if (m >= 15) h = (h + 1) % 24;
+            return `${String(h).padStart(2, '0')}:15`;
         }
 
         async function fetchMetrics() {
@@ -373,16 +443,14 @@
             }
 
                 // Load tables or show empty state
-            if (status.csv_url) {
-                loadTableData(status.csv_url);
-            } else if (VIEW === 'coremarkets') {
-                // Coremarkets has its own loader — try even without csv_url
+            if (VIEW === 'coremarkets') {
                 tablesContainer.innerHTML = '';
                 loadCoreMarketTable();
             } else if (VIEW === 'usaspa') {
-                // USA Spa has its own loader — try even without csv_url
                 tablesContainer.innerHTML = '';
                 loadUsaSpaTable();
+            } else if (status.csv_url) {
+                loadTableData(status.csv_url);
             } else {
                 if (tablesContainer) {
                     tablesContainer.innerHTML = `<div class="empty-state"><p>Run the report to see ${CFG.label} data.</p></div>`;
@@ -441,8 +509,9 @@
             headerDiv.appendChild(h2);
             card.appendChild(headerDiv);
 
+            // Horizontal-scroll wrapper (overflow-x only, no Y containment so sticky works)
             const responsiveDiv = document.createElement('div');
-            responsiveDiv.className = 'table-responsive';
+            responsiveDiv.className = 'table-scroll-x';
 
             const table = document.createElement('table');
             table.className = 'data-table sortable-table';
@@ -573,24 +642,153 @@
 
             responsiveDiv.appendChild(table);
             card.appendChild(responsiveDiv);
+
+            // ── Sticky affordances (MD3) ──────────────────────────────────────
+            // 1. Card-header: sticks at top:0. Shadow applied when stuck.
+            const headerSentinel = document.createElement('div');
+            headerSentinel.style.cssText = 'height:1px;margin-top:-1px;pointer-events:none;';
+            card.insertBefore(headerSentinel, headerDiv);
+            new IntersectionObserver(
+                ([e]) => headerDiv.classList.toggle('is-stuck', !e.isIntersecting),
+                { threshold: 0 }
+            ).observe(headerSentinel);
+
+            // 2. After paint, read card-header height and offset thead top to sit flush below it.
+            requestAnimationFrame(() => {
+                const h = headerDiv.getBoundingClientRect().height;
+                table.style.setProperty('--thead-top', h + 'px');
+                // Keep in sync if header resizes (e.g. font scaling)
+                new ResizeObserver(() => {
+                    const hh = headerDiv.getBoundingClientRect().height;
+                    table.style.setProperty('--thead-top', hh + 'px');
+                }).observe(headerDiv);
+            });
+
+            // 3. Column-header row: shadow when stuck (sentinel just above thead)
+            const theadSentinel = document.createElement('tr');
+            theadSentinel.setAttribute('aria-hidden', 'true');
+            theadSentinel.style.cssText = 'height:0;visibility:hidden;pointer-events:none;';
+            table.insertBefore(theadSentinel, thead);
+            new IntersectionObserver(
+                ([e]) => thead.classList.toggle('is-stuck', !e.isIntersecting),
+                { threshold: 0 }
+            ).observe(theadSentinel);
+
+            // --- REPLACE THE FLOATING BAR LOGIC WITH THIS ---
+
+            const floatBar = document.createElement('div');
+            floatBar.className = 'card float-header-bar'; // Inherits exact card colors!
+            
+            // Grab the real table's header DOM so we get the sort icons/classes
+            const realThead = table.querySelector('thead');
+            
+            floatBar.innerHTML = `
+                <div class="card-header" style="border-bottom: none; padding-bottom: 8px;">
+                    <div class="card-title">${title}</div>
+                </div>
+                <div class="fhb-scroll-wrapper" style="overflow: hidden;">
+                    <table class="data-table" style="margin: 0; table-layout: fixed; width: max-content;">
+                        <thead>
+                            ${realThead.innerHTML} </thead>
+                    </table>
+                </div>
+            `;
+            document.body.appendChild(floatBar);
+
+            const realScrollWrapper = table.closest('.table-scroll-x');
+            const floatScrollWrapper = floatBar.querySelector('.fhb-scroll-wrapper');
+            const fakeTable = floatBar.querySelector('table');
+
+            // Link horizontal scrolling
+            realScrollWrapper.addEventListener('scroll', () => {
+                floatScrollWrapper.scrollLeft = realScrollWrapper.scrollLeft;
+            });
+
+            // Proxy sorting clicks: When you click the fake header, click the real one!
+            const realThs = table.querySelectorAll('thead th');
+            const fakeThs = floatBar.querySelectorAll('thead th');
+            
+            fakeThs.forEach((fakeTh, index) => {
+                fakeTh.style.cursor = 'pointer'; // Ensure it looks clickable
+                fakeTh.addEventListener('click', () => {
+                    realThs[index].click(); // Trigger the real sort
+                    // Wait a tiny fraction of a second for the table to update, then sync the arrows
+                    setTimeout(syncLayout, 50); 
+                });
+            });
+
+            // Master sync function
+            const syncLayout = () => {
+                // Match screen position
+                const cardRect = card.getBoundingClientRect();
+                floatBar.style.left = cardRect.left + 'px';
+                floatBar.style.width = cardRect.width + 'px';
+
+                // Match table width
+                fakeTable.style.width = table.getBoundingClientRect().width + 'px';
+
+                // Match exact column widths AND update sort arrows
+                fakeThs.forEach((fakeTh, i) => {
+                    const realTh = realThs[i];
+                    
+                    // Keep the sort arrows matching the real table state
+                    fakeTh.innerHTML = realTh.innerHTML; 
+                    
+                    // Lock the exact pixel widths
+                    const w = realTh.getBoundingClientRect().width + 'px';
+                    fakeTh.style.width = w;
+                    fakeTh.style.minWidth = w;
+                    fakeTh.style.maxWidth = w;
+                    fakeTh.style.boxSizing = 'border-box';
+                });
+            };
+
+// 4. Trigger the immediate switch ONLY when the header goes ABOVE the screen
+            new IntersectionObserver(([e]) => {
+                if (!e.isIntersecting && e.boundingClientRect.bottom < 0) {
+                    syncLayout();
+                    floatBar.classList.add('fhb-visible');
+                    // Hide original sticky headers to avoid duplication
+                    headerDiv.style.position = 'static';
+                    headerDiv.style.boxShadow = 'none';
+                    table.querySelector('thead').classList.add('fhb-active');
+                } else {
+                    floatBar.classList.remove('fhb-visible');
+                    // Restore original sticky headers
+                    headerDiv.style.position = '';
+                    headerDiv.style.boxShadow = '';
+                    table.querySelector('thead').classList.remove('fhb-active');
+                }
+            }, { threshold: 0 }).observe(headerSentinel);
+
+            // 5. Hide it instantly when the bottom of the card scrolls past
+            new IntersectionObserver(([e]) => {
+                if (!e.isIntersecting && e.boundingClientRect.bottom < 0) {
+                    floatBar.classList.remove('fhb-visible');
+                }
+            }, { threshold: 0 }).observe(card);
+
+            window.addEventListener('resize', () => {
+                if (floatBar.classList.contains('fhb-visible')) syncLayout();
+            });
+
             return card;
         }
 
         async function loadTableData(csvUrl) {
             try {
-                // Core Markets view: skip combined CSV, load only core market table
+                // Core Markets view: dedicated CSV only — never fall back to combined
                 if (VIEW === 'coremarkets') {
                     tablesContainer.innerHTML = '';
                     await loadCoreMarketTable();
                     return;
                 }
 
-                // USA Spa view: prefer dedicated CSV, fall back to combined CSV section 2
+                // USA Spa view: dedicated CSV only — never fall back to combined
                 if (VIEW === 'usaspa') {
                     tablesContainer.innerHTML = '';
-                    const loaded = await loadUsaSpaTable();
-                    if (loaded) return;
-                    // fallthrough to combined CSV parsing below
+                    await loadUsaSpaTable();
+                    return;
                 }
 
                 const response = await fetch(csvUrl);
@@ -605,16 +803,24 @@
 
                 const sections = [
                     { title: 'Management Report', rows: [] },
-                    { title: 'USA Spa Breakdown', rows: [] }
+                    { title: 'USA Spa Breakdown', rows: [] },
+                    { title: 'Core Markets', rows: [] }
                 ];
 
                 let currentSectionIndex = 0;
 
                 for (const row of dataRows) {
                     if (row.length === 0) continue;
-                    sections[currentSectionIndex].rows.push(row);
-                    if (row[0] === 'Total Sales') {
+                    
+                    // Don't add data if we are past the sections we care about
+                    if (currentSectionIndex < sections.length) {
+                        sections[currentSectionIndex].rows.push(row);
+                    }
+                    
+                    if (currentSectionIndex === 0 && row[0] === 'Total Sales') {
                         currentSectionIndex = 1;
+                    } else if (currentSectionIndex === 1 && row[0] === 'USA Spa') {
+                        currentSectionIndex = 2; // Move to Core Markets section to prevent appending it to USA Spa table
                     }
                 }
 
@@ -696,7 +902,7 @@
         }
 
         function endRun() {
-            runButton.disabled = false;
+            if (runButton) runButton.disabled = false;
             loadingIndicator.style.display = 'none';
             const stageEl = document.getElementById('stageLabel');
             if (stageEl) stageEl.textContent = 'Starting...';
@@ -750,6 +956,7 @@
         }
 
         function startStreaming() {
+            if (AUTO_REFRESH) return;
             if (eventSource) eventSource.close();
 
             // Prepend pipeline notice for audience views
@@ -768,7 +975,7 @@
             }
 
             // Reset UI for running state
-            runButton.disabled = true;
+            if (runButton) runButton.disabled = true;
             loadingIndicator.style.display = 'flex';
             setStatusRole('running');
             updateSummaryState(false);
@@ -805,6 +1012,7 @@
         }
 
         async function runReport() {
+            if (AUTO_REFRESH) return;
             try {
                 const response = await fetch('/run-report', {
                     method: 'POST',
@@ -837,7 +1045,13 @@
                 // Update Timestamps
                 if (status.last_run) {
                     const formatted = formatTimestamp(status.last_run);
-                    if (metricsTimestamp) metricsTimestamp.textContent = 'Refreshed: ' + formatted;
+                    if (metricsTimestamp) metricsTimestamp.innerHTML =
+                        `<span class="ts-label">LAST REFRESH</span> <span class="ts-value">${formatted}</span>` +
+                        `<span class="ts-sep">·</span>` +
+                        `<span class="ts-label">NEXT</span> <span class="ts-value">${nextRefreshLabel()}</span>`;
+                    
+                    const tvModeBtn = document.getElementById('tvModeTimestamp');
+                    if (tvModeBtn) tvModeBtn.textContent = formatted;
                 }
 
                 // Always set KPI heading label for the current view
@@ -896,24 +1110,58 @@
                 const response = await fetch('/version');
                 const versionData = await response.json();
                 const versionValue = document.getElementById('versionValue');
-                
+                const versionChip  = document.getElementById('versionChip');
                 if (versionData.version) {
-                    const versionText = versionData.version;
-                    const dateText = versionData.deployed_at ? ` (${new Date(versionData.deployed_at).toLocaleDateString()})` : '';
-                    versionValue.textContent = versionText + dateText;
-                    versionValue.title = `Git commit: ${versionData.git_commit || 'unknown'}\nDeployed: ${versionData.deployed_at || 'unknown'}`;
+                    versionValue.textContent = versionData.version;
+                    if (versionChip) versionChip.title =
+                        `Git commit: ${versionData.git_commit || 'unknown'}\nDeployed: ${versionData.deployed_at || 'unknown'}`;
                 } else {
-                    versionValue.textContent = 'Unknown';
+                    versionValue.textContent = '—';
                 }
             } catch (error) {
-                console.error('Error loading version info:', error);
-                document.getElementById('versionValue').textContent = 'Unknown';
+                const el = document.getElementById('versionValue');
+                if (el) el.textContent = '—';
             }
         }
 
         // Initial load
         loadVersionInfo();
         refreshStatus();
+        if (AUTO_REFRESH) {
+            setStatusRole('results');
+            updateSummaryState(true);
+            setInterval(refreshStatus, 60000);
+        }
+
+    
+        // --- TV Mode / Wallboard Logic ---
+        function toggleTvMode() {
+            const card = document.getElementById('metricsCard');
+            if (card) {
+                if (!document.fullscreenElement) {
+                    card.requestFullscreen().catch(err => {
+                        console.error('Error attempting to enable fullscreen:', err);
+                    });
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    }
+                }
+            } else {
+                console.error('Metrics card not found.');
+            }
+        }
+        
+        document.addEventListener('fullscreenchange', () => {
+            const card = document.getElementById('metricsCard');
+            if (card) {
+                if (document.fullscreenElement === card) {
+                    card.classList.add('tv-mode');
+                } else {
+                    card.classList.remove('tv-mode');
+                }
+            }
+        });
     </script>
 </body>
 </html>
