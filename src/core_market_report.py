@@ -104,19 +104,15 @@ class CoreMarketReportGenerator(BaseReportGenerator):
             self.df['is_neukd'] = False
         
         # Clean Sub_Region in budget and prior - handle both 'Sub Region' and 'Subchannel / Partner' columns
-        if 'Sub Region' in self.budget_df.columns:
-            self.budget_df['Sub_Region_Cleaned'] = self.budget_df['Sub Region'].fillna('').str.strip()
-        elif 'Subchannel / Partner' in self.budget_df.columns:
-            self.budget_df['Sub_Region_Cleaned'] = self.budget_df['Subchannel / Partner'].fillna('').str.strip()
-        else:
-            self.budget_df['Sub_Region_Cleaned'] = ''
-            
-        if 'Sub Region' in self.prior_df.columns:
-            self.prior_df['Sub_Region_Cleaned'] = self.prior_df['Sub Region'].fillna('').str.strip()
-        elif 'Subchannel / Partner' in self.prior_df.columns:
-            self.prior_df['Sub_Region_Cleaned'] = self.prior_df['Subchannel / Partner'].fillna('').str.strip()
-        else:
-            self.prior_df['Sub_Region_Cleaned'] = ''
+        # Clean Sub_Region in budget and prior - coalesce 'Sub Region' with 'Subchannel / Partner'
+        # so that whichever column is populated in the source file is used.
+        def _coalesce_sub_region(df):
+            sr = df['Sub Region'].fillna('').str.strip() if 'Sub Region' in df.columns else pd.Series('', index=df.index)
+            sc = df['Subchannel / Partner'].fillna('').str.strip() if 'Subchannel / Partner' in df.columns else pd.Series('', index=df.index)
+            return sr.where(sr != '', sc)
+
+        self.budget_df['Sub_Region_Cleaned'] = _coalesce_sub_region(self.budget_df)
+        self.prior_df['Sub_Region_Cleaned'] = _coalesce_sub_region(self.prior_df)
         
         # Derive Sales_Employee_Cleaned directly from Sales Employee / Account for prior data.
         # GVL-format prior files use rep names (e.g. "Kerstin") as the account value;
