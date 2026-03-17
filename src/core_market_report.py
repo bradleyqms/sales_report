@@ -113,18 +113,6 @@ class CoreMarketReportGenerator(BaseReportGenerator):
 
         self.budget_df['Sub_Region_Cleaned'] = _coalesce_sub_region(self.budget_df)
         self.prior_df['Sub_Region_Cleaned'] = _coalesce_sub_region(self.prior_df)
-
-        # Canonical aliases to absorb known historical/typo variants and keep report rows aligned.
-        # This intentionally maps Bayern/Bayren into North East per business rule.
-        canonical_aliases = {
-            'Bayern': 'North East',
-            'Bayren': 'North East',
-            'Marina': 'NRW - Marina',
-            'Ulrike': 'NRW - Ulrike',
-            'NRW': 'NRW - Marina',
-        }
-        self.budget_df['Sub_Region_Cleaned'] = self.budget_df['Sub_Region_Cleaned'].replace(canonical_aliases)
-        self.prior_df['Sub_Region_Cleaned'] = self.prior_df['Sub_Region_Cleaned'].replace(canonical_aliases)
         
         # Derive Sales_Employee_Cleaned directly from Sales Employee / Account for prior data.
         # GVL-format prior files use rep names (e.g. "Kerstin") as the account value;
@@ -137,28 +125,14 @@ class CoreMarketReportGenerator(BaseReportGenerator):
 
         # Apply PY-specific regional mappings: override Sub_Region_Cleaned wherever a match
         # exists in py25_regional_mappings (e.g. "Kerstin" → "North", "Marina" → "NRW").
-        # This handles GVL-format prior/budget data where sub-region fields may carry employee names.
+        # This handles GVL-format prior data where Subchannel / Partner holds employee names.
         py_mapping_path = Path(self._py_mapping_path) if self._py_mapping_path else Path(__file__).parent.parent / 'data/inputs/mappings/py25_regional_mappings.csv'
         if Path(py_mapping_path).exists():
             py_mappings_df = pd.read_csv(py_mapping_path)
             py_mappings = py_mappings_df.set_index('Sales_Employee_Cleaned')['Sub_Region'].to_dict()
-
-            # Guardrails in case SharePoint mapping file is stale/incomplete.
-            py_mappings.setdefault('Aracelli', 'North East')
-            py_mappings.setdefault('Bayern', 'North East')
-            py_mappings.setdefault('Bayren', 'North East')
-            py_mappings.setdefault('Marina', 'NRW - Marina')
-            py_mappings.setdefault('Ulrike', 'NRW - Ulrike')
-
             mapped_region = self.prior_df['Sales_Employee_Cleaned'].map(py_mappings)
             has_mapping = mapped_region.notna()
             self.prior_df.loc[has_mapping, 'Sub_Region_Cleaned'] = mapped_region[has_mapping]
-
-            if 'Sales Employee / Account' in self.budget_df.columns:
-                budget_emp = self.budget_df['Sales Employee / Account'].fillna('').str.strip()
-                budget_mapped_region = budget_emp.map(py_mappings)
-                budget_has_mapping = budget_mapped_region.notna()
-                self.budget_df.loc[budget_has_mapping, 'Sub_Region_Cleaned'] = budget_mapped_region[budget_has_mapping]
 
         # Fallback to entity mappings for any Sub_Region_Cleaned that is still empty
         entity_mapping_path = Path(self._entity_mapping_path) if self._entity_mapping_path else Path(__file__).parent.parent / 'data/inputs/mappings/entity_mappings.csv'
