@@ -173,3 +173,20 @@ async def test_shared_api_endpoints_allow_users_from_any_audience_list(monkeypat
     assert resp_core.status_code == 200
     assert resp_usa.status_code == 200
     assert resp_blocked.status_code == 403
+
+
+@pytest.mark.anyio
+async def test_global_view_users_can_access_all_view_pages(monkeypatch):
+    monkeypatch.setenv("GLOBAL_VIEW_EMAILS", "global.allowed@qmsmedicosmetics.com")
+    monkeypatch.setenv("CORE_MARKETS_VIEW_EMAILS", "core.allowed@qmsmedicosmetics.com")
+    monkeypatch.setenv("USA_SPA_VIEW_EMAILS", "usa.allowed@qmsmedicosmetics.com")
+
+    transport = httpx.ASGITransport(app=app_main.app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        resp_root = await client.get("/", headers=_easy_auth_header("global.allowed@qmsmedicosmetics.com"))
+        resp_core = await client.get("/coremarkets", headers=_easy_auth_header("global.allowed@qmsmedicosmetics.com"))
+        resp_usa = await client.get("/usaspa", headers=_easy_auth_header("global.allowed@qmsmedicosmetics.com"))
+
+    assert resp_root.status_code == 200
+    assert resp_core.status_code == 200
+    assert resp_usa.status_code == 200

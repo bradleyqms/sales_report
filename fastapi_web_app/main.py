@@ -167,9 +167,9 @@ def _authorized_emails_for_path(path: str) -> set[str]:
     if path == "/" or path == "/run-report":
         return global_view
     if path.startswith("/coremarkets"):
-        return core
+        return global_view | core
     if path.startswith("/usaspa"):
-        return usa
+        return global_view | usa
     if path in {"/stream-logs", "/status", "/metrics", "/segment-metrics"}:
         return all_allowed
     if path.startswith("/download/"):
