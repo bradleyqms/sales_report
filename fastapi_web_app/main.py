@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 import asyncio
+import time
 from dotenv import load_dotenv
 from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 
@@ -32,6 +33,7 @@ BLOB_CONNECTION_STRING = os.getenv("REPORT_OUTPUT_BLOB_CONNECTION_STRING", "").s
 BLOB_CONTAINER_NAME = os.getenv("REPORT_OUTPUT_BLOB_CONTAINER", "").strip()
 BLOB_PREFIX = os.getenv("REPORT_OUTPUT_BLOB_PREFIX", "").strip().strip("/")
 BLOB_CACHE_DIR = BASE_DIR / "static" / "blob_cache"
+METRICS_CACHE_TTL_SECONDS = float(os.getenv("METRICS_CACHE_TTL_SECONDS", "5"))
 
 app = FastAPI(title="Sales Report Generator")
 
@@ -76,6 +78,9 @@ report_status = {
         }
     }
 }
+
+_metrics_cache = {"signature": None, "expires_at": 0.0, "value": None}
+_segment_metrics_cache = {"signature": None, "expires_at": 0.0, "value": None}
 
 
 @app.on_event("startup")
@@ -193,15 +198,22 @@ def _resolve_run_artifacts(output_dir: Path, timestamp: str) -> tuple[list[Path]
     return report_files, (unmapped_candidates[0] if unmapped_candidates else None)
 
 
-def extract_latest_segment_metrics():
-    """Read the latest audience-specific CSVs from data/outputs/ and return per-segment totals."""
+def _path_signature(path: Path | None):
+    if path is None:
+        return None
+    try:
+        stat = path.stat()
+    except OSError:
+        return (str(path), None, None)
+    return (str(path), stat.st_mtime_ns, stat.st_size)
+
+
+def _extract_segment_metrics_from_files(core_csv: Path | None, usa_csv: Path | None):
     result = {
         "core_markets": {"sales": None, "budget_pct": None},
-        "usa_spa":      {"sales": None, "budget_pct": None},
+        "usa_spa": {"sales": None, "budget_pct": None},
     }
 
-    # ---- Core Markets -------------------------------------------------------
-    core_csv = _latest_output_file("management_report_core_markets_*.csv")
     if core_csv:
         try:
             with open(core_csv, 'r', encoding='utf-8') as f:
@@ -210,7 +222,6 @@ def extract_latest_segment_metrics():
                         continue
                     if row[0].strip().startswith('Total Core Market'):
                         sales = _parse_to_float(row[1]) if len(row) > 1 else None
-                        # % vs Budget is the last cell containing '%'
                         pct = None
                         for cell in reversed(row):
                             if '%' in cell:
@@ -221,19 +232,16 @@ def extract_latest_segment_metrics():
         except Exception as e:
             logging.error(f"extract_latest_segment_metrics (core markets): {e}")
 
-    # ---- USA Spa ------------------------------------------------------------
-    usa_csv = _latest_output_file("management_report_usa_spa_*.csv")
     if usa_csv:
         try:
             with open(usa_csv, 'r', encoding='utf-8') as f:
                 rows = list(csv.reader(f))
             if len(rows) >= 2:
                 header = rows[0]
-                # Preferred column: 'vs Budget' or '% 26A vs 26B' pattern
                 budget_col_idx = next(
                     (i for i, h in enumerate(header)
                      if h.strip().startswith('%') and 'vs' in h.lower() and h.strip()[-1] == 'B'),
-                    4  # fallback to column 4 (known format)
+                    4
                 )
                 for row in rows[1:]:
                     if row and row[0].strip() == 'USA Spa':
@@ -245,6 +253,77 @@ def extract_latest_segment_metrics():
             logging.error(f"extract_latest_segment_metrics (usa spa): {e}")
 
     return result
+
+
+def _extract_total_metrics_from_file(latest_csv: Path | None):
+    if not latest_csv:
+        logging.warning("No CSV report files found")
+        return {"total_sales": 0, "budget_pct": 0}
+
+    logging.info(f"Reading metrics from: {latest_csv}")
+
+    with open(latest_csv, 'r', encoding='utf-8') as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if row and row[0].strip() == "Total Sales":
+                try:
+                    if len(row) >= 2:
+                        total_sales = float(row[1])
+                        budget_str = row[-1].strip().rstrip('%')
+                        budget_pct = float(budget_str) if budget_str else 0
+                        logging.info(f"Extracted metrics - Total Sales: {total_sales}, Budget %: {budget_pct}")
+                        return {"total_sales": total_sales, "budget_pct": budget_pct}
+                except (ValueError, IndexError) as e:
+                    logging.warning(f"Could not parse Total Sales row: {e}")
+
+    logging.warning("Total Sales row not found in CSV")
+    return {"total_sales": 0, "budget_pct": 0}
+
+
+async def _get_metrics_cached_async():
+    latest_csv = await asyncio.to_thread(_latest_output_file, "combined_management_report_*.csv")
+    signature = _path_signature(latest_csv)
+
+    now = time.monotonic()
+    if (
+        _metrics_cache["value"] is not None
+        and _metrics_cache["signature"] == signature
+        and _metrics_cache["expires_at"] > now
+    ):
+        return _metrics_cache["value"]
+
+    value = await asyncio.to_thread(_extract_total_metrics_from_file, latest_csv)
+    _metrics_cache["signature"] = signature
+    _metrics_cache["value"] = value
+    _metrics_cache["expires_at"] = now + METRICS_CACHE_TTL_SECONDS
+    return value
+
+
+async def _get_segment_metrics_cached_async():
+    core_csv = await asyncio.to_thread(_latest_output_file, "management_report_core_markets_*.csv")
+    usa_csv = await asyncio.to_thread(_latest_output_file, "management_report_usa_spa_*.csv")
+    signature = (_path_signature(core_csv), _path_signature(usa_csv))
+
+    now = time.monotonic()
+    if (
+        _segment_metrics_cache["value"] is not None
+        and _segment_metrics_cache["signature"] == signature
+        and _segment_metrics_cache["expires_at"] > now
+    ):
+        return _segment_metrics_cache["value"]
+
+    value = await asyncio.to_thread(_extract_segment_metrics_from_files, core_csv, usa_csv)
+    _segment_metrics_cache["signature"] = signature
+    _segment_metrics_cache["value"] = value
+    _segment_metrics_cache["expires_at"] = now + METRICS_CACHE_TTL_SECONDS
+    return value
+
+
+def extract_latest_segment_metrics():
+    """Read the latest audience-specific CSVs from data/outputs/ and return per-segment totals."""
+    core_csv = _latest_output_file("management_report_core_markets_*.csv")
+    usa_csv = _latest_output_file("management_report_usa_spa_*.csv")
+    return _extract_segment_metrics_from_files(core_csv, usa_csv)
 
 
 def _recover_status_from_disk():
@@ -299,37 +378,8 @@ def _recover_status_from_disk():
 def extract_metrics_from_csv():
     """Extract total sales and budget percentage from the latest CSV report."""
     try:
-        # Find all CSV files in the data/outputs directory
         latest_csv = _latest_output_file("combined_management_report_*.csv")
-
-        if not latest_csv:
-            logging.warning("No CSV report files found")
-            return {"total_sales": 0, "budget_pct": 0}
-
-        logging.info(f"Reading metrics from: {latest_csv}")
-        
-        # Parse the CSV to find "Total Sales" row
-        with open(latest_csv, 'r', encoding='utf-8') as f:
-            reader = csv.reader(f)
-            for row in reader:
-                if row and row[0].strip() == "Total Sales":
-                    # Row format: ["Total Sales", "sales_value", "budget_col", "col3", "budget_pct%"]
-                    # Expected format based on CSV: ["Total Sales", "926", "1866", "1030", "49.6%"]
-                    try:
-                        if len(row) >= 2:
-                            # First numeric column after "Total Sales" is the sales value
-                            total_sales = float(row[1])
-                            # Last column should contain budget percentage
-                            budget_str = row[-1].strip().rstrip('%')
-                            budget_pct = float(budget_str) if budget_str else 0
-                            
-                            logging.info(f"Extracted metrics - Total Sales: {total_sales}, Budget %: {budget_pct}")
-                            return {"total_sales": total_sales, "budget_pct": budget_pct}
-                    except (ValueError, IndexError) as e:
-                        logging.warning(f"Could not parse Total Sales row: {e}")
-        
-        logging.warning("Total Sales row not found in CSV")
-        return {"total_sales": 0, "budget_pct": 0}
+        return _extract_total_metrics_from_file(latest_csv)
         
     except Exception as e:
         logging.error(f"Error extracting metrics from CSV: {e}")
@@ -440,13 +490,13 @@ async def get_status():
 @app.get("/metrics")
 async def get_metrics():
     """Get the total sales and budget percentage from the latest report."""
-    return extract_metrics_from_csv()
+    return await _get_metrics_cached_async()
 
 
 @app.get("/segment-metrics")
 async def get_segment_metrics():
     """Return per-segment metrics from the latest audience-specific CSV files."""
-    return extract_latest_segment_metrics()
+    return await _get_segment_metrics_cached_async()
 
 @app.get("/download/{filename}")
 async def download_file(filename: str):
