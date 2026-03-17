@@ -77,7 +77,12 @@ def parse_force_period(force_period: str | None, report_type: str) -> datetime.d
     raise ValueError("--force-period must be YYYY-MM or YYYY-MM-DD")
 
 
-def resolve_mapping_file(project_root: Path, explicit_path: str | None) -> Path:
+def resolve_mapping_file(
+    project_root: Path,
+    explicit_path: str | None,
+    retries: int = 1,
+    retry_backoff_seconds: float = 1.0,
+) -> Path:
     if explicit_path:
         path = Path(explicit_path)
         if not path.is_absolute():
@@ -86,15 +91,66 @@ def resolve_mapping_file(project_root: Path, explicit_path: str | None) -> Path:
             raise FileNotFoundError(f"Mapping file not found: {path}")
         return path
 
-    preferred = [
+    load_dotenv(project_root / ".env")
+    site_url = os.getenv("SHAREPOINT_SITE_URL")
+    client_id = os.getenv("SHAREPOINT_CLIENT_ID")
+    client_secret = os.getenv("SHAREPOINT_CLIENT_SECRET")
+    tenant = os.getenv("SHAREPOINT_TENANT_ID") or os.getenv("SHAREPOINT_TENANT_DOMAIN")
+    timeout_raw = os.getenv("SHAREPOINT_REQUEST_TIMEOUT_SECONDS", "30")
+
+    try:
+        request_timeout = float(timeout_raw)
+    except ValueError:
+        request_timeout = 30.0
+
+    # Preferred mapping filenames (try in order)
+    mapping_filenames = [
+        "entity_mappings.csv",
+        "py25_regional_mappings.csv",
+    ]
+
+    if all([site_url, client_id, client_secret]):
+        sp_handler = SharePointHandler(
+            site_url,
+            client_id,
+            client_secret,
+            quiet=True,
+            tenant=tenant,
+            request_timeout=request_timeout,
+        )
+        # Try to download each mapping file
+        for filename in mapping_filenames:
+            try:
+                temp_dir = Path(tempfile.mkdtemp(prefix="v2_mapping_"))
+                local_path = temp_dir / filename
+                sp_path = f"/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/{filename}"
+                download_unified_with_retry(
+                    sp_handler,
+                    sp_path,
+                    str(local_path),
+                    retries=retries,
+                    base_backoff_seconds=retry_backoff_seconds,
+                )
+                logging.info(f"Mapping file downloaded from SharePoint: {filename}")
+                return local_path
+            except Exception as exc:
+                logging.warning(f"Failed to download {filename} from SharePoint: {exc}")
+                continue
+
+    # Fall back to local files
+    local_locations = [
         project_root / "data/inputs/mappings/entity_mappings.csv",
         project_root / "data/inputs/mappings/py25_regional_mappings.csv",
     ]
-    for path in preferred:
+    for path in local_locations:
         if path.exists():
+            logging.info(f"Using local mapping file: {path}")
             return path
 
-    raise FileNotFoundError("No mapping file found in expected locations")
+    raise FileNotFoundError(
+        "No mapping file found. Provide --mapping-file or configure SharePoint credentials "
+        "or ensure mapping files exist in data/inputs/mappings/"
+    )
 
 
 def resolve_unified_filename(report_type: str) -> str:
@@ -450,7 +506,12 @@ def main(argv=None):
         print(f"[DRY-RUN] combined:    {combined_base}.csv")
         return
 
-    mapping_path = resolve_mapping_file(project_root, args.mapping_file)
+    mapping_path = resolve_mapping_file(
+        project_root,
+        args.mapping_file,
+        retries=max(1, args.download_retries),
+        retry_backoff_seconds=max(0.0, args.retry_backoff_seconds),
+    )
     mapping_df = pd.read_csv(mapping_path)
 
     mapped_df = apply_mappings(canonical_df, mapping_df, output_dir=str(output_dir))
