@@ -70,10 +70,26 @@ def coerce_extract_date_column(df: pd.DataFrame, date_col: str = "Extract_Date")
     if date_col not in df.columns:
         raise ValidationError(f"Date column '{date_col}' is required")
 
-    parsed = pd.to_datetime(df[date_col], errors="coerce")
-    if parsed.isna().all():
-        parsed_compact = pd.to_datetime(df[date_col].astype(str), format="%Y%m%d", errors="coerce")
-        parsed = parsed.fillna(parsed_compact)
+    raw_values = df[date_col]
+    raw_as_str = raw_values.astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
+    compact_mask = raw_as_str.str.fullmatch(r"\d+")
+
+    parsed = pd.Series(pd.NaT, index=df.index, dtype="datetime64[ns]")
+
+    if compact_mask.any():
+        compact_text = raw_as_str[compact_mask]
+        if not compact_text.str.fullmatch(r"\d{8}").all():
+            bad_values = compact_text.loc[~compact_text.str.fullmatch(r"\d{8}")].unique().tolist()[:5]
+            raise ValidationError(
+                "Numeric extract dates must be strict 8-digit YYYYMMDD values. "
+                f"Found invalid values: {bad_values}"
+            )
+        parsed_compact = pd.to_datetime(compact_text, format="%Y%m%d", errors="coerce")
+        parsed.loc[compact_mask] = parsed_compact
+
+    non_compact_mask = ~compact_mask
+    if non_compact_mask.any():
+        parsed.loc[non_compact_mask] = pd.to_datetime(raw_as_str[non_compact_mask], errors="coerce")
 
     if parsed.isna().all():
         raise ValidationError(f"Could not parse any valid dates from '{date_col}'")

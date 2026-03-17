@@ -42,19 +42,24 @@ class DummyReportGenerator:
 
 
 def _write_minimum_unified_fixture(csv_path: Path):
-    fixture = pd.DataFrame(
-        {
-            "Region": ["USA", "GMBH"],
-            "Entity_Type": ["customer", "sales employee"],
-            "Entity_Name": ["Retail Partner", "Alice"],
-            "Net_Value": [1000, 2000],
-            "Currency": ["USD", "EUR"],
-            "Extract_Date_Int": [20260310, 20260310],
-            "Entity_Code": ["C100", "E200"],
-            "Document_Type": ["AR", "CN"],
-        }
-    )
-    fixture.to_csv(csv_path, index=False)
+    sep = "\x1f"
+    lines = [
+        sep.join(
+            [
+                "Region",
+                "Currency",
+                "Extract_Date_Int",
+                "Entity_Type",
+                "Entity_Code",
+                "Entity_Name",
+                "Net_Value",
+                "Document_Type",
+            ]
+        ) + sep,
+        sep.join(["USA", "USD", "20260310", "customer", "C100", "Retail Partner", "1000,00", "AR"]) + sep,
+        sep.join(["GMBH", "EUR", "20260310", "sales employee", "E200", "Alice", "2000,00", "CN"]) + sep,
+    ]
+    csv_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def test_full_report_v2_mtd_output_naming(monkeypatch, tmp_path):
@@ -118,19 +123,23 @@ def test_full_report_v2_eom_business_day_output_naming(monkeypatch, tmp_path):
     mapping = tmp_path / "entity_mappings.csv"
     output_dir = tmp_path / "outputs_eom"
 
-    fixture = pd.DataFrame(
-        {
-            "Region": ["USA"],
-            "Entity_Type": ["customer"],
-            "Entity_Name": ["Retail Partner"],
-            "Net_Value": [1000],
-            "Currency": ["USD"],
-            "Extract_Date_Int": [20260227],
-            "Entity_Code": ["C100"],
-            "Document_Type": ["AR"],
-        }
-    )
-    fixture.to_csv(source, index=False)
+    sep = "\x1f"
+    lines = [
+        sep.join(
+            [
+                "Region",
+                "Currency",
+                "Extract_Date_Int",
+                "Entity_Type",
+                "Entity_Code",
+                "Entity_Name",
+                "Net_Value",
+                "Document_Type",
+            ]
+        ) + sep,
+        sep.join(["USA", "USD", "20260227", "customer", "C100", "Retail Partner", "1000,00", "AR"]) + sep,
+    ]
+    source.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     pd.DataFrame(
         {
@@ -272,8 +281,32 @@ def test_full_report_v2_writes_run_summary(monkeypatch, tmp_path):
 
 
 def test_full_report_v2_eom_realistic_fixture_strict_dry_run_passes(tmp_path):
-    fixture = Path(__file__).parent / "fixtures" / "unified_eom_realistic_sanitized.csv"
+    fixture = tmp_path / "unified_eom_realistic_sanitized.csv"
     output_dir = tmp_path / "outputs_eom_fixture"
+
+    sep = "\x1f"
+    fixture.write_text(
+        "\n".join(
+            [
+                sep.join(
+                    [
+                        "Region",
+                        "Currency",
+                        "Extract_Date_Int",
+                        "Entity_Type",
+                        "Entity_Code",
+                        "Entity_Name",
+                        "Net_Value",
+                        "Document_Type",
+                    ]
+                ) + sep,
+                sep.join(["UK", "GBP", "20260227", "Customer", "51189", "RTL Limited", "2461,750000", "AR"]) + sep,
+                sep.join(["USA", "USD", "20260227", "Customer", "25032", "Four Seasons Las Vegas", "5114,090000", "AR"]) + sep,
+                sep.join(["GmbH", "EUR", "20260227", "Sales_Employee", "", "Interco", "2000,000000", "CN"]) + sep,
+            ]
+        ) + "\n",
+        encoding="utf-8",
+    )
 
     module.main(
         [

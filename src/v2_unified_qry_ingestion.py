@@ -43,6 +43,7 @@ COLUMN_ALIASES = {
 }
 
 DEFAULT_SCHEMA_MANIFEST = Path(__file__).resolve().parent / "config" / "schema_profiles_v1.json"
+UNIT_SEPARATOR = "\x1f"
 
 
 def _fallback_schema_profiles() -> dict:
@@ -99,16 +100,25 @@ def _resolve_report_date(report_date: Optional[datetime.datetime]) -> datetime.d
 
 def _coerce_extract_date_series(source_series: pd.Series, fallback_date: datetime.datetime) -> pd.Series:
     as_text = source_series.astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
-    compact = pd.to_datetime(as_text, format="%Y%m%d", errors="coerce")
+    compact_mask = as_text.str.fullmatch(r"\d{8}")
+    if not compact_mask.all():
+        bad_values = as_text.loc[~compact_mask].dropna().unique().tolist()
+        preview = bad_values[:5]
+        raise ValueError(
+            "Extract_Date_Int must be strict 8-digit YYYYMMDD values. "
+            f"Found invalid values: {preview}"
+        )
 
-    parsed = pd.Series(pd.NaT, index=source_series.index, dtype="datetime64[ns]")
-    parsed.loc[compact.notna()] = compact.loc[compact.notna()]
+    parsed = pd.to_datetime(as_text, format="%Y%m%d", errors="coerce")
+    if parsed.isna().any():
+        bad_values = as_text.loc[parsed.isna()].dropna().unique().tolist()
+        preview = bad_values[:5]
+        raise ValueError(
+            "Extract_Date_Int contains unparseable YYYYMMDD values. "
+            f"Found invalid values: {preview}"
+        )
 
-    unresolved_mask = parsed.isna()
-    if unresolved_mask.any():
-        parsed.loc[unresolved_mask] = pd.to_datetime(as_text.loc[unresolved_mask], errors="coerce")
-
-    return parsed.fillna(pd.Timestamp(fallback_date))
+    return parsed
 
 
 def _normalize_document_sign(df: pd.DataFrame) -> None:
@@ -127,38 +137,29 @@ def _normalize_document_sign(df: pd.DataFrame) -> None:
 
 def _read_unified_source_csv(src: Path) -> pd.DataFrame:
     """
-    Positional-anchor parser for the SAP new_unified_dbo_qry_mtd/eom.csv export.
+        Strict parser for SAP unified export encoded with ASCII Unit Separator (0x1F).
 
-    Known format issues that make standard CSV parsers fail:
-      1. Net_Value uses comma as its decimal separator (e.g. 7254,720000), unquoted,
-         so every value row has 2 extra comma-delimited "fields" for that one number.
-      2. Entity_Name values may contain unquoted commas (e.g. "DESCOMED GB, London (...)"),
-         shifting all subsequent fields and creating a variable column count per row.
-      3. Every line (header and data) ends with a trailing comma, adding a phantom empty field.
-      4. Document_Type is absent from the file entirely; defaults to "AR".
+        Accepted headers (with trailing separator tolerated):
+            Region, Currency, Extract_Date_Int, Entity_Type, Entity_Code, Entity_Name, Net_Value
+            Region, Currency, Extract_Date_Int, Entity_Type, Entity_Code, Entity_Name, Net_Value, Document_Type
 
-    Fixed header layout: Region, Currency, Extract_Date_Int, Entity_Type, Entity_Code,
-                         Entity_Name, Net_Value  (+ trailing comma)
-
-    Anchor strategy (after removing trailing empty field):
-      parts[0]   = Region
-      parts[1]   = Currency
-      parts[2]   = Extract_Date_Int
-      parts[3]   = Entity_Type
-      parts[4]   = Entity_Code        (may be empty for Sales_Employee rows)
-      parts[5:-2] = Entity_Name parts (re-joined with "," to restore embedded commas)
-      parts[-2]  = Net_Value integer half  (e.g. "7254" or "-7254")
-      parts[-1]  = Net_Value decimal half  (e.g. "720000")
+        Any malformed row is a hard failure.
     """
     EXPECTED_COLS = [
         "Region", "Currency", "Extract_Date_Int", "Entity_Type",
         "Entity_Code", "Entity_Name", "Net_Value", "Document_Type",
     ]
-    # Minimum after stripping trailing empty: 5 anchors + 1 name part + 2 net_value halves
-    MIN_PARTS = 8
+    BASE_HEADER = [
+        "Region",
+        "Currency",
+        "Extract_Date_Int",
+        "Entity_Type",
+        "Entity_Code",
+        "Entity_Name",
+        "Net_Value",
+    ]
 
     rows: list[dict] = []
-    bad_lines = 0
 
     with open(src, "r", encoding="utf-8-sig", errors="replace") as fh:
         all_lines = fh.readlines()
@@ -167,21 +168,39 @@ def _read_unified_source_csv(src: Path) -> pd.DataFrame:
         logging.warning("_read_unified_source_csv: file is empty: %s", src)
         return pd.DataFrame(columns=EXPECTED_COLS)
 
+    header_parts = all_lines[0].rstrip("\r\n").split(UNIT_SEPARATOR)
+    if header_parts and header_parts[-1].strip() == "":
+        header_parts = header_parts[:-1]
+
+    if header_parts == BASE_HEADER:
+        has_document_type = False
+    elif header_parts == [*BASE_HEADER, "Document_Type"]:
+        has_document_type = True
+    else:
+        raise ValueError(
+            "Unified source header is invalid for strict mode. "
+            f"Expected {BASE_HEADER} or {[*BASE_HEADER, 'Document_Type']}, got {header_parts}"
+        )
+
+    expected_parts = len(header_parts)
+
     # Skip the header row (first line)
-    for raw in all_lines[1:]:
+    for line_no, raw in enumerate(all_lines[1:], start=2):
         line = raw.rstrip("\r\n")
         if not line.strip():
             continue
 
-        parts = line.split(",")
+        parts = line.split(UNIT_SEPARATOR)
 
-        # Remove the phantom empty field produced by each line's trailing comma
+        # Remove a single phantom empty field produced by a trailing separator.
         if parts and parts[-1].strip() == "":
             parts = parts[:-1]
 
-        if len(parts) < MIN_PARTS:
-            bad_lines += 1
-            continue
+        if len(parts) != expected_parts:
+            raise ValueError(
+                "Unified source row has malformed field count. "
+                f"line={line_no}, expected={expected_parts}, got={len(parts)}"
+            )
 
         region       = parts[0].strip()
         currency     = parts[1].strip()
@@ -189,22 +208,26 @@ def _read_unified_source_csv(src: Path) -> pd.DataFrame:
         entity_type  = parts[3].strip()
         entity_code  = parts[4].strip()
 
-        # Reconstruct Entity_Name from however many middle segments exist
-        name_parts  = parts[5:-2]
-        entity_name = ",".join(name_parts).strip()
-
-        # Reconstruct Net_Value from its two comma-separated halves
-        net_int_str = parts[-2].strip()
-        net_dec_str = parts[-1].strip()
+        entity_name = parts[5].strip()
+        net_raw = parts[6].strip()
         try:
-            sign    = "-" if net_int_str.startswith("-") else ""
-            abs_int = net_int_str.lstrip("-+")
-            if abs_int.isdigit() and net_dec_str.isdigit():
-                net_value: float | None = float(f"{sign}{abs_int}.{net_dec_str}")
-            else:
-                net_value = float(f"{net_int_str}.{net_dec_str}")
+            net_value_text = net_raw.replace(" ", "")
+            if "," in net_value_text and "." in net_value_text:
+                net_value_text = net_value_text.replace(".", "").replace(",", ".")
+            elif "," in net_value_text:
+                net_value_text = net_value_text.replace(",", ".")
+            net_value: float | None = float(net_value_text)
         except (ValueError, AttributeError):
-            net_value = None
+            raise ValueError(
+                "Unified source row has invalid Net_Value. "
+                f"line={line_no}, value='{net_raw}'"
+            )
+
+        document_type = "AR"
+        if has_document_type:
+            candidate = parts[7].strip()
+            if candidate:
+                document_type = candidate
 
         rows.append({
             "Region":           region,
@@ -214,18 +237,12 @@ def _read_unified_source_csv(src: Path) -> pd.DataFrame:
             "Entity_Code":      entity_code,
             "Entity_Name":      entity_name,
             "Net_Value":        net_value,
-            "Document_Type":    "AR",  # not present in source; default to AR (receivables)
+            "Document_Type":    document_type,
         })
-
-    if bad_lines:
-        logging.warning(
-            "_read_unified_source_csv: skipped %d malformed/short lines from %s",
-            bad_lines, src.name,
-        )
 
     df = pd.DataFrame(rows, columns=EXPECTED_COLS)
     logging.info(
-        "_read_unified_source_csv: loaded %d rows from %s", len(df), src.name,
+        "_read_unified_source_csv: loaded %d rows from %s using separator 0x1F", len(df), src.name,
     )
     return df
 

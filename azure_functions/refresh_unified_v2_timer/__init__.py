@@ -32,7 +32,7 @@ def _in_refresh_window(now_utc: datetime) -> bool:
 def _build_command(repo_root: Path) -> list[str]:
     configured = os.getenv("V2_UNIFIED_REFRESH_COMMAND", "").strip()
     if configured:
-        return shlex.split(configured, posix=False)
+        return shlex.split(configured)
 
     script_path = repo_root / "src" / "full_report_v2.py"
     report_type = os.getenv("V2_UNIFIED_REFRESH_REPORT_TYPE", "MTD").strip().upper() or "MTD"
