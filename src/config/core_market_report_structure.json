@@ -6,7 +6,8 @@
       "items": [
         {"label": "North", "filter_value": "North"},
         {"label": "North East", "filter_value": "North East"},
-        {"label": "NRW", "filter_value": "NRW"},
+        {"label": "NRW - Marina", "filter_value": "NRW - Marina"},
+        {"label": "NRW - Ulrike", "filter_value": "NRW - Ulrike"},
         {"label": "Bayern", "filter_value": "Bayern"},
         {"label": "South West", "filter_value": "South West"},
         {"label": "Retail", "filter_value": "Retail"},
