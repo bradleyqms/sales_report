@@ -66,10 +66,6 @@ fastapi_web_app/static/combined_management_report_*.txt
 fastapi_web_app/static/combined_management_report_*.xlsx
 fastapi_web_app/static/combined_reports_*.zip
 
-# Ignore local input files that should not be committed
-/data/inputs/budget/*.csv
-/data/inputs/mappings/*.csv
-
 # Ignore any generated static artifacts
 /fastapi_web_app/static/*
 !/fastapi_web_app/static/images/
