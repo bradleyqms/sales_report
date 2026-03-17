@@ -132,13 +132,13 @@ def _extract_user_email(request: Request) -> str | None:
 
 
 def _authorized_emails_for_path(path: str) -> set[str]:
-    management = _parse_email_list(os.getenv("REPORT_DISPATCH_RECIPIENTS"))
-    core = _parse_email_list(os.getenv("CORE_MARKET_DISPATCH_RECIPIENTS"))
-    usa = _parse_email_list(os.getenv("USA_SPA_DISPATCH_RECIPIENTS"))
-    all_allowed = management | core | usa
+    global_view = _parse_email_list(os.getenv("GLOBAL_VIEW_EMAILS"))
+    core = _parse_email_list(os.getenv("CORE_MARKETS_VIEW_EMAILS"))
+    usa = _parse_email_list(os.getenv("USA_SPA_VIEW_EMAILS"))
+    all_allowed = global_view | core | usa
 
     if path == "/" or path == "/run-report":
-        return management
+        return global_view
     if path.startswith("/coremarkets"):
         return core
     if path.startswith("/usaspa"):

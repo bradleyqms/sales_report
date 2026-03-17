@@ -137,16 +137,16 @@ def _easy_auth_header(email: str) -> dict[str, str]:
 @pytest.mark.parametrize(
     "path,env_var,allowed_email,blocked_email",
     [
-        ("/", "REPORT_DISPATCH_RECIPIENTS", "mgmt.allowed@qmsmedicosmetics.com", "mgmt.blocked@qmsmedicosmetics.com"),
-        ("/coremarkets", "CORE_MARKET_DISPATCH_RECIPIENTS", "core.allowed@qmsmedicosmetics.com", "core.blocked@qmsmedicosmetics.com"),
-        ("/usaspa", "USA_SPA_DISPATCH_RECIPIENTS", "usa.allowed@qmsmedicosmetics.com", "usa.blocked@qmsmedicosmetics.com"),
+        ("/", "GLOBAL_VIEW_EMAILS", "mgmt.allowed@qmsmedicosmetics.com", "mgmt.blocked@qmsmedicosmetics.com"),
+        ("/coremarkets", "CORE_MARKETS_VIEW_EMAILS", "core.allowed@qmsmedicosmetics.com", "core.blocked@qmsmedicosmetics.com"),
+        ("/usaspa", "USA_SPA_VIEW_EMAILS", "usa.allowed@qmsmedicosmetics.com", "usa.blocked@qmsmedicosmetics.com"),
     ],
 )
 @pytest.mark.anyio
 async def test_route_authorization_allows_and_blocks_by_recipient_lists(monkeypatch, path, env_var, allowed_email, blocked_email):
-    monkeypatch.setenv("REPORT_DISPATCH_RECIPIENTS", "")
-    monkeypatch.setenv("CORE_MARKET_DISPATCH_RECIPIENTS", "")
-    monkeypatch.setenv("USA_SPA_DISPATCH_RECIPIENTS", "")
+    monkeypatch.setenv("GLOBAL_VIEW_EMAILS", "")
+    monkeypatch.setenv("CORE_MARKETS_VIEW_EMAILS", "")
+    monkeypatch.setenv("USA_SPA_VIEW_EMAILS", "")
     monkeypatch.setenv(env_var, allowed_email)
 
     transport = httpx.ASGITransport(app=app_main.app)
@@ -160,9 +160,9 @@ async def test_route_authorization_allows_and_blocks_by_recipient_lists(monkeypa
 
 @pytest.mark.anyio
 async def test_shared_api_endpoints_allow_users_from_any_audience_list(monkeypatch):
-    monkeypatch.setenv("REPORT_DISPATCH_RECIPIENTS", "mgmt.allowed@qmsmedicosmetics.com")
-    monkeypatch.setenv("CORE_MARKET_DISPATCH_RECIPIENTS", "core.allowed@qmsmedicosmetics.com")
-    monkeypatch.setenv("USA_SPA_DISPATCH_RECIPIENTS", "usa.allowed@qmsmedicosmetics.com")
+    monkeypatch.setenv("GLOBAL_VIEW_EMAILS", "mgmt.allowed@qmsmedicosmetics.com")
+    monkeypatch.setenv("CORE_MARKETS_VIEW_EMAILS", "core.allowed@qmsmedicosmetics.com")
+    monkeypatch.setenv("USA_SPA_VIEW_EMAILS", "usa.allowed@qmsmedicosmetics.com")
 
     transport = httpx.ASGITransport(app=app_main.app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
