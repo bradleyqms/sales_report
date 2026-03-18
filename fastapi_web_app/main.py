@@ -13,7 +13,7 @@ import glob
 import logging
 import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 import asyncio
 import time
 from dotenv import load_dotenv
@@ -36,6 +36,12 @@ try:
     AUTO_REFRESH_INTERVAL_HOURS = float(os.getenv("AUTO_REFRESH_INTERVAL_HOURS", "1"))
 except ValueError:
     AUTO_REFRESH_INTERVAL_HOURS = 1.0
+AUTO_REFRESH_ALIGN_TO_CLOCK = os.getenv("AUTO_REFRESH_ALIGN_TO_CLOCK", "true").strip().lower() in {"1", "true", "yes", "on"}
+# Default window matches unified QRY refresh cadence: weekdays 09:00-17:00 UTC, run at :05.
+AUTO_REFRESH_WINDOW_START_UTC = int(os.getenv("AUTO_REFRESH_WINDOW_START_UTC", "9"))
+AUTO_REFRESH_WINDOW_END_UTC = int(os.getenv("AUTO_REFRESH_WINDOW_END_UTC", "17"))
+AUTO_REFRESH_BOUNDARY_MINUTE_UTC = int(os.getenv("AUTO_REFRESH_BOUNDARY_MINUTE_UTC", "5"))
+AUTO_REFRESH_WEEKDAYS_ONLY = os.getenv("AUTO_REFRESH_WEEKDAYS_ONLY", "true").strip().lower() in {"1", "true", "yes", "on"}
 BLOB_CONNECTION_STRING = os.getenv("REPORT_OUTPUT_BLOB_CONNECTION_STRING", "").strip() or os.getenv("AZURE_STORAGE_CONNECTION_STRING", "").strip()
 BLOB_CONTAINER_NAME = os.getenv("REPORT_OUTPUT_BLOB_CONTAINER", "").strip()
 BLOB_PREFIX = os.getenv("REPORT_OUTPUT_BLOB_PREFIX", "").strip().strip("/")
@@ -205,25 +211,51 @@ async def enforce_slot_email_access(request: Request, call_next):
     return JSONResponse(status_code=403, content={"detail": "Forbidden"})
 
 
+def _compute_next_auto_refresh_at(now_utc: datetime) -> datetime:
+    """Compute next scheduled auto-refresh time in UTC."""
+    if not AUTO_REFRESH_ALIGN_TO_CLOCK:
+        return now_utc + timedelta(seconds=max(1.0, AUTO_REFRESH_INTERVAL_HOURS * 3600.0))
+
+    interval_hours = max(1, int(round(AUTO_REFRESH_INTERVAL_HOURS)))
+    minute = min(59, max(0, AUTO_REFRESH_BOUNDARY_MINUTE_UTC))
+    start_hour = min(23, max(0, AUTO_REFRESH_WINDOW_START_UTC))
+    end_hour = min(23, max(0, AUTO_REFRESH_WINDOW_END_UTC))
+
+    # Search up to 8 days ahead for a matching clock-boundary slot.
+    day_anchor = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+    for day_offset in range(0, 9):
+        day = day_anchor + timedelta(days=day_offset)
+        if AUTO_REFRESH_WEEKDAYS_ONLY and day.weekday() > 4:
+            continue
+
+        hour = start_hour
+        while hour <= end_hour:
+            candidate = day.replace(hour=hour, minute=minute)
+            if candidate > now_utc:
+                return candidate
+            hour += interval_hours
+
+    # Safety fallback if constraints are misconfigured.
+    return now_utc + timedelta(hours=1)
+
+
 async def _hourly_auto_refresh_loop() -> None:
-    """Background loop: re-run the report every AUTO_REFRESH_INTERVAL_HOURS hours."""
+    """Background loop: re-run reports on a clock-boundary schedule."""
     global _next_auto_refresh_at
     if AUTO_REFRESH_INTERVAL_HOURS <= 0 or not AUTO_REFRESH_ENABLED:
         return
-    interval_seconds = AUTO_REFRESH_INTERVAL_HOURS * 3600
-    # On startup wait the full interval before first scheduled run
-    # (bootstrap handles the empty-outputs case immediately).
-    _next_auto_refresh_at = datetime.utcnow().replace(microsecond=0)
-    from datetime import timedelta
-    _next_auto_refresh_at = _next_auto_refresh_at + timedelta(seconds=interval_seconds)
+
     while True:
-        await asyncio.sleep(interval_seconds)
+        now_utc = datetime.utcnow().replace(microsecond=0)
+        _next_auto_refresh_at = _compute_next_auto_refresh_at(now_utc)
+        wait_seconds = max(1.0, (_next_auto_refresh_at - now_utc).total_seconds())
+        await asyncio.sleep(wait_seconds)
+
         if report_status["running"]:
-            # Postpone by one interval if a run is already in progress
-            _next_auto_refresh_at = datetime.utcnow().replace(microsecond=0) + timedelta(seconds=interval_seconds)
+            logging.info("Hourly auto-refresh skipped because a run is already in progress")
             continue
+
         logging.info("Hourly auto-refresh: triggering scheduled report run")
-        _next_auto_refresh_at = datetime.utcnow().replace(microsecond=0) + timedelta(seconds=interval_seconds)
         await asyncio.to_thread(execute_report)
 
 
