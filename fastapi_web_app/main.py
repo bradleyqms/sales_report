@@ -239,6 +239,58 @@ def _compute_next_auto_refresh_at(now_utc: datetime) -> datetime:
     return now_utc + timedelta(hours=1)
 
 
+def _compute_previous_auto_refresh_at(now_utc: datetime) -> datetime:
+    """Compute the most recent scheduled auto-refresh slot in UTC."""
+    if not AUTO_REFRESH_ALIGN_TO_CLOCK:
+        return now_utc - timedelta(seconds=max(1.0, AUTO_REFRESH_INTERVAL_HOURS * 3600.0))
+
+    interval_hours = max(1, int(round(AUTO_REFRESH_INTERVAL_HOURS)))
+    minute = min(59, max(0, AUTO_REFRESH_BOUNDARY_MINUTE_UTC))
+    start_hour = min(23, max(0, AUTO_REFRESH_WINDOW_START_UTC))
+    end_hour = min(23, max(0, AUTO_REFRESH_WINDOW_END_UTC))
+
+    day_anchor = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+    for day_offset in range(0, 9):
+        day = day_anchor - timedelta(days=day_offset)
+        if AUTO_REFRESH_WEEKDAYS_ONLY and day.weekday() > 4:
+            continue
+
+        hour = end_hour
+        while hour >= start_hour:
+            candidate = day.replace(hour=hour, minute=minute)
+            if candidate <= now_utc:
+                return candidate
+            hour -= interval_hours
+
+    return now_utc - timedelta(hours=1)
+
+
+def _parse_last_run_utc() -> datetime | None:
+    last_run = report_status.get("last_run")
+    if not last_run:
+        return None
+    try:
+        return datetime.strptime(str(last_run), "%Y%m%d_%H%M%S")
+    except Exception:
+        return None
+
+
+def _should_trigger_missed_slot_run(now_utc: datetime) -> bool:
+    """Return True when a scheduled slot was missed (e.g. after a restart)."""
+    if AUTO_REFRESH_INTERVAL_HOURS <= 0 or not AUTO_REFRESH_ENABLED:
+        return False
+    if report_status.get("running"):
+        return False
+
+    previous_slot = _compute_previous_auto_refresh_at(now_utc)
+    # Ignore stale historical slots; only catch up for reasonably recent misses.
+    if (now_utc - previous_slot).total_seconds() > 75 * 60:
+        return False
+
+    last_run_utc = _parse_last_run_utc()
+    return last_run_utc is None or last_run_utc < previous_slot
+
+
 async def _hourly_auto_refresh_loop() -> None:
     """Background loop: re-run reports on a clock-boundary schedule."""
     global _next_auto_refresh_at
@@ -247,6 +299,11 @@ async def _hourly_auto_refresh_loop() -> None:
 
     while True:
         now_utc = datetime.utcnow().replace(microsecond=0)
+        if _should_trigger_missed_slot_run(now_utc):
+            logging.info("Hourly auto-refresh catch-up: triggering missed boundary run")
+            await asyncio.to_thread(execute_report)
+            continue
+
         _next_auto_refresh_at = _compute_next_auto_refresh_at(now_utc)
         wait_seconds = max(1.0, (_next_auto_refresh_at - now_utc).total_seconds())
         await asyncio.sleep(wait_seconds)
