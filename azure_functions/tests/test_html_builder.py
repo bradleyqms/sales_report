@@ -312,3 +312,18 @@ class TestBuildHtmlBody:
         _, body = build_html_body([f], "Intro", footer_note="The PDF report is attached.")
         assert "The PDF report is attached." in body
         assert "Full CSV data files are attached." not in body
+
+    def test_section_title_resolver_overrides_embedded_h2(self, tmp_path):
+        rows = _DATA_ROW + _TOTAL_SALES_ROW
+        html = _make_html(rows, title="USA Spa Regional Report (MTD: March 1-16, 2026)")
+        f = tmp_path / "management_report_usa_spa_test.html"
+        f.write_text(html, encoding="utf-8")
+        _, body = build_html_body(
+            [f],
+            "Intro",
+            section_title_resolver=lambda _path, _title: "USA Spa Sales Report (EOM: February 1-28, 2026)",
+            banner_subtitle="End-of-month figures",
+        )
+        assert "USA Spa Sales Report (EOM: February 1-28, 2026)" in body
+        assert "USA Spa Regional Report (MTD: March 1-16, 2026)" not in body
+        assert "End-of-month figures" in body

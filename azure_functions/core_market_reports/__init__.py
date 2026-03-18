@@ -27,6 +27,9 @@ from dispatch_reports.config import (
     CORE_MARKET_PDF_PATTERNS,
     parse_pattern_env,
     parse_recipients,
+    dispatch_report_mode,
+    report_period_banner,
+    report_period_summary,
 )
 
 
@@ -117,8 +120,10 @@ def main(mytimer: func.TimerRequest) -> None:
         )
         body_type, body_content = build_html_body(
             html_files, plain_intro,
-            banner_title="Core Market Sales Report",
+            banner_title=report_period_banner("Core Market Sales Report", report_date),
             footer_note="The PDF report is attached.",
+            section_title_resolver=lambda _path, _title: report_period_banner("Core Market Sales Report", report_date),
+            banner_subtitle=report_period_summary(report_date),
         )
 
         # PDF → attachment
@@ -128,7 +133,7 @@ def main(mytimer: func.TimerRequest) -> None:
         else:
             LOG.info("Core market PDF attachments (%d): %s", len(attachments), [p.name for p in attachments])
 
-        _report_mode = os.getenv("V2_UNIFIED_REFRESH_REPORT_TYPE", "MTD").strip().upper() or "MTD"
+        _report_mode = dispatch_report_mode()
         _date_str = report_date.strftime('%d.%m.%Y') if report_date else report_date_str()
         _default_subject = (
             f"EOM QMS Core Market Sales Report {_date_str}"

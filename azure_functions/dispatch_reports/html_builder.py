@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -180,6 +181,8 @@ def build_html_body(
     plain_intro: str,
     banner_title: str | None = None,
     footer_note: str = "Full CSV data files are attached.",
+    section_title_resolver: Callable[[Path, str], str] | None = None,
+    banner_subtitle: str | None = None,
 ) -> tuple[str, str]:
     """Return (contentType, content) for the Graph message body.
 
@@ -204,6 +207,8 @@ def build_html_body(
 
         is_core_market = "core_market" in path.name.lower() or "core-market" in path.name.lower()
         title, summary_html, tables, currency = process_report_table(raw, bold_country_rows=is_core_market)
+        if section_title_resolver is not None:
+            title = section_title_resolver(path, title)
         title = _patch_mtd_day(title)
         if _derived_banner is None:
             _derived_banner = title
@@ -238,6 +243,7 @@ def build_html_body(
         return "Text", plain_intro
 
     effective_banner = banner_title if banner_title is not None else (_derived_banner or "Management Sales Report")
+    effective_subtitle = banner_subtitle if banner_subtitle is not None else "Month-to-date figures"
 
     body = f"""<!DOCTYPE html>
 <html>
@@ -246,7 +252,7 @@ def build_html_body(
 <div style="max-width:960px;margin:24px auto;font-family:Arial,sans-serif;">
   <div style="background:#1a365d;color:#fff;padding:20px 28px;border-radius:6px 6px 0 0;">
     <div style="font-size:20px;font-weight:bold;letter-spacing:0.3px;">QMS Medicosmetics \u2014 {effective_banner}</div>
-    <div style="font-size:12px;opacity:0.8;margin-top:4px;">Generated {generated_at} &nbsp;\u00b7&nbsp; Month-to-date figures</div>
+    <div style="font-size:12px;opacity:0.8;margin-top:4px;">Generated {generated_at} &nbsp;\u00b7&nbsp; {effective_subtitle}</div>
   </div>
   <div style="background:#fff;padding:28px;border:1px solid #d1dbe8;border-top:none;border-radius:0 0 6px 6px;">
     <p style="margin:0 0 28px 0;color:#444;font-size:14px;">{plain_intro}</p>

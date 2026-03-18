@@ -9,7 +9,13 @@ from pathlib import Path
 import azure.functions as func
 from dotenv import load_dotenv
 
-from .config import parse_recipients, report_date_str, report_mtd_banner
+from .config import (
+    parse_recipients,
+    report_date_str,
+    dispatch_report_mode,
+    report_period_banner,
+    report_period_summary,
+)
 from .graph_client import acquire_graph_token, send_via_graph
 from .health_alerts import send_healthcheck_alert
 from .html_builder import build_html_body
@@ -38,7 +44,7 @@ def _build_subject(report_date: "datetime | None") -> str:
     whether to prefix with ``EOM``.  An explicit ``REPORT_DISPATCH_SUBJECT``
     env var always wins.
     """
-    mode = os.getenv("V2_UNIFIED_REFRESH_REPORT_TYPE", "MTD").strip().upper() or "MTD"
+    mode = dispatch_report_mode()
     date_str = report_date.strftime('%d.%m.%Y') if report_date else report_date_str()
     default = (
         f"EOM QMS Management Sales Report {date_str}"
@@ -46,6 +52,15 @@ def _build_subject(report_date: "datetime | None") -> str:
         else f"QMS Management Sales Report {date_str}"
     )
     return os.getenv("REPORT_DISPATCH_SUBJECT") or default
+
+
+def _management_section_title(path: Path, _title: str, report_date: "datetime | None", mode: str | None = None) -> str:
+    name = path.name.lower()
+    if "core_market" in name or "core-markets" in name:
+        return report_period_banner("Core Market Sales Report", report_date, mode)
+    if "usa_spa" in name or "usa-spa" in name:
+        return report_period_banner("USA Spa Sales Report", report_date, mode)
+    return report_period_banner("Management Report", report_date, mode)
 
 
 # ---- Azure Functions entry point ----------------------------------------
@@ -83,11 +98,9 @@ def main(mytimer: func.TimerRequest) -> None:
         )
         body_type, body_content = build_html_body(
             html_files, plain_intro,
-            banner_title=(
-                f"Management Report (MTD: {report_date.strftime('%B')} 1-{report_date.day}, {report_date.year})"
-                if report_date else
-                report_mtd_banner()
-            ),
+            banner_title=report_period_banner("Management Report", report_date),
+            section_title_resolver=lambda path, title: _management_section_title(path, title, report_date),
+            banner_subtitle=report_period_summary(report_date),
         )
 
         # CSVs -> attachments

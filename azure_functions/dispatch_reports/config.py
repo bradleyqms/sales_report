@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+import calendar
 from datetime import datetime, timedelta
 
 LOG = logging.getLogger(__name__)
@@ -49,6 +50,38 @@ def report_mtd_banner(reference_date: datetime | None = None) -> str:
     while d.weekday() >= 5:
         d -= timedelta(days=1)
     return f"Management Report (MTD: {d.strftime('%B')} 1-{d.day}, {d.year})"
+
+
+def dispatch_report_mode() -> str:
+    return os.getenv("V2_UNIFIED_REFRESH_REPORT_TYPE", "MTD").strip().upper() or "MTD"
+
+
+def _reference_business_date(reference_date: datetime | None = None):
+    if reference_date is not None:
+        return reference_date.date()
+
+    d = (datetime.utcnow() - timedelta(days=1)).date()
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d
+
+
+def report_period_label(reference_date: datetime | None = None, mode: str | None = None) -> str:
+    d = _reference_business_date(reference_date)
+    resolved_mode = (mode or dispatch_report_mode()).strip().upper() or "MTD"
+    if resolved_mode == "EOM":
+        last_day = calendar.monthrange(d.year, d.month)[1]
+        return f"EOM: {d.strftime('%B')} 1-{last_day}, {d.year}"
+    return f"MTD: {d.strftime('%B')} 1-{d.day}, {d.year}"
+
+
+def report_period_banner(base_title: str, reference_date: datetime | None = None, mode: str | None = None) -> str:
+    return f"{base_title} ({report_period_label(reference_date, mode)})"
+
+
+def report_period_summary(reference_date: datetime | None = None, mode: str | None = None) -> str:
+    resolved_mode = (mode or dispatch_report_mode()).strip().upper() or "MTD"
+    return "End-of-month figures" if resolved_mode == "EOM" else "Month-to-date figures"
 
 
 def parse_pattern_env(env_var: str, default_patterns: list[str]) -> list[str]:

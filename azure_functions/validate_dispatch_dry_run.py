@@ -72,6 +72,13 @@ def _assert_title_month_matches(title: str, year: int, month: int, label: str) -
     )
 
 
+def _assert_title_day_range(title: str, expected_end_day: int, label: str) -> None:
+    m = re.search(r"1-(\d{1,2}),\s+\d{4}", title)
+    _assert(bool(m), f"{label} title missing expected day-range pattern: {title}")
+    actual = int(m.group(1))
+    _assert(actual == expected_end_day, f"{label} title day-range mismatch. Expected 1-{expected_end_day}, got: {title}")
+
+
 def _fallback_find_latest(outputs_dir: Path, patterns: list[str]) -> list[Path]:
     """Find latest match per pattern recursively (supports archived layouts)."""
     found: list[Path] = []
@@ -151,16 +158,16 @@ def main() -> int:
     mgmt_body_type, mgmt_body = dispatch_mod._build_html_body(
         mgmt_html,
         os.getenv("REPORT_DISPATCH_BODY", "Please find the latest QMS sales data attached."),
-        banner_title=(
-            f"Management Report (MTD: {report_date.strftime('%B')} 1-{report_date.day}, {report_date.year})"
-            if report_date else dispatch_mod.report_mtd_banner()
-        ),
+        banner_title=dispatch_mod.report_period_banner("Management Report", report_date, "EOM"),
+        section_title_resolver=lambda path, title: dispatch_mod._management_section_title(path, title, report_date, "EOM"),
+        banner_subtitle=dispatch_mod.report_period_summary(report_date, "EOM"),
     )
     mgmt_h2 = _extract_first_h2(mgmt_body)
     _assert(bool(mgmt_subject.strip()), "Management subject is empty")
     _assert("Management Report" in mgmt_body, "Management body missing expected title marker")
     if forced_year and forced_month:
         _assert_title_month_matches(mgmt_h2, forced_year, forced_month, "Management")
+        _assert_title_day_range(mgmt_h2, report_date.day, "Management")
 
     # Core checks
     core_recip = dispatch_mod._parse_recipients(
@@ -178,14 +185,17 @@ def main() -> int:
     core_body_type, core_body = dispatch_mod._build_html_body(
         core_html,
         os.getenv("CORE_MARKET_DISPATCH_BODY", "Please find the latest QMS core market report attached."),
-        banner_title="Core Market Sales Report",
+        banner_title=dispatch_mod.report_period_banner("Core Market Sales Report", report_date, "EOM"),
         footer_note="The PDF report is attached.",
+        section_title_resolver=lambda _path, _title: dispatch_mod.report_period_banner("Core Market Sales Report", report_date, "EOM"),
+        banner_subtitle=dispatch_mod.report_period_summary(report_date, "EOM"),
     )
     core_h2 = _extract_first_h2(core_body)
     _assert(bool(core_subject.strip()), "Core subject is empty")
     _assert("Core Market Sales Report" in core_body, "Core body missing expected title marker")
     if forced_year and forced_month:
         _assert_title_month_matches(core_h2, forced_year, forced_month, "Core")
+        _assert_title_day_range(core_h2, report_date.day, "Core")
 
     # USA checks
     usa_recip = dispatch_mod._parse_recipients(
@@ -203,14 +213,17 @@ def main() -> int:
     usa_body_type, usa_body = dispatch_mod._build_html_body(
         usa_html,
         os.getenv("USA_SPA_DISPATCH_BODY", "Please find the latest QMS USA Spa sales report below."),
-        banner_title="USA Spa Sales Report",
+        banner_title=dispatch_mod.report_period_banner("USA Spa Sales Report", report_date, "EOM"),
         footer_note="",
+        section_title_resolver=lambda _path, _title: dispatch_mod.report_period_banner("USA Spa Sales Report", report_date, "EOM"),
+        banner_subtitle=dispatch_mod.report_period_summary(report_date, "EOM"),
     )
     usa_h2 = _extract_first_h2(usa_body)
     _assert(bool(usa_subject.strip()), "USA subject is empty")
     _assert("USA Spa Sales Report" in usa_body, "USA body missing expected title marker")
     if forced_year and forced_month:
         _assert_title_month_matches(usa_h2, forced_year, forced_month, "USA")
+        _assert_title_day_range(usa_h2, report_date.day, "USA")
 
     print("\n[OK] Management")
     print(f"  recipients: {mgmt_recip}")

@@ -23,6 +23,9 @@ from dispatch_reports.config import (
     parse_pattern_env,
     parse_recipients,
     report_date_str,
+    dispatch_report_mode,
+    report_period_banner,
+    report_period_summary,
 )
 from dispatch_reports.graph_client import send_via_graph
 from dispatch_reports.health_alerts import send_healthcheck_alert
@@ -88,11 +91,13 @@ def main(mytimer: func.TimerRequest) -> None:
         body_type, body_content = build_html_body(
             html_files,
             plain_intro,
-            banner_title="USA Spa Sales Report",
+            banner_title=report_period_banner("USA Spa Sales Report", report_date),
             footer_note="",
+            section_title_resolver=lambda _path, _title: report_period_banner("USA Spa Sales Report", report_date),
+            banner_subtitle=report_period_summary(report_date),
         )
 
-        _report_mode = os.getenv("V2_UNIFIED_REFRESH_REPORT_TYPE", "MTD").strip().upper() or "MTD"
+        _report_mode = dispatch_report_mode()
         _date_str = report_date.strftime('%d.%m.%Y') if report_date else report_date_str()
         _default_subject = (
             f"EOM QMS USA Spa Sales Report {_date_str}"

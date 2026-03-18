@@ -23,6 +23,9 @@ _spec.loader.exec_module(_mod)                  # type: ignore[union-attr]
 parse_int_env = _mod.parse_int_env
 parse_recipients = _mod.parse_recipients
 resolve_attachment_patterns = _mod.resolve_attachment_patterns
+report_period_label = _mod.report_period_label
+report_period_banner = _mod.report_period_banner
+report_period_summary = _mod.report_period_summary
 
 
 class TestParseRecipients:
@@ -93,3 +96,27 @@ class TestResolveAttachmentPatterns:
         monkeypatch.setenv("REPORT_DISPATCH_ATTACHMENTS_PER_PATTERN", "3")
         _, limit = resolve_attachment_patterns()
         assert limit == 3
+
+
+class TestReportPeriodHelpers:
+    def test_eom_period_label_uses_full_month(self):
+        from datetime import datetime
+
+        result = report_period_label(datetime(2026, 2, 28), "EOM")
+        assert result == "EOM: February 1-28, 2026"
+
+    def test_mtd_period_label_uses_reference_day(self):
+        from datetime import datetime
+
+        result = report_period_label(datetime(2026, 3, 16), "MTD")
+        assert result == "MTD: March 1-16, 2026"
+
+    def test_report_period_banner_wraps_label(self):
+        from datetime import datetime
+
+        result = report_period_banner("USA Spa Sales Report", datetime(2026, 2, 28), "EOM")
+        assert result == "USA Spa Sales Report (EOM: February 1-28, 2026)"
+
+    def test_report_period_summary_switches_by_mode(self):
+        assert report_period_summary(mode="EOM") == "End-of-month figures"
+        assert report_period_summary(mode="MTD") == "Month-to-date figures"
