@@ -31,6 +31,11 @@ BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR.parent / ".env")
 AUTO_REFRESH_ENABLED = os.getenv("AUTO_REFRESH_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
 AUTO_REFRESH_RUN_ON_EMPTY = os.getenv("AUTO_REFRESH_RUN_ON_EMPTY", "true").strip().lower() in {"1", "true", "yes", "on"}
+# Hours between automatic report reruns by the web app (0 = disabled). Default 1.
+try:
+    AUTO_REFRESH_INTERVAL_HOURS = float(os.getenv("AUTO_REFRESH_INTERVAL_HOURS", "1"))
+except ValueError:
+    AUTO_REFRESH_INTERVAL_HOURS = 1.0
 BLOB_CONNECTION_STRING = os.getenv("REPORT_OUTPUT_BLOB_CONNECTION_STRING", "").strip() or os.getenv("AZURE_STORAGE_CONNECTION_STRING", "").strip()
 BLOB_CONTAINER_NAME = os.getenv("REPORT_OUTPUT_BLOB_CONTAINER", "").strip()
 BLOB_PREFIX = os.getenv("REPORT_OUTPUT_BLOB_PREFIX", "").strip().strip("/")
@@ -84,6 +89,7 @@ report_status = {
 _metrics_cache = {"signature": None, "expires_at": 0.0, "value": None}
 _segment_metrics_cache = {"signature": None, "expires_at": 0.0, "value": None}
 _auto_refresh_bootstrap_triggered = False
+_next_auto_refresh_at: datetime | None = None
 
 
 def _should_auto_bootstrap_run() -> bool:
@@ -199,11 +205,34 @@ async def enforce_slot_email_access(request: Request, call_next):
     return JSONResponse(status_code=403, content={"detail": "Forbidden"})
 
 
+async def _hourly_auto_refresh_loop() -> None:
+    """Background loop: re-run the report every AUTO_REFRESH_INTERVAL_HOURS hours."""
+    global _next_auto_refresh_at
+    if AUTO_REFRESH_INTERVAL_HOURS <= 0 or not AUTO_REFRESH_ENABLED:
+        return
+    interval_seconds = AUTO_REFRESH_INTERVAL_HOURS * 3600
+    # On startup wait the full interval before first scheduled run
+    # (bootstrap handles the empty-outputs case immediately).
+    _next_auto_refresh_at = datetime.utcnow().replace(microsecond=0)
+    from datetime import timedelta
+    _next_auto_refresh_at = _next_auto_refresh_at + timedelta(seconds=interval_seconds)
+    while True:
+        await asyncio.sleep(interval_seconds)
+        if report_status["running"]:
+            # Postpone by one interval if a run is already in progress
+            _next_auto_refresh_at = datetime.utcnow().replace(microsecond=0) + timedelta(seconds=interval_seconds)
+            continue
+        logging.info("Hourly auto-refresh: triggering scheduled report run")
+        _next_auto_refresh_at = datetime.utcnow().replace(microsecond=0) + timedelta(seconds=interval_seconds)
+        await asyncio.to_thread(execute_report)
+
+
 @app.on_event("startup")
 async def startup_event():
     """Pre-populate report_status from disk on every startup so views work after server restarts."""
     _recover_status_from_disk()
     _trigger_auto_bootstrap_run_if_needed()
+    asyncio.create_task(_hourly_auto_refresh_loop())
 
 
 def _parse_to_float(s):
@@ -604,6 +633,7 @@ async def get_status():
         _trigger_auto_bootstrap_run_if_needed()
     report_status["auto_refresh_enabled"] = AUTO_REFRESH_ENABLED
     report_status["auto_refresh_run_on_empty"] = AUTO_REFRESH_RUN_ON_EMPTY
+    report_status["next_auto_refresh_at"] = _next_auto_refresh_at.isoformat() + "Z" if _next_auto_refresh_at else None
     return report_status
 
 @app.get("/metrics")

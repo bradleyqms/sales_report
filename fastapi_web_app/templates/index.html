@@ -332,12 +332,15 @@
             return `${day}-${month}-${year} ${hour}:${minute}`;
         }
 
+        // nextRefreshLabel is populated from the server-side next_auto_refresh_at timestamp.
+        let _nextAutoRefreshAt = null;
         function nextRefreshLabel() {
-            const now = new Date();
-            let h = now.getHours();
-            const m = now.getMinutes();
-            if (m >= 15) h = (h + 1) % 24;
-            return `${String(h).padStart(2, '0')}:15`;
+            if (!_nextAutoRefreshAt) return null;
+            const d = new Date(_nextAutoRefreshAt);
+            if (isNaN(d)) return null;
+            const h = String(d.getUTCHours()).padStart(2, '0');
+            const m = String(d.getUTCMinutes()).padStart(2, '0');
+            return `${h}:${m} UTC`;
         }
 
         async function fetchMetrics() {
@@ -1043,12 +1046,13 @@
                 }
 
                 // Update Timestamps
+                if (status.next_auto_refresh_at) _nextAutoRefreshAt = status.next_auto_refresh_at;
                 if (status.last_run) {
                     const formatted = formatTimestamp(status.last_run);
+                    const nextLabel = nextRefreshLabel();
                     if (metricsTimestamp) metricsTimestamp.innerHTML =
                         `<span class="ts-label">LAST REFRESH</span> <span class="ts-value">${formatted}</span>` +
-                        `<span class="ts-sep">·</span>` +
-                        `<span class="ts-label">NEXT</span> <span class="ts-value">${nextRefreshLabel()}</span>`;
+                        (nextLabel ? `<span class="ts-sep">·</span><span class="ts-label">NEXT</span> <span class="ts-value">${nextLabel}</span>` : '');
                     
                     const tvModeBtn = document.getElementById('tvModeTimestamp');
                     if (tvModeBtn) tvModeBtn.textContent = formatted;
