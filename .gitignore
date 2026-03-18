@@ -51,6 +51,7 @@ data/outputs/*.html
 data/outputs/*.pdf
 data/outputs/*.txt
 data/outputs/*.zip
+data/inputs/mappings/*.csv
 
 # Logs
 *.log

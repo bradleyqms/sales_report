@@ -718,7 +718,10 @@ async def stream_logs():
 @app.get("/status")
 async def get_status():
     if AUTO_REFRESH_ENABLED and not report_status["running"]:
-        _recover_status_from_disk()
+        # Only recover persisted status when in-memory state is empty.
+        # Avoid overwriting fresh in-memory run metadata on every poll.
+        if not report_status.get("last_run"):
+            _recover_status_from_disk()
         _trigger_auto_bootstrap_run_if_needed()
     report_status["auto_refresh_enabled"] = AUTO_REFRESH_ENABLED
     report_status["auto_refresh_run_on_empty"] = AUTO_REFRESH_RUN_ON_EMPTY
