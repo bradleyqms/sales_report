@@ -137,6 +137,7 @@ def _validate_mode(
     forced_year: int | None,
     forced_month: int | None,
 ) -> None:
+    os.environ["V2_UNIFIED_REFRESH_REPORT_TYPE"] = mode
     expected_end_day = _expected_end_day(display_date, mode)
 
     # Management checks

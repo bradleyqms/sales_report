@@ -69,6 +69,26 @@ class TestFindFiles:
         (tmp_path / "report.csv").write_text("x")
         assert find_files(tmp_path, "*.html", 5) == []
 
+    def test_eom_mode_prefers_eom_named_files(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("V2_UNIFIED_REFRESH_REPORT_TYPE", "EOM")
+        regular = tmp_path / "combined_management_report_2026_20260317_155226.csv"
+        eom = tmp_path / "combined_management_report_2026_EOM_20260228_20260310_141323.csv"
+        regular.write_text("x")
+        time.sleep(0.05)
+        eom.write_text("x")
+        result = find_files(tmp_path, "combined_management_report_*.csv", 1)
+        assert result[0].name == eom.name
+
+    def test_mtd_mode_prefers_non_eom_named_files(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("V2_UNIFIED_REFRESH_REPORT_TYPE", "MTD")
+        eom = tmp_path / "combined_management_report_2026_EOM_20260228_20260310_141323.csv"
+        regular = tmp_path / "combined_management_report_2026_20260317_155226.csv"
+        eom.write_text("x")
+        time.sleep(0.05)
+        regular.write_text("x")
+        result = find_files(tmp_path, "combined_management_report_*.csv", 1)
+        assert result[0].name == regular.name
+
 
 class TestCollectHtmlFiles:
     def test_returns_newest_per_pattern(self, tmp_path, monkeypatch):

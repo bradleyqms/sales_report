@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from .config import (
+    dispatch_report_mode,
     KEY_CSV_PATTERNS,
     KEY_HTML_PATTERNS,
     parse_int_env,
@@ -133,10 +134,19 @@ def find_files(outputs_dir: Path, pattern: str, limit: int) -> list[Path]:
     if not outputs_dir.exists():
         LOG.warning("Outputs directory %s is missing", outputs_dir)
         return []
+
+    mode = dispatch_report_mode()
+
+    def _mode_rank(path: Path) -> int:
+        name = path.name.upper()
+        is_eom_named = "_EOM_" in name
+        if mode == "EOM":
+            return 0 if is_eom_named else 1
+        return 0 if not is_eom_named else 1
+
     candidates = sorted(
         outputs_dir.rglob(pattern),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
+        key=lambda p: (_mode_rank(p), -p.stat().st_mtime),
     )
     return candidates[:limit]
 
