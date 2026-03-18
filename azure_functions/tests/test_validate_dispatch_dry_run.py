@@ -35,3 +35,8 @@ def test_subject_for_stream_prefixes_only_eom():
     report_date = datetime(2026, 2, 28)
     assert _MOD._subject_for_stream("USA Spa Sales Report", report_date, "fallback", "EOM") == "EOM QMS USA Spa Sales Report 28.02.2026"
     assert _MOD._subject_for_stream("USA Spa Sales Report", report_date, "fallback", "MTD") == "QMS USA Spa Sales Report 28.02.2026"
+
+
+def test_parse_reference_date_accepts_iso_date():
+    result = _MOD._parse_reference_date("2026-03-17")
+    assert result == datetime(2026, 3, 17)

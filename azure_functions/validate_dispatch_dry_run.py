@@ -18,6 +18,7 @@ import json
 import os
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 _HERE = Path(__file__).parent
@@ -63,6 +64,14 @@ def _parse_force_period(force_period: str) -> tuple[int, int]:
         parts = value.split("-")
         return int(parts[0]), int(parts[1])
     raise ValueError("--force-period must be YYYY-MM or YYYY-MM-DD")
+
+
+def _parse_reference_date(raw: str) -> datetime:
+    value = raw.strip()
+    try:
+        return datetime.strptime(value, "%Y-%m-%d")
+    except ValueError as exc:
+        raise ValueError("reference dates must be YYYY-MM-DD") from exc
 
 
 def _assert_title_month_matches(title: str, year: int, month: int, label: str) -> None:
@@ -121,14 +130,14 @@ def _subject_for_stream(stream_label: str, report_date, fallback_date: str, mode
 def _validate_mode(
     mode: str,
     outputs_dir: Path,
-    report_date,
+    display_date,
     dispatch_mod,
     core_mod,
     usa_mod,
     forced_year: int | None,
     forced_month: int | None,
 ) -> None:
-    expected_end_day = _expected_end_day(report_date, mode)
+    expected_end_day = _expected_end_day(display_date, mode)
 
     # Management checks
     mgmt_recip = dispatch_mod._parse_recipients(
@@ -146,16 +155,16 @@ def _validate_mode(
     _assert(bool(mgmt_attachments), f"Management CSV attachments not found ({mode})")
     mgmt_subject = os.getenv("REPORT_DISPATCH_SUBJECT") or _subject_for_stream(
         "Management Sales Report",
-        report_date,
+        display_date,
         dispatch_mod.report_date_str(),
         mode,
     )
     mgmt_body_type, mgmt_body = dispatch_mod._build_html_body(
         mgmt_html,
         os.getenv("REPORT_DISPATCH_BODY", "Please find the latest QMS sales data attached."),
-        banner_title=dispatch_mod.report_period_banner("Management Report", report_date, mode),
-        section_title_resolver=lambda path, title: dispatch_mod._management_section_title(path, title, report_date, mode),
-        banner_subtitle=dispatch_mod.report_period_summary(report_date, mode),
+        banner_title=dispatch_mod.report_period_banner("Management Report", display_date, mode),
+        section_title_resolver=lambda path, title: dispatch_mod._management_section_title(path, title, display_date, mode),
+        banner_subtitle=dispatch_mod.report_period_summary(display_date, mode),
     )
     mgmt_h2 = _extract_first_h2(mgmt_body)
     _assert(bool(mgmt_subject.strip()), f"Management subject is empty ({mode})")
@@ -181,17 +190,17 @@ def _validate_mode(
         _assert(not core_attachments, f"Core market PDF attachments resolved despite CORE_MARKET_SEND_PDF being disabled ({mode})")
     core_subject = os.getenv("CORE_MARKET_DISPATCH_SUBJECT") or _subject_for_stream(
         "Core Market Sales Report",
-        report_date,
+        display_date,
         dispatch_mod.report_date_str(),
         mode,
     )
     core_body_type, core_body = dispatch_mod._build_html_body(
         core_html,
         os.getenv("CORE_MARKET_DISPATCH_BODY", "Please find the latest QMS core market report attached."),
-        banner_title=dispatch_mod.report_period_banner("Core Market Sales Report", report_date, mode),
+        banner_title=dispatch_mod.report_period_banner("Core Market Sales Report", display_date, mode),
         footer_note="The PDF report is attached.",
-        section_title_resolver=lambda _path, _title: dispatch_mod.report_period_banner("Core Market Sales Report", report_date, mode),
-        banner_subtitle=dispatch_mod.report_period_summary(report_date, mode),
+        section_title_resolver=lambda _path, _title: dispatch_mod.report_period_banner("Core Market Sales Report", display_date, mode),
+        banner_subtitle=dispatch_mod.report_period_summary(display_date, mode),
     )
     core_h2 = _extract_first_h2(core_body)
     _assert(bool(core_subject.strip()), f"Core subject is empty ({mode})")
@@ -211,17 +220,17 @@ def _validate_mode(
     _assert(bool(usa_html), f"USA Spa HTML files not found ({mode})")
     usa_subject = os.getenv("USA_SPA_DISPATCH_SUBJECT") or _subject_for_stream(
         "USA Spa Sales Report",
-        report_date,
+        display_date,
         dispatch_mod.report_date_str(),
         mode,
     )
     usa_body_type, usa_body = dispatch_mod._build_html_body(
         usa_html,
         os.getenv("USA_SPA_DISPATCH_BODY", "Please find the latest QMS USA Spa sales report below."),
-        banner_title=dispatch_mod.report_period_banner("USA Spa Sales Report", report_date, mode),
+        banner_title=dispatch_mod.report_period_banner("USA Spa Sales Report", display_date, mode),
         footer_note="",
-        section_title_resolver=lambda _path, _title: dispatch_mod.report_period_banner("USA Spa Sales Report", report_date, mode),
-        banner_subtitle=dispatch_mod.report_period_summary(report_date, mode),
+        section_title_resolver=lambda _path, _title: dispatch_mod.report_period_banner("USA Spa Sales Report", display_date, mode),
+        banner_subtitle=dispatch_mod.report_period_summary(display_date, mode),
     )
     usa_h2 = _extract_first_h2(usa_body)
     _assert(bool(usa_subject.strip()), f"USA subject is empty ({mode})")
@@ -231,6 +240,7 @@ def _validate_mode(
         _assert_title_day_range(usa_h2, expected_end_day, f"USA/{mode}")
 
     print(f"\n[OK] Management ({mode})")
+    print(f"  reference  : {display_date.strftime('%Y-%m-%d')}")
     print(f"  recipients : {mgmt_recip}")
     print(f"  subject    : {mgmt_subject}")
     print(f"  body_type  : {mgmt_body_type}")
@@ -238,6 +248,7 @@ def _validate_mode(
     print(f"  attachments: {[p.name for p in mgmt_attachments]}")
 
     print(f"\n[OK] Core Market ({mode})")
+    print(f"  reference  : {display_date.strftime('%Y-%m-%d')}")
     print(f"  recipients : {core_recip}")
     print(f"  subject    : {core_subject}")
     print(f"  body_type  : {core_body_type}")
@@ -248,6 +259,7 @@ def _validate_mode(
         print("  attachments: [] (CORE_MARKET_SEND_PDF disabled)")
 
     print(f"\n[OK] USA Spa ({mode})")
+    print(f"  reference  : {display_date.strftime('%Y-%m-%d')}")
     print(f"  recipients : {usa_recip}")
     print(f"  subject    : {usa_subject}")
     print(f"  body_type  : {usa_body_type}")
@@ -272,6 +284,16 @@ def main() -> int:
         "--mode",
         default="both",
         help="Validate dispatch formatting for one mode or both: both, MTD, EOM (default: both)",
+    )
+    parser.add_argument(
+        "--mtd-reference-date",
+        default=None,
+        help="Optional MTD display/reference date for format checks (YYYY-MM-DD)",
+    )
+    parser.add_argument(
+        "--eom-reference-date",
+        default=None,
+        help="Optional EOM display/reference date for format checks (YYYY-MM-DD)",
     )
     args = parser.parse_args()
 
@@ -299,6 +321,11 @@ def main() -> int:
     selected_modes = _selected_modes(args.mode)
     print(f"[INFO] modes={', '.join(selected_modes)}")
 
+    mode_reference_dates = {
+        "MTD": _parse_reference_date(args.mtd_reference_date) if args.mtd_reference_date else report_date,
+        "EOM": _parse_reference_date(args.eom_reference_date) if args.eom_reference_date else report_date,
+    }
+
     forced_year = None
     forced_month = None
     if args.force_period:
@@ -309,7 +336,7 @@ def main() -> int:
         _validate_mode(
             mode=mode,
             outputs_dir=outputs_dir,
-            report_date=report_date,
+            display_date=mode_reference_dates[mode],
             dispatch_mod=dispatch_mod,
             core_mod=core_mod,
             usa_mod=usa_mod,
