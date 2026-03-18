@@ -10,6 +10,14 @@ import time
 from pathlib import Path
 from urllib import request
 
+try:
+    from azure.storage.blob import BlobServiceClient as _BlobServiceClient
+except ImportError:  # pragma: no cover
+    _BlobServiceClient = None  # type: ignore[assignment,misc]
+
+_BLOB_INPUTS_CLIENT_CACHE = None
+_BLOB_INPUTS_CLIENT_INITIALISED = False
+
 import pandas as pd
 from dotenv import load_dotenv
 
@@ -80,6 +88,72 @@ def parse_force_period(force_period: str | None, report_type: str) -> datetime.d
 SP_EXTRACTS_PATH = "/sites/DATAANDREPORTING/Shared Documents/SAP Extracts"
 
 
+def _build_blob_inputs_client():
+    """Return a ContainerClient for 'reporting-inputs', or None if not configured."""
+    global _BLOB_INPUTS_CLIENT_CACHE, _BLOB_INPUTS_CLIENT_INITIALISED
+    if _BLOB_INPUTS_CLIENT_INITIALISED:
+        return _BLOB_INPUTS_CLIENT_CACHE
+    _BLOB_INPUTS_CLIENT_INITIALISED = True
+    if _BlobServiceClient is None:
+        return None
+    conn = os.getenv("AZURE_STORAGE_REPORTING_CONNECTION_STRING", "").strip()
+    container = os.getenv("REPORTING_INPUTS_BLOB_CONTAINER", "reporting-inputs").strip()
+    if not conn or not container:
+        return None
+    try:
+        service = _BlobServiceClient.from_connection_string(conn)
+        _BLOB_INPUTS_CLIENT_CACHE = service.get_container_client(container)
+        return _BLOB_INPUTS_CLIENT_CACHE
+    except Exception as exc:
+        logging.warning("Could not connect to reporting-inputs blob container: %s", exc)
+        return None
+
+
+def _download_from_blob_inputs(container_client, blob_name: str, dest: Path) -> bool:
+    """Download *blob_name* from *container_client* to *dest*. Returns True on success."""
+    try:
+        downloader = container_client.download_blob(blob_name)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with open(dest, "wb") as fh:
+            downloader.readinto(fh)
+        logging.info("Downloaded from reporting-inputs blob: %s", blob_name)
+        return True
+    except Exception as exc:
+        logging.warning("Blob input download failed for %s: %s", blob_name, exc)
+        return False
+
+
+def _upload_outputs_to_blob(output_dir: Path) -> int:
+    """Upload all files in *output_dir* to 'reporting-outputs'. Returns count of uploaded files."""
+    if _BlobServiceClient is None:
+        return 0
+    conn = os.getenv("AZURE_STORAGE_REPORTING_CONNECTION_STRING", "").strip()
+    container = os.getenv("REPORTING_OUTPUTS_BLOB_CONTAINER", "reporting-outputs").strip()
+    if not conn or not container:
+        return 0
+    try:
+        service = _BlobServiceClient.from_connection_string(conn)
+        container_client = service.get_container_client(container)
+    except Exception as exc:
+        logging.warning("Could not connect to reporting-outputs blob: %s", exc)
+        return 0
+    uploaded = 0
+    for path in output_dir.rglob("*"):
+        if not path.is_file():
+            continue
+        blob_name = path.name
+        try:
+            with open(path, "rb") as data:
+                container_client.upload_blob(blob_name, data, overwrite=True)
+            logging.info("Uploaded to reporting-outputs: %s", blob_name)
+            uploaded += 1
+        except Exception as exc:
+            logging.warning("Failed to upload %s to reporting-outputs blob: %s", path.name, exc)
+    if uploaded:
+        logging.info("Blob output upload complete: %d file(s)", uploaded)
+    return uploaded
+
+
 def _build_sp_handler(project_root: Path):
     """Return an initialised SharePointHandler if SP credentials are configured, else None."""
     load_dotenv(project_root / ".env")
@@ -105,11 +179,20 @@ def resolve_input_file(
     sp_handler,
     retries: int = 1,
     retry_backoff_seconds: float = 1.0,
+    blob_path: str | None = None,
 ) -> Path:
-    """Return a local path for *filename*, downloading from SharePoint SAP Extracts if needed.
+    """Return a local path for *filename*.
 
-    Priority: SharePoint (if credentials configured) → local fallback.
+    Priority: blob inputs (if configured and blob_path given) → SharePoint → local fallback.
     """
+    if blob_path is not None:
+        blob_client = _build_blob_inputs_client()
+        if blob_client is not None:
+            temp_dir = Path(tempfile.mkdtemp(prefix="v2_blob_input_"))
+            dest = temp_dir / filename
+            if _download_from_blob_inputs(blob_client, blob_path, dest):
+                return dest
+
     if sp_handler is not None:
         try:
             temp_dir = Path(tempfile.mkdtemp(prefix="v2_input_"))
@@ -134,7 +217,7 @@ def resolve_input_file(
 
     raise FileNotFoundError(
         f"Required data file not found: {filename}. "
-        "Ensure it exists in SharePoint SAP Extracts or locally in data/inputs/."
+        "Ensure it exists in reporting-inputs blob, SharePoint SAP Extracts, or locally in data/inputs/."
     )
 
 
@@ -153,9 +236,9 @@ def resolve_mapping_file(
         return path
 
     sp_handler = _build_sp_handler(project_root)
-    for filename, local_rel in [
-        ("entity_mappings.csv", "data/inputs/mappings/entity_mappings.csv"),
-        ("py25_regional_mappings.csv", "data/inputs/mappings/py25_regional_mappings.csv"),
+    for filename, local_rel, blob_p in [
+        ("entity_mappings.csv", "data/inputs/mappings/entity_mappings.csv", "mappings/entity_mappings.csv"),
+        ("py25_regional_mappings.csv", "data/inputs/mappings/py25_regional_mappings.csv", "mappings/py25_regional_mappings.csv"),
     ]:
         try:
             return resolve_input_file(
@@ -164,6 +247,7 @@ def resolve_mapping_file(
                 sp_handler,
                 retries=retries,
                 retry_backoff_seconds=retry_backoff_seconds,
+                blob_path=blob_p,
             )
         except FileNotFoundError:
             continue
@@ -541,6 +625,7 @@ def main(argv=None):
         "py25_regional_mappings.csv",
         project_root / "data/inputs/mappings/py25_regional_mappings.csv",
         _sp, _retries, _backoff,
+        blob_path="mappings/py25_regional_mappings.csv",
     )
     mapping_df = pd.read_csv(mapping_path)
 
@@ -556,31 +641,37 @@ def main(argv=None):
         f"budget_{current_year}_processed.csv",
         project_root / f"data/inputs/budget/budget_{current_year}_processed.csv",
         _sp, _retries, _backoff,
+        blob_path=f"budgets/budget_{current_year}_processed.csv",
     )
     prior_path = resolve_input_file(
         f"prior_sales_{prior_year}_processed.csv",
         project_root / f"data/inputs/prior_years/prior_sales_{prior_year}_processed.csv",
         _sp, _retries, _backoff,
+        blob_path=f"prior_year/prior_sales_{prior_year}_processed.csv",
     )
     gvl_budget_path = resolve_input_file(
         f"budget_GVL_{current_year}.csv",
         project_root / f"data/inputs/budget/budget_GVL_{current_year}.csv",
         _sp, _retries, _backoff,
+        blob_path=f"budgets/budget_GVL_{current_year}.csv",
     )
     gvl_prior_path = resolve_input_file(
         f"prior_sales_{prior_year}_gvl.csv",
         project_root / f"data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv",
         _sp, _retries, _backoff,
+        blob_path=f"prior_year/prior_sales_{prior_year}_gvl.csv",
     )
     usa_budget_path = resolve_input_file(
         f"budget_USA_spa_{current_year}.csv",
         project_root / f"data/inputs/budget/budget_USA_spa_{current_year}.csv",
         _sp, _retries, _backoff,
+        blob_path=f"budgets/budget_USA_spa_{current_year}.csv",
     )
     usa_prior_path = resolve_input_file(
         f"prior_sales_{prior_year}_usa.csv",
         project_root / f"data/inputs/prior_years/prior_sales_{prior_year}_usa.csv",
         _sp, _retries, _backoff,
+        blob_path=f"prior_year/prior_sales_{prior_year}_usa.csv",
     )
 
     receivables = ManagementReportGenerator(
@@ -638,6 +729,10 @@ def main(argv=None):
     run_summary["status"] = "success"
     run_summary["finished_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
     summary_path = write_run_summary(run_summary, output_dir=output_dir, summary_path_arg=args.summary_path)
+
+    uploaded = _upload_outputs_to_blob(output_dir)
+    if uploaded:
+        print(f"[OK] blob_upload: {uploaded} file(s) → reporting-outputs")
 
     print("\n[OK] V2 run complete")
     print(f"[OK] mapped_data: {mapped_path.name}")
