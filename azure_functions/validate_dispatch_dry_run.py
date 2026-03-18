@@ -4,9 +4,10 @@ Checks, per report stream (management/core/usa):
 - recipients resolved (including TEST_* overrides)
 - subject resolved
 - body generated and contains expected title marker
+- attachments resolved as expected for that stream
 
 Usage:
-    python validate_dispatch_dry_run.py [--test-recipient you@example.com]
+    python validate_dispatch_dry_run.py [--test-recipient you@example.com] [--mode both|MTD|EOM]
 """
 from __future__ import annotations
 
@@ -95,6 +96,165 @@ def _fallback_find_latest(outputs_dir: Path, patterns: list[str]) -> list[Path]:
     return found
 
 
+def _selected_modes(mode_arg: str) -> list[str]:
+    value = mode_arg.strip().upper()
+    if value == "BOTH":
+        return ["MTD", "EOM"]
+    if value in {"MTD", "EOM"}:
+        return [value]
+    raise ValueError("--mode must be one of: both, MTD, EOM")
+
+
+def _expected_end_day(report_date, mode: str) -> int:
+    resolved_mode = mode.strip().upper()
+    if resolved_mode == "EOM":
+        return calendar.monthrange(report_date.year, report_date.month)[1]
+    return report_date.day
+
+
+def _subject_for_stream(stream_label: str, report_date, fallback_date: str, mode: str) -> str:
+    date_str = report_date.strftime('%d.%m.%Y') if report_date else fallback_date
+    prefix = "EOM " if mode.strip().upper() == "EOM" else ""
+    return f"{prefix}QMS {stream_label} {date_str}"
+
+
+def _validate_mode(
+    mode: str,
+    outputs_dir: Path,
+    report_date,
+    dispatch_mod,
+    core_mod,
+    usa_mod,
+    forced_year: int | None,
+    forced_month: int | None,
+) -> None:
+    expected_end_day = _expected_end_day(report_date, mode)
+
+    # Management checks
+    mgmt_recip = dispatch_mod._parse_recipients(
+        os.getenv("TEST_REPORT_DISPATCH_RECIPIENTS", "").strip() or os.getenv("REPORT_DISPATCH_RECIPIENTS")
+    )
+    _assert(bool(mgmt_recip), f"Management recipients not resolved ({mode})")
+    mgmt_html = dispatch_mod._collect_html_files(outputs_dir)
+    if not mgmt_html:
+        mgmt_html = _fallback_find_latest(outputs_dir, [
+            "combined_management_report_*.html",
+            "management_report_core_markets_*.html",
+        ])
+    _assert(bool(mgmt_html), f"Management HTML files not found ({mode})")
+    mgmt_attachments = dispatch_mod._collect_csv_attachments(outputs_dir)
+    _assert(bool(mgmt_attachments), f"Management CSV attachments not found ({mode})")
+    mgmt_subject = os.getenv("REPORT_DISPATCH_SUBJECT") or _subject_for_stream(
+        "Management Sales Report",
+        report_date,
+        dispatch_mod.report_date_str(),
+        mode,
+    )
+    mgmt_body_type, mgmt_body = dispatch_mod._build_html_body(
+        mgmt_html,
+        os.getenv("REPORT_DISPATCH_BODY", "Please find the latest QMS sales data attached."),
+        banner_title=dispatch_mod.report_period_banner("Management Report", report_date, mode),
+        section_title_resolver=lambda path, title: dispatch_mod._management_section_title(path, title, report_date, mode),
+        banner_subtitle=dispatch_mod.report_period_summary(report_date, mode),
+    )
+    mgmt_h2 = _extract_first_h2(mgmt_body)
+    _assert(bool(mgmt_subject.strip()), f"Management subject is empty ({mode})")
+    _assert("Management Report" in mgmt_body, f"Management body missing expected title marker ({mode})")
+    if forced_year and forced_month:
+        _assert_title_month_matches(mgmt_h2, forced_year, forced_month, f"Management/{mode}")
+        _assert_title_day_range(mgmt_h2, expected_end_day, f"Management/{mode}")
+
+    # Core checks
+    core_recip = dispatch_mod._parse_recipients(
+        os.getenv("TEST_CORE_MARKETS_RECIPIENTS", "").strip() or os.getenv("CORE_MARKET_DISPATCH_RECIPIENTS")
+    )
+    _assert(bool(core_recip), f"Core recipients not resolved ({mode})")
+    core_html = core_mod._collect_core_market_html(outputs_dir)
+    if not core_html:
+        core_html = _fallback_find_latest(outputs_dir, ["management_report_core_markets_*.html"])
+    _assert(bool(core_html), f"Core market HTML files not found ({mode})")
+    core_pdf_enabled = os.getenv("CORE_MARKET_SEND_PDF", "true").strip().lower() not in {"false", "0", "no"}
+    core_attachments = core_mod._collect_core_market_pdf(outputs_dir)
+    if core_pdf_enabled:
+        _assert(bool(core_attachments), f"Core market PDF attachment expected but not found ({mode})")
+    else:
+        _assert(not core_attachments, f"Core market PDF attachments resolved despite CORE_MARKET_SEND_PDF being disabled ({mode})")
+    core_subject = os.getenv("CORE_MARKET_DISPATCH_SUBJECT") or _subject_for_stream(
+        "Core Market Sales Report",
+        report_date,
+        dispatch_mod.report_date_str(),
+        mode,
+    )
+    core_body_type, core_body = dispatch_mod._build_html_body(
+        core_html,
+        os.getenv("CORE_MARKET_DISPATCH_BODY", "Please find the latest QMS core market report attached."),
+        banner_title=dispatch_mod.report_period_banner("Core Market Sales Report", report_date, mode),
+        footer_note="The PDF report is attached.",
+        section_title_resolver=lambda _path, _title: dispatch_mod.report_period_banner("Core Market Sales Report", report_date, mode),
+        banner_subtitle=dispatch_mod.report_period_summary(report_date, mode),
+    )
+    core_h2 = _extract_first_h2(core_body)
+    _assert(bool(core_subject.strip()), f"Core subject is empty ({mode})")
+    _assert("Core Market Sales Report" in core_body, f"Core body missing expected title marker ({mode})")
+    if forced_year and forced_month:
+        _assert_title_month_matches(core_h2, forced_year, forced_month, f"Core/{mode}")
+        _assert_title_day_range(core_h2, expected_end_day, f"Core/{mode}")
+
+    # USA checks
+    usa_recip = dispatch_mod._parse_recipients(
+        os.getenv("TEST_USA_SPA_RECIPIENTS", "").strip() or os.getenv("USA_SPA_DISPATCH_RECIPIENTS")
+    )
+    _assert(bool(usa_recip), f"USA recipients not resolved ({mode})")
+    usa_html = usa_mod._collect_usa_spa_html(outputs_dir)
+    if not usa_html:
+        usa_html = _fallback_find_latest(outputs_dir, ["management_report_usa_spa_*.html"])
+    _assert(bool(usa_html), f"USA Spa HTML files not found ({mode})")
+    usa_subject = os.getenv("USA_SPA_DISPATCH_SUBJECT") or _subject_for_stream(
+        "USA Spa Sales Report",
+        report_date,
+        dispatch_mod.report_date_str(),
+        mode,
+    )
+    usa_body_type, usa_body = dispatch_mod._build_html_body(
+        usa_html,
+        os.getenv("USA_SPA_DISPATCH_BODY", "Please find the latest QMS USA Spa sales report below."),
+        banner_title=dispatch_mod.report_period_banner("USA Spa Sales Report", report_date, mode),
+        footer_note="",
+        section_title_resolver=lambda _path, _title: dispatch_mod.report_period_banner("USA Spa Sales Report", report_date, mode),
+        banner_subtitle=dispatch_mod.report_period_summary(report_date, mode),
+    )
+    usa_h2 = _extract_first_h2(usa_body)
+    _assert(bool(usa_subject.strip()), f"USA subject is empty ({mode})")
+    _assert("USA Spa Sales Report" in usa_body, f"USA body missing expected title marker ({mode})")
+    if forced_year and forced_month:
+        _assert_title_month_matches(usa_h2, forced_year, forced_month, f"USA/{mode}")
+        _assert_title_day_range(usa_h2, expected_end_day, f"USA/{mode}")
+
+    print(f"\n[OK] Management ({mode})")
+    print(f"  recipients : {mgmt_recip}")
+    print(f"  subject    : {mgmt_subject}")
+    print(f"  body_type  : {mgmt_body_type}")
+    print(f"  first_h2   : {mgmt_h2}")
+    print(f"  attachments: {[p.name for p in mgmt_attachments]}")
+
+    print(f"\n[OK] Core Market ({mode})")
+    print(f"  recipients : {core_recip}")
+    print(f"  subject    : {core_subject}")
+    print(f"  body_type  : {core_body_type}")
+    print(f"  first_h2   : {core_h2}")
+    if core_pdf_enabled:
+        print(f"  attachments: {[p.name for p in core_attachments]}")
+    else:
+        print("  attachments: [] (CORE_MARKET_SEND_PDF disabled)")
+
+    print(f"\n[OK] USA Spa ({mode})")
+    print(f"  recipients : {usa_recip}")
+    print(f"  subject    : {usa_subject}")
+    print(f"  body_type  : {usa_body_type}")
+    print(f"  first_h2   : {usa_h2}")
+    print("  attachments: [] (inline-only report)")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate dispatch dry-run content")
     parser.add_argument("--test-recipient", default=None, help="Override all TEST_* recipient env vars")
@@ -107,6 +267,11 @@ def main() -> int:
         "--force-period",
         default=None,
         help="Optional period guard (YYYY-MM or YYYY-MM-DD). Fails if body title month differs.",
+    )
+    parser.add_argument(
+        "--mode",
+        default="both",
+        help="Validate dispatch formatting for one mode or both: both, MTD, EOM (default: both)",
     )
     args = parser.parse_args()
 
@@ -131,6 +296,8 @@ def main() -> int:
 
     print(f"[INFO] outputs_dir={outputs_dir}")
     print(f"[INFO] report_date={report_date.strftime('%Y-%m-%d') if report_date else 'N/A'}")
+    selected_modes = _selected_modes(args.mode)
+    print(f"[INFO] modes={', '.join(selected_modes)}")
 
     forced_year = None
     forced_month = None
@@ -138,112 +305,19 @@ def main() -> int:
         forced_year, forced_month = _parse_force_period(args.force_period)
         print(f"[INFO] forced_period_guard={forced_year:04d}-{forced_month:02d}")
 
-    # Management checks
-    mgmt_recip = dispatch_mod._parse_recipients(
-        os.getenv("TEST_REPORT_DISPATCH_RECIPIENTS", "").strip() or os.getenv("REPORT_DISPATCH_RECIPIENTS")
-    )
-    _assert(bool(mgmt_recip), "Management recipients not resolved")
-    mgmt_html = dispatch_mod._collect_html_files(outputs_dir)
-    if not mgmt_html:
-        mgmt_html = _fallback_find_latest(outputs_dir, [
-            "combined_management_report_*.html",
-            "management_report_core_markets_*.html",
-        ])
-    _assert(bool(mgmt_html), "Management HTML files not found")
-    mgmt_subject = os.getenv("REPORT_DISPATCH_SUBJECT") or (
-        f"EOM QMS Management Sales Report {report_date.strftime('%d.%m.%Y')}"
-        if report_date else
-        f"EOM QMS Management Sales Report {dispatch_mod.report_date_str()}"
-    )
-    mgmt_body_type, mgmt_body = dispatch_mod._build_html_body(
-        mgmt_html,
-        os.getenv("REPORT_DISPATCH_BODY", "Please find the latest QMS sales data attached."),
-        banner_title=dispatch_mod.report_period_banner("Management Report", report_date, "EOM"),
-        section_title_resolver=lambda path, title: dispatch_mod._management_section_title(path, title, report_date, "EOM"),
-        banner_subtitle=dispatch_mod.report_period_summary(report_date, "EOM"),
-    )
-    mgmt_h2 = _extract_first_h2(mgmt_body)
-    _assert(bool(mgmt_subject.strip()), "Management subject is empty")
-    _assert("Management Report" in mgmt_body, "Management body missing expected title marker")
-    if forced_year and forced_month:
-        _assert_title_month_matches(mgmt_h2, forced_year, forced_month, "Management")
-        _assert_title_day_range(mgmt_h2, report_date.day, "Management")
+    for mode in selected_modes:
+        _validate_mode(
+            mode=mode,
+            outputs_dir=outputs_dir,
+            report_date=report_date,
+            dispatch_mod=dispatch_mod,
+            core_mod=core_mod,
+            usa_mod=usa_mod,
+            forced_year=forced_year,
+            forced_month=forced_month,
+        )
 
-    # Core checks
-    core_recip = dispatch_mod._parse_recipients(
-        os.getenv("TEST_CORE_MARKETS_RECIPIENTS", "").strip() or os.getenv("CORE_MARKET_DISPATCH_RECIPIENTS")
-    )
-    _assert(bool(core_recip), "Core recipients not resolved")
-    core_html = core_mod._collect_core_market_html(outputs_dir)
-    if not core_html:
-        core_html = _fallback_find_latest(outputs_dir, ["management_report_core_markets_*.html"])
-    _assert(bool(core_html), "Core market HTML files not found")
-    core_subject = os.getenv("CORE_MARKET_DISPATCH_SUBJECT") or (
-        f"EOM QMS Core Market Sales Report {report_date.strftime('%d.%m.%Y')}"
-        if report_date else f"EOM QMS Core Market Sales Report {dispatch_mod.report_date_str()}"
-    )
-    core_body_type, core_body = dispatch_mod._build_html_body(
-        core_html,
-        os.getenv("CORE_MARKET_DISPATCH_BODY", "Please find the latest QMS core market report attached."),
-        banner_title=dispatch_mod.report_period_banner("Core Market Sales Report", report_date, "EOM"),
-        footer_note="The PDF report is attached.",
-        section_title_resolver=lambda _path, _title: dispatch_mod.report_period_banner("Core Market Sales Report", report_date, "EOM"),
-        banner_subtitle=dispatch_mod.report_period_summary(report_date, "EOM"),
-    )
-    core_h2 = _extract_first_h2(core_body)
-    _assert(bool(core_subject.strip()), "Core subject is empty")
-    _assert("Core Market Sales Report" in core_body, "Core body missing expected title marker")
-    if forced_year and forced_month:
-        _assert_title_month_matches(core_h2, forced_year, forced_month, "Core")
-        _assert_title_day_range(core_h2, report_date.day, "Core")
-
-    # USA checks
-    usa_recip = dispatch_mod._parse_recipients(
-        os.getenv("TEST_USA_SPA_RECIPIENTS", "").strip() or os.getenv("USA_SPA_DISPATCH_RECIPIENTS")
-    )
-    _assert(bool(usa_recip), "USA recipients not resolved")
-    usa_html = usa_mod._collect_usa_spa_html(outputs_dir)
-    if not usa_html:
-        usa_html = _fallback_find_latest(outputs_dir, ["management_report_usa_spa_*.html"])
-    _assert(bool(usa_html), "USA Spa HTML files not found")
-    usa_subject = os.getenv("USA_SPA_DISPATCH_SUBJECT") or (
-        f"EOM QMS USA Spa Sales Report {report_date.strftime('%d.%m.%Y')}"
-        if report_date else f"EOM QMS USA Spa Sales Report {dispatch_mod.report_date_str()}"
-    )
-    usa_body_type, usa_body = dispatch_mod._build_html_body(
-        usa_html,
-        os.getenv("USA_SPA_DISPATCH_BODY", "Please find the latest QMS USA Spa sales report below."),
-        banner_title=dispatch_mod.report_period_banner("USA Spa Sales Report", report_date, "EOM"),
-        footer_note="",
-        section_title_resolver=lambda _path, _title: dispatch_mod.report_period_banner("USA Spa Sales Report", report_date, "EOM"),
-        banner_subtitle=dispatch_mod.report_period_summary(report_date, "EOM"),
-    )
-    usa_h2 = _extract_first_h2(usa_body)
-    _assert(bool(usa_subject.strip()), "USA subject is empty")
-    _assert("USA Spa Sales Report" in usa_body, "USA body missing expected title marker")
-    if forced_year and forced_month:
-        _assert_title_month_matches(usa_h2, forced_year, forced_month, "USA")
-        _assert_title_day_range(usa_h2, report_date.day, "USA")
-
-    print("\n[OK] Management")
-    print(f"  recipients: {mgmt_recip}")
-    print(f"  subject   : {mgmt_subject}")
-    print(f"  body_type : {mgmt_body_type}")
-    print(f"  first_h2  : {mgmt_h2}")
-
-    print("\n[OK] Core Market")
-    print(f"  recipients: {core_recip}")
-    print(f"  subject   : {core_subject}")
-    print(f"  body_type : {core_body_type}")
-    print(f"  first_h2  : {core_h2}")
-
-    print("\n[OK] USA Spa")
-    print(f"  recipients: {usa_recip}")
-    print(f"  subject   : {usa_subject}")
-    print(f"  body_type : {usa_body_type}")
-    print(f"  first_h2  : {usa_h2}")
-
-    print("\n[OK] Dry-run dispatch validation passed")
+    print(f"\n[OK] Dry-run dispatch validation passed for {', '.join(selected_modes)}")
     return 0
 
 
