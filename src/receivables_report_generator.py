@@ -328,12 +328,16 @@ class ManagementReportGenerator(BaseReportGenerator):
                 else:
                     val_prior = self.prior_month[p_mask]['Value_kEUR'].sum()
                 
+                # Check if item has explicit bold config (default True if not specified)
+                should_bold = item.get('bold', True)
+                
                 rows.append({
                     'label': label,
                     'sales': val_sales,
                     'budget': val_budget,
                     'prior': val_prior,
                     'is_total': False,
+                    'should_bold': should_bold,  # Explicit styling hint
                     'is_spacer': False
                 })
                 
@@ -356,6 +360,7 @@ class ManagementReportGenerator(BaseReportGenerator):
                             'budget': rem_budget,
                             'prior': rem_prior,
                             'is_total': False,
+                            'should_bold': True,
                             'is_spacer': False
                         }
                     else:
@@ -392,7 +397,8 @@ class ManagementReportGenerator(BaseReportGenerator):
                 'prior': 0.0,
                 'is_spacer': True,
                 'is_total': False,
-                'is_grand_total': False
+                'is_grand_total': False,
+                'should_bold': True
             })
             
             # Add to grand total for company sales sections

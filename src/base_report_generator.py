@@ -556,13 +556,17 @@ class BaseReportGenerator(ABC):
             df_row = df.iloc[idx] if idx < len(df) else None
             is_total = df_row.get('is_total', False) if df_row is not None else False
             is_grand_total = df_row.get('is_grand_total', False) if df_row is not None else False
+            should_bold_override = df_row.get('should_bold', None) if df_row is not None else None
+            
+            # Use should_bold override if present, otherwise fall back to is_total/is_grand_total
+            should_apply_bold = should_bold_override if should_bold_override is not None else (is_total or is_grand_total)
             
             row_class = 'grand-total' if is_grand_total else ('total' if is_total else '')
             html_content += f'<tr class="{row_class}">'
             
             for i, val in enumerate(row_data):
                 align = "left" if i == 0 else "right"
-                weight = "font-weight:bold;" if (is_grand_total or is_total) else ""
+                weight = "font-weight:bold;" if should_apply_bold else ""
                 html_content += f'<td style="text-align:{align};{weight}">{val}</td>'
             html_content += "</tr>\n"
         
@@ -643,9 +647,13 @@ class BaseReportGenerator(ABC):
                     cell.alignment = text_alignment if col_idx == 1 else number_alignment
                     cell.border = thin_border
                 
-                # Apply styling based on row type
+                # Apply styling based on row type and explicit overrides
                 is_total = row.get('is_total', False)
                 is_grand_total = row.get('is_grand_total', False)
+                should_bold_override = row.get('should_bold', None)
+                
+                # Use should_bold override if present, otherwise fall back to is_total/is_grand_total
+                should_apply_bold = should_bold_override if should_bold_override is not None else (is_total or is_grand_total)
                 
                 if is_grand_total:
                     for col_idx in range(1, len(headers) + 1):
@@ -655,6 +663,11 @@ class BaseReportGenerator(ABC):
                     for col_idx in range(1, len(headers) + 1):
                         ws.cell(row=row_idx, column=col_idx).font = total_font
                         ws.cell(row=row_idx, column=col_idx).fill = total_fill
+                elif should_apply_bold and not is_grand_total and not is_total:
+                    # Apply bold only (no background color) if should_bold_override is True but not a total row
+                    bold_font = Font(bold=True)
+                    for col_idx in range(1, len(headers) + 1):
+                        ws.cell(row=row_idx, column=col_idx).font = bold_font
                 
                 row_idx += 1
             
@@ -725,7 +738,14 @@ class BaseReportGenerator(ABC):
             if row.get('is_spacer'):
                 row_idx += 1
                 continue
-            if row.get('is_total') or row.get('is_grand_total'):
+            is_total = row.get('is_total', False)
+            is_grand_total = row.get('is_grand_total', False)
+            should_bold_override = row.get('should_bold', None)
+            
+            # Use should_bold override if present, otherwise fall back to is_total/is_grand_total
+            should_apply_bold = should_bold_override if should_bold_override is not None else (is_total or is_grand_total)
+            
+            if should_apply_bold:
                 style.add('BACKGROUND', (0, row_idx), (-1, row_idx), colors.lightblue)
                 style.add('FONTNAME', (0, row_idx), (-1, row_idx), 'Helvetica-Bold')
             row_idx += 1

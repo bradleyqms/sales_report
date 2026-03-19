@@ -6,12 +6,12 @@
             "market_group": "Core Markets",
             "type": "region",
             "items": [
-                {"label": "Germany", "filter_value": "Germany"},
-                {"label": "Benelux", "filter_value": "Benelux"},
-                {"label": "Switzerland", "filter_value": "Switzerland"},
-                {"label": "Spain", "filter_value": "Spain"},
-                {"label": "France", "filter_value": "France"},
-                {"label": "Italy", "filter_value": "Italy"},
+                {"label": "Germany", "filter_value": "Germany", "bold": false},
+                {"label": "Benelux", "filter_value": "Benelux", "bold": false},
+                {"label": "Switzerland", "filter_value": "Switzerland", "bold": false},
+                {"label": "Spain", "filter_value": "Spain", "bold": false},
+                {"label": "France", "filter_value": "France", "bold": false},
+                {"label": "Italy", "filter_value": "Italy", "bold": false},
                 {"label": "Other Core Markets", "filter_value": "Other Core Markets", "is_fallback": true}
             ]
         },
