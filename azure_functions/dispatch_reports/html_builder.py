@@ -141,14 +141,23 @@ def process_report_table(raw_html: str, bold_country_rows: bool = False) -> tupl
         return title, fallback_summary, [_rebuild_rows(rows, bold_country_rows)], currency
 
     main_rows = rows[: split_idx + 1]
-    usa_rows_raw = [
-        r
-        for r in rows[split_idx + 1 :]
-        if not all(
-            c.strip() in ("", "-")
-            for c in re.findall(r"<td[^>]*>(.*?)</td>", r, re.IGNORECASE | re.DOTALL)
-        )
-    ]
+    usa_rows_raw: list[str] = []
+    for r in rows[split_idx + 1 :]:
+        cells = re.findall(r"<td[^>]*>(.*?)</td>", r, re.IGNORECASE | re.DOTALL)
+        if not cells:
+            continue
+
+        first_label = cells[0].strip().lower()
+        if first_label == "=== core market report ===":
+            break
+
+        if first_label.startswith("==="):
+            continue
+
+        if all(c.strip() in ("", "-") for c in cells):
+            continue
+
+        usa_rows_raw.append(r)
     usa_rows = (
         ([rows[header_row_idx]] if header_row_idx is not None else []) + usa_rows_raw
     )
@@ -226,7 +235,7 @@ def build_html_body(
             body_blocks.append(
                 '<h3 style="margin:8px 0 8px 0;font-size:14px;color:#1a365d;'
                 'font-family:Arial,sans-serif;border-top:2px solid #e2e8f0;padding-top:16px;">'
-                "USA Spa — Regional Breakdown (kUSD)</h3>"
+                f"USA Spa — Regional Breakdown ({currency})</h3>"
                 f'<div style="overflow-x:auto;margin-bottom:24px;">{tables[1]}</div>'
             )
 

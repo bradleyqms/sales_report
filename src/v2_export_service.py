@@ -56,9 +56,22 @@ def build_combined_dataframe(
     # with HTML table split detection in dispatch.
     # The receivables_df contains "Total Sales" as its last row (is_grand_total=True)
     # which is the split point the dispatch HTML builder looks for.
+    core_marker = pd.DataFrame([
+        {
+            "label": "=== CORE MARKET REPORT ===",
+            "sales": 0.0,
+            "budget": 0.0,
+            "prior": 0.0,
+            "is_spacer": False,
+            "is_total": False,
+            "is_grand_total": False,
+        }
+    ])
+
     parts = [
         receivables_df,
         usa_df_for_combined,
+        core_marker,
         core_market_df,
     ]
 
