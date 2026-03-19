@@ -644,33 +644,51 @@
                 return tr;
             }
 
-            // --- Tbody: render in CSV source order using label-type lookup ---
-            const ROW_LABEL_TYPES = {
-                // Management report
-                'Total Sales':          'grand-total',
-                'Total Core Markets':   'grand-total',  // overridden per-view below
-                'Total UK':             'subtotal',
-                'Total USA':            'subtotal',
-                'Total Export':         'subtotal',
-                'Company 1 Sales':      'subtotal',
-                'Company 2 Sales':      'subtotal',
-                'Company 3 Sales':      'subtotal',
-                // Core Markets report — section totals
-                'Germany':              'subtotal',
-                'Benelux':              'subtotal',
-                'Switzerland':          'subtotal',
-                'France':               'subtotal',
-                // USA Spa report — grand total
-                'USA Spa':              'grand-total',
-            };
+            // --- Tbody: render in CSV source order using table-specific label-type lookup ---
+            function getRowType(title, label) {
+                const managementRowTypes = {
+                    'Total Sales': 'grand-total',
+                    'Total Core Markets': 'subtotal',
+                    'Total UK': 'subtotal',
+                    'Total USA': 'subtotal',
+                    'Total Export': 'subtotal',
+                    'Company 1 Sales': 'subtotal',
+                    'Company 2 Sales': 'subtotal',
+                    'Company 3 Sales': 'subtotal',
+                };
+
+                const coreMarketRowTypes = {
+                    'Germany': 'subtotal',
+                    'Benelux': 'subtotal',
+                    'Switzerland': 'subtotal',
+                    'France': 'subtotal',
+                    'Total Core Markets': 'grand-total',
+                };
+
+                const usaSpaRowTypes = {
+                    'USA Spa': 'grand-total',
+                };
+
+                if (title === 'Management Report') {
+                    return managementRowTypes[label] || 'data';
+                }
+
+                if (title === 'Core Markets Report') {
+                    return coreMarketRowTypes[label] || 'data';
+                }
+
+                if (title === 'USA Spa Report' || title === 'USA Spa Breakdown') {
+                    return usaSpaRowTypes[label] || 'data';
+                }
+
+                return 'data';
+            }
 
             const tbody = document.createElement('tbody');
             rows.forEach((row, idx) => {
                 if (row.length < 2) return;
                 const label = (row[0] || '').trim();
-                let rowType = ROW_LABEL_TYPES[label] || 'data';
-                // Total Core Markets is a subtotal in Management (more totals follow) but grand-total in its own view
-                if (label === 'Total Core Markets' && VIEW !== 'coremarkets') rowType = 'subtotal';
+                const rowType = getRowType(title, label);
                 tbody.appendChild(buildRow(row, rowType, idx));
             });
             table.appendChild(tbody);

@@ -44,51 +44,39 @@ def build_combined_dataframe(
     usa_spa_df: pd.DataFrame,
     core_market_df: pd.DataFrame,
 ) -> pd.DataFrame:
-    separator_receivables = pd.DataFrame([
-        {
-            "label": "=== RECEIVABLES MANAGEMENT REPORT ===",
-            "sales": 0.0,
-            "budget": 0.0,
-            "prior": 0.0,
-            "is_spacer": True,
-            "is_total": False,
-            "is_grand_total": False,
-        }
-    ])
-
-    separator_usa = pd.DataFrame([
-        {
-            "label": "=== USA SPA REGIONAL REPORT ===",
-            "sales": 0.0,
-            "budget": 0.0,
-            "prior": 0.0,
-            "is_spacer": True,
-            "is_total": False,
-            "is_grand_total": False,
-        }
-    ])
-
-    separator_core = pd.DataFrame([
-        {
-            "label": "=== CORE MARKET REPORT ===",
-            "sales": 0.0,
-            "budget": 0.0,
-            "prior": 0.0,
-            "is_spacer": True,
-            "is_total": False,
-            "is_grand_total": False,
-        }
-    ])
-
+    """Build a combined dataframe from three separate report dataframes.
+    
+    The structure is: receivables (including "Total Sales") → USA SPA → CORE MARKETS.
+    The dispatch email builder uses "Total Sales" as a split point to create separate
+    tables for Management Report and USA SPA Regional Breakdown within the Management email.
+    """
     usa_df_for_combined = usa_spa_df.rename(columns={"actual": "sales"}).copy()
-
+    
+    # Build the combined dataframe directly without spacer rows that might interfere
+    # with HTML table split detection in dispatch.
+    # The receivables_df contains "Total Sales" as its last row (is_grand_total=True)
+    # which is the split point the dispatch HTML builder looks for.
     parts = [
-        separator_receivables,
         receivables_df,
-        separator_usa,
         usa_df_for_combined,
-        separator_core,
         core_market_df,
     ]
 
-    return pd.concat(parts, ignore_index=True)
+    combined = pd.concat(parts, ignore_index=True)
+    
+    # Ensure all required columns exist with appropriate defaults
+    # This prevents NaN misalignment when source dataframes have different column sets
+    for col in ['sales', 'budget', 'prior', 'is_spacer', 'is_total', 'is_grand_total', 'label']:
+        if col not in combined.columns:
+            if col in ['is_spacer', 'is_total', 'is_grand_total']:
+                combined[col] = False
+            elif col == 'label':
+                combined[col] = ''
+            else:
+                combined[col] = 0.0
+    
+    # Explicitly set is_spacer to False for all rows (no spacer rows in combined export)
+    if 'is_spacer' in combined.columns:
+        combined['is_spacer'] = False
+    
+    return combined

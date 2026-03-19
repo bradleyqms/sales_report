@@ -507,21 +507,30 @@ class BaseReportGenerator(ABC):
         else:
             date_range = format_mtd_date_range(now)
         
-        # Build text and HTML content
+        # Build export rows once so styling metadata stays aligned with content.
         text_lines = []
-        html_rows = []
+        export_entries = []
         pdf_data = [headers]
         
         for _, row in df.iterrows():
             if row.get('is_spacer'):
+                empty_row = [''] * len(headers)
                 text_lines.append('')
-                html_rows.append([''] * len(headers))
-                pdf_data.append([''] * len(headers))
+                export_entries.append({
+                    'row': row,
+                    'formatted': empty_row,
+                    'is_spacer': True,
+                })
+                pdf_data.append(empty_row)
                 continue
-            
+
             formatted = self.format_row_for_export(row)
             text_lines.append('\t'.join(formatted))
-            html_rows.append(formatted)
+            export_entries.append({
+                'row': row,
+                'formatted': formatted,
+                'is_spacer': False,
+            })
             pdf_data.append(formatted)
         
         # Build text content with headers
@@ -539,6 +548,7 @@ class BaseReportGenerator(ABC):
         td {{ padding: 8px; border: 1px solid #ddd; }}
         .total {{ background-color: #d9e8fb; font-weight: bold; }}
         .grand-total {{ background-color: #b8d4f1; font-weight: bold; }}
+        .spacer td {{ border: none; padding: 6px; background: white; }}
         tr:nth-child(even) {{ background-color: #f9f9f9; }}
     </style>
 </head>
@@ -552,18 +562,33 @@ class BaseReportGenerator(ABC):
             html_content += f'<th style="text-align: {align};">{header}</th>'
         html_content += "</tr>\n"
         
-        for idx, row_data in enumerate(html_rows):
-            df_row = df.iloc[idx] if idx < len(df) else None
-            is_total = df_row.get('is_total', False) if df_row is not None else False
-            is_grand_total = df_row.get('is_grand_total', False) if df_row is not None else False
-            should_bold_override = df_row.get('should_bold', None) if df_row is not None else None
-            
-            # Use should_bold override if present, otherwise fall back to is_total/is_grand_total
+        for entry in export_entries:
+            row = entry['row']
+            row_data = entry['formatted']
+
+            if entry['is_spacer']:
+                html_content += '<tr class="spacer">'
+                for _ in headers:
+                    html_content += '<td></td>'
+                html_content += '</tr>\n'
+                continue
+
+            is_total = row.get('is_total', False)
+            is_grand_total = row.get('is_grand_total', False)
+            should_bold_override = row.get('should_bold', None)
+
+            # Use should_bold override if present, otherwise fall back to is_total/is_grand_total.
             should_apply_bold = should_bold_override if should_bold_override is not None else (is_total or is_grand_total)
-            
-            row_class = 'grand-total' if is_grand_total else ('total' if is_total else '')
+
+            if is_grand_total and should_apply_bold:
+                row_class = 'grand-total'
+            elif is_total and should_apply_bold:
+                row_class = 'total'
+            else:
+                row_class = ''
+
             html_content += f'<tr class="{row_class}">'
-            
+
             for i, val in enumerate(row_data):
                 align = "left" if i == 0 else "right"
                 weight = "font-weight:bold;" if should_apply_bold else ""
