@@ -1,0 +1,176 @@
+# GitHub, Web App, and Dispatch Operations Guide
+
+## Purpose
+This guide documents how the repo deploys and runs:
+1. FastAPI web app.
+2. Azure Function dispatch apps.
+3. Environment variables and runtime behavior.
+4. Business logic inputs (budget, mapping, prior year, py25 regional mapping).
+
+## System Overview
+
+### Web App
+- App code: [fastapi_web_app/main.py](fastapi_web_app/main.py)
+- UI template: [fastapi_web_app/templates/index.html](fastapi_web_app/templates/index.html)
+- Core report engine: [src/full_report_v2.py](src/full_report_v2.py)
+- Deployed app: qms-sales-report (staging slot + production slot)
+
+### Function Apps (email dispatch)
+- Management dispatch: [azure_functions/dispatch_reports/__init__.py](azure_functions/dispatch_reports/__init__.py)
+- Core market dispatch: [azure_functions/core_market_reports/__init__.py](azure_functions/core_market_reports/__init__.py)
+- USA spa dispatch: [azure_functions/dispatch_usa_spa_reports/__init__.py](azure_functions/dispatch_usa_spa_reports/__init__.py)
+- Shared email HTML builder: [azure_functions/dispatch_reports/html_builder.py](azure_functions/dispatch_reports/html_builder.py)
+- Deployed function app: qms-dispatch-reports (staging slot + production slot)
+
+## GitHub Workflows
+
+### Active workflows
+1. Web app staging deploy: [azure-webapps-python.yml](.github/workflows/azure-webapps-python.yml)
+- Trigger: push to main when files under src/fastapi/data/requirements/static/templates change.
+- Deploy target: qms-sales-report staging slot.
+
+2. Function app staging deploy: [main_qms-dispatch-reports.yml](.github/workflows/main_qms-dispatch-reports.yml)
+- Trigger: push to main when files under azure_functions/src/data/inputs/workflow change.
+- Deploy target: qms-dispatch-reports staging slot.
+
+3. Production promotion (slot swap): [release-slot-swap.yml](.github/workflows/release-slot-swap.yml)
+- Trigger: semantic tag push or manual dispatch with perform_swap=true.
+- Swaps both web app and function app staging slots into production.
+
+### Legacy/fallback workflow
+- [deploy-function-app.yml](.github/workflows/deploy-function-app.yml)
+- Manual-only fallback workflow; superseded by OIDC deployment in main_qms-dispatch-reports.yml.
+
+## Operational Scripts
+
+### Root scripts
+1. [run_eom_monthly_dryrun.ps1](run_eom_monthly_dryrun.ps1)
+- Generates EOM workbook outputs, validates HTML headings, runs dispatch dry-run checks against test recipient.
+
+2. [run_eom_production_send.ps1](run_eom_production_send.ps1)
+- Production send helper with explicit YES confirmation.
+- Reads recipients from config/dispatch_recipients.json and invokes local dispatch test scripts.
+
+3. [update_version.ps1](update_version.ps1)
+- Stamps version.json from git tag/branch/commit metadata.
+
+### Function-side test scripts
+1. [azure_functions/test_dispatch_local.py](azure_functions/test_dispatch_local.py)
+2. [azure_functions/test_core_market_local.py](azure_functions/test_core_market_local.py)
+3. [azure_functions/test_usa_spa_local.py](azure_functions/test_usa_spa_local.py)
+4. [azure_functions/validate_dispatch_dry_run.py](azure_functions/validate_dispatch_dry_run.py)
+
+## Environment Variables
+
+## Web App: key settings
+Defined in Azure App Settings for qms-sales-report.
+
+1. SharePoint/auth/data access
+- SHAREPOINT_SITE_URL
+- SHAREPOINT_CLIENT_ID
+- SHAREPOINT_CLIENT_SECRET
+- REPORT_OUTPUT_BLOB_CONNECTION_STRING
+- REPORT_OUTPUT_BLOB_CONTAINER
+- REPORT_OUTPUT_BLOB_PREFIX
+
+2. UI and refresh behavior
+- AUTO_REFRESH_ENABLED
+- AUTO_REFRESH_ALIGN_TO_CLOCK
+- AUTO_REFRESH_INTERVAL_HOURS
+- AUTO_REFRESH_WEEKDAYS_ONLY
+- AUTO_REFRESH_WINDOW_START_UTC
+- AUTO_REFRESH_WINDOW_END_UTC
+- AUTO_REFRESH_BOUNDARY_MINUTE_UTC
+- METRICS_CACHE_TTL_SECONDS
+
+3. Distribution lists (UI share actions)
+- HUB_MANAGEMENT_EMAILS
+- HUB_CORE_EMAILS
+- HUB_USA_EMAILS
+- HUB_ADMIN_EMAILS
+
+4. Staging-only test mail groups (recommended)
+- TEST_GLOBAL_VIEW_EMAILS
+- TEST_CORE_MARKETS_VIEW_EMAILS
+- TEST_USA_SPA_VIEW_EMAILS
+
+## Function App: key settings
+Defined in Azure App Settings for qms-dispatch-reports.
+
+1. Graph/mail
+- GRAPH_TENANT_ID
+- GRAPH_CLIENT_ID
+- GRAPH_CLIENT_SECRET
+- REPORT_DISPATCH_GRAPH_SENDER
+- PA_MAILBOX_ADDRESS
+
+2. Recipients and message templates
+- REPORT_DISPATCH_RECIPIENTS
+- CORE_MARKET_DISPATCH_RECIPIENTS
+- USA_SPA_DISPATCH_RECIPIENTS
+- REPORT_DISPATCH_SUBJECT / BODY
+- CORE_MARKET_DISPATCH_SUBJECT / BODY
+- USA_SPA_DISPATCH_SUBJECT / BODY
+
+3. Schedules and refresh
+- REPORT_DISPATCH_SCHEDULE
+- CORE_MARKET_DISPATCH_SCHEDULE
+- USA_SPA_DISPATCH_SCHEDULE
+- REPORT_DISPATCH_REFRESH_TIMEOUT_SECONDS
+- MANAGEMENT_REPORT_REFRESH_BEFORE_SEND
+- CORE_MARKET_REFRESH_BEFORE_SEND
+- USA_SPA_REFRESH_BEFORE_SEND
+
+4. Output selection
+- REPORT_DISPATCH_OUTPUTS_PATH
+- REPORT_DISPATCH_ATTACHMENT_PATTERNS
+- REPORT_DISPATCH_ATTACHMENTS_PER_PATTERN
+- REPORT_DISPATCH_ATTACHMENT_GLOB
+- REPORT_DISPATCH_MAX_ATTACHMENTS
+
+5. Test override behavior
+- TEST_REPORT_DISPATCH_RECIPIENTS
+- TEST_CORE_MARKETS_RECIPIENTS
+- TEST_USA_SPA_RECIPIENTS
+
+Important: if a TEST_* recipient variable is non-empty, dispatch code prioritizes it over production recipient lists. Keep TEST_* empty in production unless intentionally in test mode.
+
+## Business Logic Data Inputs
+
+## 1. Canonical unified source
+- Loaded in [src/full_report_v2.py](src/full_report_v2.py) via v2 ingestion helpers.
+- Represents harmonized QRY sales records used for all report streams.
+
+## 2. Entity mapping
+- File: data/inputs/mappings/entity_mappings.csv (resolved via mapping_path in full_report_v2.py).
+- Applied through apply_mappings() to normalize customer/entity references.
+
+## 3. PY25 regional mapping
+- File: data/inputs/mappings/py25_regional_mappings.csv
+- Passed into CoreMarketReportGenerator for region/channel normalization specific to core market logic.
+
+## 4. Budget files
+- Management budget: data/inputs/budget/budget_{year}_processed.csv
+- Core market budget: data/inputs/budget/budget_GVL_{year}.csv
+- USA budget: data/inputs/budget/budget_USA_spa_{year}.csv
+
+## 5. Prior-year files
+- Management prior: data/inputs/prior_years/prior_sales_{prior_year}_processed.csv
+- Core market prior: data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv
+- USA prior: data/inputs/prior_years/prior_sales_{prior_year}_usa.csv
+
+## 6. Report streams produced
+From [src/full_report_v2.py](src/full_report_v2.py):
+1. management_report_usa_spa_...
+2. management_report_core_markets_...
+3. combined_management_report_...
+
+Each stream exports csv/txt/html/xlsx/pdf, then dispatch functions build branded email sections from latest HTML artifacts.
+
+## Release Readiness Checklist (before slot swap)
+1. Ensure web app and function app staging are on same commit SHA.
+2. Validate staging UI smoke (view rendering, row styles, version marker).
+3. Run dispatch test mail to TEST recipient and verify content/sections.
+4. Confirm production TEST_* recipient variables are empty unless intentional.
+5. Execute [release-slot-swap.yml](.github/workflows/release-slot-swap.yml) with manual approval.
+6. Perform post-swap smoke checks on production web and dispatch paths.

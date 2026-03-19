@@ -11,6 +11,11 @@ FastAPI-based web application for generating comprehensive sales reports with Sh
 - **SharePoint Integration**: Automatic data retrieval from SharePoint lists
 - **Interactive Dashboard**: Web-based interface for report generation and download
 
+## Operations Docs
+
+- End-to-end GitHub workflows, scripts, web app/dispatch architecture, env vars, and business logic inputs:
+	[docs/GITHUB_WEB_DISPATCH_OPERATIONS.md](docs/GITHUB_WEB_DISPATCH_OPERATIONS.md)
+
 ## Technology Stack
 
 - **Backend**: FastAPI, Python 3.11
