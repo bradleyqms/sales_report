@@ -36,7 +36,7 @@ _spec.loader.exec_module(_mod)                  # type: ignore[union-attr]
 _collect_html         = _mod._collect_core_market_html
 _collect_pdf          = _mod._collect_core_market_pdf
 
-from dispatch_reports.config   import parse_recipients, report_date_str
+from dispatch_reports.config   import parse_recipients, report_date_str, dispatch_report_mode
 from dispatch_reports.graph_client import send_via_graph, acquire_graph_token
 from dispatch_reports.html_builder import build_html_body
 from dispatch_reports.report_collector import refresh_reports as _refresh, resolve_outputs_path, derive_report_date
@@ -79,9 +79,12 @@ def run_test(skip_refresh: bool, skip_send: bool) -> None:
         _refresh(outputs_dir)
 
     report_date = derive_report_date(outputs_dir)
+    report_mode = dispatch_report_mode()
+    date_str = report_date.strftime('%d.%m.%Y') if report_date else report_date_str()
     subject = os.getenv("CORE_MARKET_DISPATCH_SUBJECT") or (
-        f"EOM QMS Core Market Sales Report {report_date.strftime('%d.%m.%Y')}"
-        if report_date else f"EOM QMS Core Market Sales Report {report_date_str()}"
+        f"EOM QMS Core Market Sales Report {date_str}"
+        if report_mode == "EOM"
+        else f"QMS Core Market Sales Report {date_str}"
     )
     LOG.info("report_date : %s", report_date.strftime("%Y-%m-%d") if report_date else "N/A")
     LOG.info("subject     : %s", subject)
