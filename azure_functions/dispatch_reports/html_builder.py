@@ -103,9 +103,14 @@ def _extract_row_summary(table_html: str, target_label: str, currency: str) -> s
         f'<strong>{total_val} {currency}</strong></span>'
     )
     if pct_val and pct_val not in ("-", ""):
-        summary += f'<span style="font-size:13px;">vs Budget: <strong>{pct_val}</strong></span>'
+        summary += f'<span style="font-size:13px;"> | vs Budget: <strong>{pct_val}</strong></span>'
     summary += "</p>"
     return summary
+
+
+def _force_table_currency_label(table_html: str, currency: str) -> str:
+    """Normalize any table header currency label to the requested currency."""
+    return re.sub(r"\bk(?:eur|usd)\b", currency, table_html, flags=re.IGNORECASE)
 
 
 def process_report_table(raw_html: str, bold_country_rows: bool = False) -> tuple[str, str, list[str], str]:
@@ -125,8 +130,8 @@ def process_report_table(raw_html: str, bold_country_rows: bool = False) -> tupl
     currency = "kUSD" if "kusd" in raw_html.lower() else "kEUR"
     # Replace all kEUR labels in the table and title with kUSD when the report is USD-denominated
     if currency == "kUSD":
-        raw_html = re.sub(r"\bkEUR\b", "kUSD", raw_html)
-        title = re.sub(r"\bkEUR\b", "kUSD", title)
+        raw_html = re.sub(r"\bkEUR\b", "kUSD", raw_html, flags=re.IGNORECASE)
+        title = re.sub(r"\bkEUR\b", "kUSD", title, flags=re.IGNORECASE)
 
     tbl_match = re.search(r"(<table.*?</table>)", raw_html, re.IGNORECASE | re.DOTALL)
     if not tbl_match:
@@ -164,7 +169,7 @@ def process_report_table(raw_html: str, bold_country_rows: bool = False) -> tupl
                     )
                     if pct_val and pct_val not in ("-", ""):
                         fallback_summary += (
-                            f'<span style="font-size:13px;">vs Budget: <strong>{pct_val}</strong></span>'
+                            f'<span style="font-size:13px;"> | vs Budget: <strong>{pct_val}</strong></span>'
                         )
                 break
         return title, fallback_summary, [_rebuild_rows(rows, bold_country_rows)], currency
@@ -205,7 +210,7 @@ def process_report_table(raw_html: str, bold_country_rows: bool = False) -> tupl
         )
         if pct_val and pct_val not in ("-", ""):
             summary_html += (
-                f'<span style="font-size:13px;">vs Budget: <strong>{pct_val}</strong></span>'
+                f'<span style="font-size:13px;"> | vs Budget: <strong>{pct_val}</strong></span>'
             )
 
     tables = [_rebuild_rows(main_rows, bold_country_rows)]
@@ -268,14 +273,15 @@ def build_html_body(
 
             # USA Spa breakdown is always USD-denominated for email section labeling.
             usa_currency = "kUSD"
-            usa_summary = _extract_row_summary(tables[1], "USA Spa", usa_currency)
+            usa_table = _force_table_currency_label(tables[1], usa_currency)
+            usa_summary = _extract_row_summary(usa_table, "USA Spa", usa_currency)
 
             body_blocks.append(
                 '<h3 style="margin:8px 0 8px 0;font-size:14px;color:#1a365d;'
                 'font-family:Arial,sans-serif;border-top:2px solid #e2e8f0;padding-top:16px;">'
                 f"USA Spa — Regional Breakdown ({usa_currency}){period_suffix}</h3>"
                 f"{usa_summary}"
-                f'<div style="overflow-x:auto;margin-bottom:24px;">{tables[1]}</div>'
+                f'<div style="overflow-x:auto;margin-bottom:24px;">{usa_table}</div>'
             )
 
         sections.append(
