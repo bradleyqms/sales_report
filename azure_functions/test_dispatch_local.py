@@ -53,6 +53,7 @@ _send_via_graph       = _mod._send_via_graph
 _resolve_outputs_path = _mod._resolve_outputs_path
 _parse_recipients     = _mod._parse_recipients
 _derive_report_date   = _mod.derive_report_date
+_build_subject        = _mod._build_subject
 
 # ---------------------------------------------------------------------------
 logging.basicConfig(
@@ -100,10 +101,9 @@ def run_test(skip_refresh: bool, skip_send: bool, dry_run: bool) -> None:
     # Derive AFTER refresh so we read the freshest CSV
     report_date = _derive_report_date(outputs_dir)
     LOG.info("report_date : %s (derived from Extract_Date)", report_date.strftime("%Y-%m-%d"))
-    subject = os.getenv("REPORT_DISPATCH_SUBJECT") or (
-        f"EOM QMS Management Sales Report {report_date.strftime('%d.%m.%Y')}"
-        if report_date else f"EOM QMS Management Sales Report {_mod.report_date_str()}"
-    )
+    
+    # Use the same subject builder as the actual function
+    subject = _mod._build_subject(report_date)
     LOG.info("subject     : %s", subject)
 
     # ── 3. Attachments ────────────────────────────────────────────────────
