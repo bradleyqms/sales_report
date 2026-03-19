@@ -65,7 +65,7 @@ def _management_section_title(path: Path, _title: str, report_date: "datetime | 
 
 # ---- Azure Functions entry point ----------------------------------------
 
-def main(mytimer: func.TimerRequest = None, req: func.HttpRequest = None) -> None:
+def main(mytimer: func.TimerRequest = None) -> None:
     try:
         outputs_dir = resolve_outputs_path()
         _test_recip = os.getenv("TEST_REPORT_DISPATCH_RECIPIENTS", "").strip()
