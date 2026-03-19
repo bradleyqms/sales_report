@@ -249,6 +249,35 @@
 
         const CFG = VIEW_CONFIG[VIEW] || VIEW_CONFIG.management;
 
+        const floatingHeaderTeardowns = [];
+
+        function hideFloatingHeader(floatBar, headerDiv, table) {
+            if (floatBar) {
+                floatBar.classList.remove('fhb-visible');
+            }
+            if (headerDiv) {
+                headerDiv.style.position = '';
+                headerDiv.style.boxShadow = '';
+            }
+            if (table) {
+                const activeThead = table.querySelector('thead');
+                if (activeThead) activeThead.classList.remove('fhb-active');
+            }
+        }
+
+        function cleanupFloatingHeaders() {
+            while (floatingHeaderTeardowns.length > 0) {
+                const teardown = floatingHeaderTeardowns.pop();
+                try {
+                    teardown();
+                } catch (err) {
+                    console.warn('Floating header cleanup error:', err);
+                }
+            }
+            // Defensive cleanup for any orphaned bars from older renders.
+            document.querySelectorAll('.float-header-bar').forEach(el => el.remove());
+        }
+
         // ── Stage indicator matchers ──────────────────────────────────────────
         const PIPELINE_STAGES = [
             { match: /Using SharePoint/i,                 label: 'Getting started...' },
@@ -444,6 +473,9 @@
                     singleBtn.setAttribute('aria-disabled', 'true');
                 }
             }
+
+            // Clear prior floating-header instances before any table rerender.
+            cleanupFloatingHeaders();
 
                 // Load tables or show empty state
             if (VIEW === 'coremarkets') {
@@ -646,25 +678,32 @@
             responsiveDiv.appendChild(table);
             card.appendChild(responsiveDiv);
 
+            const observers = [];
+            const listeners = [];
+
             // ── Sticky affordances (MD3) ──────────────────────────────────────
             // 1. Card-header: sticks at top:0. Shadow applied when stuck.
             const headerSentinel = document.createElement('div');
             headerSentinel.style.cssText = 'height:1px;margin-top:-1px;pointer-events:none;';
             card.insertBefore(headerSentinel, headerDiv);
-            new IntersectionObserver(
+            const cardHeaderStickyObserver = new IntersectionObserver(
                 ([e]) => headerDiv.classList.toggle('is-stuck', !e.isIntersecting),
                 { threshold: 0 }
-            ).observe(headerSentinel);
+            );
+            cardHeaderStickyObserver.observe(headerSentinel);
+            observers.push(cardHeaderStickyObserver);
 
             // 2. After paint, read card-header height and offset thead top to sit flush below it.
             requestAnimationFrame(() => {
                 const h = headerDiv.getBoundingClientRect().height;
                 table.style.setProperty('--thead-top', h + 'px');
                 // Keep in sync if header resizes (e.g. font scaling)
-                new ResizeObserver(() => {
+                const headerResizeObserver = new ResizeObserver(() => {
                     const hh = headerDiv.getBoundingClientRect().height;
                     table.style.setProperty('--thead-top', hh + 'px');
-                }).observe(headerDiv);
+                });
+                headerResizeObserver.observe(headerDiv);
+                observers.push(headerResizeObserver);
             });
 
             // 3. Column-header row: shadow when stuck (sentinel just above thead)
@@ -672,10 +711,12 @@
             theadSentinel.setAttribute('aria-hidden', 'true');
             theadSentinel.style.cssText = 'height:0;visibility:hidden;pointer-events:none;';
             table.insertBefore(theadSentinel, thead);
-            new IntersectionObserver(
+            const theadStickyObserver = new IntersectionObserver(
                 ([e]) => thead.classList.toggle('is-stuck', !e.isIntersecting),
                 { threshold: 0 }
-            ).observe(theadSentinel);
+            );
+            theadStickyObserver.observe(theadSentinel);
+            observers.push(theadStickyObserver);
 
             // --- REPLACE THE FLOATING BAR LOGIC WITH THIS ---
 
@@ -703,9 +744,11 @@
             const fakeTable = floatBar.querySelector('table');
 
             // Link horizontal scrolling
-            realScrollWrapper.addEventListener('scroll', () => {
+            const syncHorizontalScroll = () => {
                 floatScrollWrapper.scrollLeft = realScrollWrapper.scrollLeft;
-            });
+            };
+            realScrollWrapper.addEventListener('scroll', syncHorizontalScroll);
+            listeners.push({ target: realScrollWrapper, event: 'scroll', handler: syncHorizontalScroll });
 
             // Proxy sorting clicks: When you click the fake header, click the real one!
             const realThs = table.querySelectorAll('thead th');
@@ -713,11 +756,13 @@
             
             fakeThs.forEach((fakeTh, index) => {
                 fakeTh.style.cursor = 'pointer'; // Ensure it looks clickable
-                fakeTh.addEventListener('click', () => {
+                const proxySortClick = () => {
                     realThs[index].click(); // Trigger the real sort
                     // Wait a tiny fraction of a second for the table to update, then sync the arrows
                     setTimeout(syncLayout, 50); 
-                });
+                };
+                fakeTh.addEventListener('click', proxySortClick);
+                listeners.push({ target: fakeTh, event: 'click', handler: proxySortClick });
             });
 
             // Master sync function
@@ -747,7 +792,7 @@
             };
 
 // 4. Trigger the immediate switch ONLY when the header goes ABOVE the screen
-            new IntersectionObserver(([e]) => {
+            const floatHeaderObserver = new IntersectionObserver(([e]) => {
                 if (!e.isIntersecting && e.boundingClientRect.bottom < 0) {
                     syncLayout();
                     floatBar.classList.add('fhb-visible');
@@ -756,23 +801,40 @@
                     headerDiv.style.boxShadow = 'none';
                     table.querySelector('thead').classList.add('fhb-active');
                 } else {
-                    floatBar.classList.remove('fhb-visible');
-                    // Restore original sticky headers
-                    headerDiv.style.position = '';
-                    headerDiv.style.boxShadow = '';
-                    table.querySelector('thead').classList.remove('fhb-active');
+                    hideFloatingHeader(floatBar, headerDiv, table);
                 }
-            }, { threshold: 0 }).observe(headerSentinel);
+            }, { threshold: 0 });
+            floatHeaderObserver.observe(headerSentinel);
+            observers.push(floatHeaderObserver);
 
             // 5. Hide it instantly when the bottom of the card scrolls past
-            new IntersectionObserver(([e]) => {
+            const floatHeaderCardBoundaryObserver = new IntersectionObserver(([e]) => {
                 if (!e.isIntersecting && e.boundingClientRect.bottom < 0) {
-                    floatBar.classList.remove('fhb-visible');
+                    hideFloatingHeader(floatBar, headerDiv, table);
                 }
-            }, { threshold: 0 }).observe(card);
+            }, { threshold: 0 });
+            floatHeaderCardBoundaryObserver.observe(card);
+            observers.push(floatHeaderCardBoundaryObserver);
 
-            window.addEventListener('resize', () => {
+            const onWindowResize = () => {
                 if (floatBar.classList.contains('fhb-visible')) syncLayout();
+            };
+            window.addEventListener('resize', onWindowResize);
+            listeners.push({ target: window, event: 'resize', handler: onWindowResize });
+
+            floatingHeaderTeardowns.push(() => {
+                observers.forEach(observer => {
+                    if (observer && typeof observer.disconnect === 'function') {
+                        observer.disconnect();
+                    }
+                });
+                listeners.forEach(({ target, event, handler }) => {
+                    target.removeEventListener(event, handler);
+                });
+                hideFloatingHeader(floatBar, headerDiv, table);
+                if (floatBar.isConnected) {
+                    floatBar.remove();
+                }
             });
 
             return card;
