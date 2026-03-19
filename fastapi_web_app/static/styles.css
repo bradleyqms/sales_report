@@ -33,6 +33,7 @@ body {
     display: flex;
     align-items: center;
     gap: 24px;
+    margin-left: 21px;
 }
 
 .brand-logo {
@@ -572,6 +573,7 @@ main {
     .brand-section {
         flex-direction: column;
         gap: 12px;
+        margin-left: 0;
     }
 
     .divider {
