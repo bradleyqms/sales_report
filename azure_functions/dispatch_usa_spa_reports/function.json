@@ -8,18 +8,6 @@
       "schedule": "%USA_SPA_DISPATCH_SCHEDULE%",
       "runOnStartup": false,
       "useMonitor": true
-    },
-    {
-      "name": "req",
-      "type": "httpTrigger",
-      "direction": "in",
-      "methods": ["post"],
-      "authLevel": "function"
-    },
-    {
-      "name": "$return",
-      "type": "http",
-      "direction": "out"
     }
   ]
 }

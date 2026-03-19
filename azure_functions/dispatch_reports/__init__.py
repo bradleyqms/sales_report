@@ -65,7 +65,7 @@ def _management_section_title(path: Path, _title: str, report_date: "datetime | 
 
 # ---- Azure Functions entry point ----------------------------------------
 
-def main(mytimer: func.TimerRequest = None, req: func.HttpRequest = None) -> func.HttpResponse | None:
+def main(mytimer: func.TimerRequest = None, req: func.HttpRequest = None) -> None:
     try:
         outputs_dir = resolve_outputs_path()
         _test_recip = os.getenv("TEST_REPORT_DISPATCH_RECIPIENTS", "").strip()
@@ -116,15 +116,9 @@ def main(mytimer: func.TimerRequest = None, req: func.HttpRequest = None) -> fun
 
         try:
             send_via_graph(recipients, attachments, body_content, subject, body_type)
-            if req:
-                return func.HttpResponse("Email sent successfully", status_code=200)
         except Exception as exc:  # pylint: disable=broad-except
             LOG.exception("Graph report dispatch failed: %s", exc)
-            if req:
-                return func.HttpResponse(f"Dispatch failed: {str(exc)}", status_code=500)
             raise
     except Exception as exc:  # pylint: disable=broad-except
         send_healthcheck_alert("dispatch_reports", exc)
-        if req:
-            return func.HttpResponse(f"Error: {str(exc)}", status_code=500)
         raise
