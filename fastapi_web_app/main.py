@@ -443,6 +443,25 @@ def _path_signature(path: Path | None):
     return (str(path), stat.st_mtime_ns, stat.st_size)
 
 
+def _path_from_download_url(download_url: str | None) -> Path | None:
+    """Resolve a /download/<file> URL to a local static file path when available."""
+    if not download_url:
+        return None
+    prefix = "/download/"
+    if not str(download_url).startswith(prefix):
+        return None
+    filename = str(download_url)[len(prefix):].strip()
+    if not filename:
+        return None
+    candidate = (BASE_DIR / "static" / filename).resolve()
+    try:
+        if candidate.exists() and candidate.is_file():
+            return candidate
+    except OSError:
+        return None
+    return None
+
+
 def _extract_segment_metrics_from_files(core_csv: Path | None, usa_csv: Path | None):
     result = {
         "core_markets": {"sales": None, "budget_pct": None},
@@ -516,7 +535,9 @@ def _extract_total_metrics_from_file(latest_csv: Path | None):
 
 
 async def _get_metrics_cached_async():
-    latest_csv = await asyncio.to_thread(_latest_output_file, "combined_management_report_*.csv")
+    latest_csv = _path_from_download_url(report_status.get("csv_url"))
+    if latest_csv is None:
+        latest_csv = await asyncio.to_thread(_latest_output_file, "combined_management_report_*.csv")
     signature = _path_signature(latest_csv)
 
     now = time.monotonic()
@@ -535,8 +556,12 @@ async def _get_metrics_cached_async():
 
 
 async def _get_segment_metrics_cached_async():
-    core_csv = await asyncio.to_thread(_latest_output_file, "management_report_core_markets_*.csv")
-    usa_csv = await asyncio.to_thread(_latest_output_file, "management_report_usa_spa_*.csv")
+    core_csv = _path_from_download_url(report_status.get("core_market_csv_url"))
+    usa_csv = _path_from_download_url(report_status.get("usa_spa_csv_url"))
+    if core_csv is None:
+        core_csv = await asyncio.to_thread(_latest_output_file, "management_report_core_markets_*.csv")
+    if usa_csv is None:
+        usa_csv = await asyncio.to_thread(_latest_output_file, "management_report_usa_spa_*.csv")
     signature = (_path_signature(core_csv), _path_signature(usa_csv))
 
     now = time.monotonic()
