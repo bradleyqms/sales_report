@@ -79,6 +79,35 @@ def _rebuild_rows(rows: list[str], bold_country_rows: bool = False) -> str:
     return f"<table {_TABLE_STYLE}>{''.join(rebuilt)}</table>"
 
 
+def _extract_row_summary(table_html: str, target_label: str, currency: str) -> str:
+    """Build a compact KPI summary from a row label inside a rendered table."""
+    row_match = re.search(
+        rf"<tr>.*?<td[^>]*>\s*{re.escape(target_label)}\s*</td>(.*?)</tr>",
+        table_html,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if not row_match:
+        return ""
+
+    row_tail = row_match.group(1)
+    cells = re.findall(r"<td[^>]*>(.*?)</td>", row_tail, re.IGNORECASE | re.DOTALL)
+    if not cells:
+        return ""
+
+    total_val = cells[0].strip()
+    pct_val = cells[-1].strip() if len(cells) >= 4 else ""
+
+    summary = (
+        f'<p style="margin:0 0 12px 0;font-family:Arial,sans-serif;">'
+        f'<span style="font-size:13px;margin-right:16px;">{target_label}: '
+        f'<strong>{total_val} {currency}</strong></span>'
+    )
+    if pct_val and pct_val not in ("-", ""):
+        summary += f'<span style="font-size:13px;">vs Budget: <strong>{pct_val}</strong></span>'
+    summary += "</p>"
+    return summary
+
+
 def process_report_table(raw_html: str, bold_country_rows: bool = False) -> tuple[str, str, list[str], str]:
     """Extract title and one or more cleaned tables from raw report HTML.
 
@@ -232,10 +261,20 @@ def build_html_body(
             f'<div style="overflow-x:auto;margin-bottom:24px;">{tables[0]}</div>'
         ]
         if len(tables) > 1:
+            period_suffix = ""
+            period_match = re.search(r"\((MTD|EOM):[^)]*\)", title, re.IGNORECASE)
+            if period_match:
+                period_suffix = f" {period_match.group(0)}"
+
+            # USA Spa breakdown is always USD-denominated for email section labeling.
+            usa_currency = "kUSD"
+            usa_summary = _extract_row_summary(tables[1], "USA Spa", usa_currency)
+
             body_blocks.append(
                 '<h3 style="margin:8px 0 8px 0;font-size:14px;color:#1a365d;'
                 'font-family:Arial,sans-serif;border-top:2px solid #e2e8f0;padding-top:16px;">'
-                f"USA Spa — Regional Breakdown ({currency})</h3>"
+                f"USA Spa — Regional Breakdown ({usa_currency}){period_suffix}</h3>"
+                f"{usa_summary}"
                 f'<div style="overflow-x:auto;margin-bottom:24px;">{tables[1]}</div>'
             )
 
