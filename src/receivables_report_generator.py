@@ -106,10 +106,17 @@ class ManagementReportGenerator(BaseReportGenerator):
     
     def get_report_headers(self) -> List[str]:
         """Return column headers for the management report."""
-        now = datetime.datetime.now()
+        # Use the anchored report date if available, otherwise current date
+        now = getattr(self, 'now', datetime.datetime.now())
         month_name = now.strftime('%b')
         year_short = str(now.year)[2:]
-        return ['kEUR', f'{month_name}-{year_short}A MTD', 'Budget', 'Prior', '% vs Bud']
+        
+        # Detect if this is EOM (last day of month) or MTD
+        import calendar
+        last_day = calendar.monthrange(now.year, now.month)[1]
+        period_type = 'EOM' if now.day == last_day else 'MTD'
+        
+        return ['kEUR', f'{month_name}-{year_short}A {period_type}', 'Budget', 'Prior', '% vs Bud']
     
     def get_report_title(self) -> str:
         """Return the report title."""
@@ -423,12 +430,17 @@ class ManagementReportGenerator(BaseReportGenerator):
 
     def render_report(self, df):
         # Print Header
-        now = datetime.datetime.now()
+        now = getattr(self, 'now', datetime.datetime.now())
         month_name = now.strftime('%b')
         year_short = str(now.year)[2:]
-        col_curr = f"{month_name}-{year_short}A MTD"
         
-        print(f"{'kEUR':<30} {col_curr:>15} {'Budget':>10} {'Prior':>10} {'% vs Bud':>10}")
+        # Detect if this is EOM (last day of month) or MTD
+        import calendar
+        last_day = calendar.monthrange(now.year, now.month)[1]
+        period_type = 'EOM' if now.day == last_day else 'MTD'
+        col_curr = f"{month_name}-{year_short}A {period_type}"
+        
+        print(f"\n{'kEUR':<30} {col_curr:>15} {'Budget':>10} {'Prior':>10} {'% vs Bud':>10}")
         print("-" * 75)
         
         for _, row in df.iterrows():

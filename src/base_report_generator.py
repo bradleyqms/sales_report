@@ -502,6 +502,7 @@ class BaseReportGenerator(ABC):
             getattr(self, "_report_date", None) is not None
             and now.day == calendar.monthrange(now.year, now.month)[1]
         )
+        period_label = "EOM" if is_eom_anchor else "MTD"
         if is_eom_anchor:
             date_range = f"{now.strftime('%B')} 1-{now.day}, {now.year}"
         else:
@@ -553,7 +554,7 @@ class BaseReportGenerator(ABC):
     </style>
 </head>
 <body>
-<h2>{title} (MTD: {date_range})</h2>
+<h2>{title} ({period_label}: {date_range})</h2>
 <table>
 <tr>"""
         
@@ -729,7 +730,7 @@ class BaseReportGenerator(ABC):
         )
         styles = getSampleStyleSheet()
         
-        pdf_title = Paragraph(f"{title} (MTD: {date_range})", styles['Heading1'])
+        pdf_title = Paragraph(f"{title} ({period_label}: {date_range})", styles['Heading1'])
         
         # Create table with calculated column widths
         table = Table(pdf_data, colWidths=col_widths)

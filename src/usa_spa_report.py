@@ -43,9 +43,15 @@ class USASpaReportGenerator(BaseReportGenerator):
         month_name = now.strftime('%b')
         year_short = str(now.year)[2:]
         prior_year_short = str(self.prior_year)[2:]
+        
+        # Detect if this is EOM (last day of month) or MTD
+        import calendar
+        last_day = calendar.monthrange(now.year, now.month)[1]
+        period_type = 'EOM' if now.day == last_day else 'MTD'
+        
         return [
             self.unit, 
-            f'{month_name}-{year_short}A MTD', 
+            f'{month_name}-{year_short}A {period_type}', 
             f'{month_name}-{year_short}B', 
             f'{year_short}A vs {year_short}B', 
             f'% {year_short}A vs {year_short}B', 
