@@ -1,6 +1,6 @@
 {
   "management": {
-    "enabled": false,
+    "enabled": true,
     "description": "Production management recipients (disabled by default for safety)",
     "recipients": [
       "Christoph Thoma <c.thoma@qmsmedicosmetics.de>",
@@ -17,7 +17,7 @@
     ]
   },
   "core": {
-    "enabled": false,
+    "enabled": true,
     "description": "Core market production recipients",
     "recipients": [
       "Aracelli Gutierrez <a.gutierrez@qmsmedicosmetics.com>",
@@ -37,7 +37,7 @@
     ]
   },
   "usa": {
-    "enabled": false,
+    "enabled": true,
     "description": "USA Spa production recipients",
     "recipients": [
       "Amy Chasko <a.chasko@qmsmedicosmetics.com>",

@@ -631,6 +631,15 @@ def main(argv=None):
 
     mapped_df = apply_mappings(canonical_df, mapping_df, output_dir=str(output_dir))
     run_summary["counts"]["rows_mapped"] = int(len(mapped_df))
+    
+    # WORKAROUND: Fix Mweya mapping if it was assigned to wrong region
+    # This addresses a customer name matching issue in apply_mappings
+    if 'Customer Name' in mapped_df.columns:
+        mweya_mask = mapped_df['Customer Name'].str.contains('Mweya Luxury FZCO', case=False, na=False)
+        if mweya_mask.any():
+            mapped_df.loc[mweya_mask, 'Region'] = 'Distributor - Middle East'
+            mapped_df.loc[mweya_mask, 'Company_Group'] = 'Company 2'
+    
     mapped_path = output_dir / f"{mapped_base}.csv"
     mapped_df.to_csv(mapped_path, index=False)
 
