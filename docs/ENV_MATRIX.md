@@ -1,0 +1,90 @@
+# Environment Variable Matrix
+
+> **This file is the single source of truth for required environment configuration.**
+> All values are read by the runtime via `os.getenv(...)`. If a variable is
+> listed as required for a host but missing, the corresponding feature
+> silently degrades (now: loudly fails — see "Fail-loud guards" in
+> [ARCHITECTURE.md](./ARCHITECTURE.md)).
+>
+> Generated/maintained from `docs/env_matrix.yaml` (machine-readable form).
+> When you add a new env var, update **both** files.
+
+---
+
+## Convention
+
+| Symbol | Meaning |
+|---|---|
+| ✅ | Required — feature breaks without it |
+| 🟡 | Optional — has sensible default |
+| —  | Not used by this host |
+
+Hosts:
+- **web** — `qms-sales-report` App Service (FastAPI, `fastapi_web_app/main.py`)
+- **func** — `qms-dispatch-reports` Function App (timers + dispatchers + mapping_inputs_sync)
+- **local** — `python src/full_report_v2.py` from a developer machine
+
+---
+
+## Storage / Blob
+
+| Variable | web | func | local | Source |
+|---|---|---|---|---|
+| `AZURE_STORAGE_REPORTING_CONNECTION_STRING` | ✅ | ✅ | 🟡 | Storage account `stqmssaledatalakeprod` access key |
+| `REPORTING_INPUTS_BLOB_CONTAINER` | ✅ | ✅ | 🟡 (default `reporting-inputs`) | Constant: `reporting-inputs` |
+| `REPORTING_OUTPUTS_BLOB_CONTAINER` | — | ✅ | 🟡 | Constant: `reporting-outputs` |
+| `REPORT_OUTPUT_BLOB_CONNECTION_STRING` | ✅ | — | — | Same value as `AZURE_STORAGE_REPORTING_CONNECTION_STRING` (legacy alias used by webapp output reader) |
+| `REPORT_OUTPUT_BLOB_CONTAINER` | ✅ | — | — | `reporting-outputs` |
+| `REPORT_OUTPUT_BLOB_PREFIX` | 🟡 | — | — | Optional prefix for current cycle |
+| `AzureWebJobsStorage` | — | ✅ | — | Function-app runtime queue/lease storage (separate account) |
+
+## Mapping behaviour
+
+| Variable | web | func | local | Notes |
+|---|---|---|---|---|
+| `MAPPING_SYNC_SOURCE_OF_TRUTH` | ✅ `blob` | ✅ `sharepoint` | 🟡 | Web app must consume **blob** copy that the function syncs from SharePoint. Never let the web app re-fetch SharePoint directly. |
+| `ALLOW_LOCAL_MAPPING_FALLBACK` | ✅ `0` | ✅ `0` | 🟡 `1` | When `0`, missing blob input raises instead of silently using stale local file. |
+
+## SharePoint
+
+| Variable | web | func | local | Notes |
+|---|---|---|---|---|
+| `SHAREPOINT_SITE_URL` | 🟡 | ✅ | ✅ | `https://qmsmedicosmetics.sharepoint.com/sites/DATAANDREPORTING` |
+| `SHAREPOINT_CLIENT_ID` | 🟡 | ✅ | ✅ | App registration |
+| `SHAREPOINT_CLIENT_SECRET` | 🟡 | ✅ | ✅ | App registration |
+
+## Auth & access (web only)
+
+| Variable | web | func | local | Notes |
+|---|---|---|---|---|
+| `AZURE_CLIENT_ID` | ✅ | — | — | EasyAuth AAD client |
+| `WEBSITE_AUTH_AAD_ALLOWED_TENANTS` | ✅ | — | — | Tenant allowlist |
+| `MICROSOFT_PROVIDER_AUTHENTICATION_SECRET` | ✅ | — | — | EasyAuth |
+| `GLOBAL_VIEW_EMAILS` | ✅ | — | — | Comma-separated allow-list |
+| `CORE_MARKETS_VIEW_EMAILS` | ✅ | — | — | Per-segment allow-list |
+| `USA_SPA_VIEW_EMAILS` | ✅ | — | — | Per-segment allow-list |
+| `HUB_*` | ✅ | — | — | Hub-page allow-lists |
+
+## Web behaviour
+
+| Variable | web | func | local | Notes |
+|---|---|---|---|---|
+| `AUTO_REFRESH_ENABLED` | ✅ `true` | — | — | Drives status-page refresh + bootstrap run |
+| `METRICS_CACHE_TTL_SECONDS` | 🟡 `5` | — | — | KPI cache window |
+| `PYTHONPATH` | ✅ | — | — | Set to `/home/site/wwwroot` |
+| `ENABLE_ORYX_BUILD` / `SCM_DO_BUILD_DURING_DEPLOYMENT` | ✅ | — | — | Build pipeline flags |
+
+---
+
+## How to verify a host
+
+```powershell
+# Web app
+az webapp config appsettings list --name qms-sales-report --resource-group DefaultResourceGroup-DEWC --query "[].name" -o tsv
+
+# Function app
+az functionapp config appsettings list --name qms-dispatch-reports --resource-group qms-dispatch-reports_group --query "[].name" -o tsv
+
+# Live mapping health (no auth required, served by web app)
+curl https://qms-sales-report.azurewebsites.net/healthz/mappings | jq
+```

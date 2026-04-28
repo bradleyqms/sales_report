@@ -182,7 +182,7 @@ def _authorized_emails_for_path(path: str) -> set[str]:
         return global_view | core
     if path.startswith("/usaspa"):
         return global_view | usa
-    if path in {"/stream-logs", "/status", "/metrics", "/segment-metrics"}:
+    if path in {"/stream-logs", "/status", "/metrics", "/segment-metrics", "/healthz/mappings"}:
         return all_allowed
     if path.startswith("/download/"):
         return all_allowed
@@ -794,6 +794,84 @@ async def get_metrics():
 async def get_segment_metrics():
     """Return per-segment metrics from the latest audience-specific CSV files."""
     return await _get_segment_metrics_cached_async()
+
+
+@app.get("/healthz/mappings")
+async def healthz_mappings():
+    """Diagnostic endpoint: report which mapping source is reachable from the web app process.
+
+    Returns one entry per known mapping file with: source (blob|local|missing),
+    blob etag, blob last_modified, blob row_count, local row_count. This lets
+    operators verify that fixes (e.g. restoring AZURE_STORAGE_REPORTING_CONNECTION_STRING)
+    have actually taken effect WITHOUT triggering a full report run.
+    """
+    result: dict = {
+        "blob_configured": bool(
+            os.getenv("AZURE_STORAGE_REPORTING_CONNECTION_STRING", "").strip()
+            and os.getenv("REPORTING_INPUTS_BLOB_CONTAINER", "").strip()
+        ),
+        "mapping_sync_source_of_truth": os.getenv("MAPPING_SYNC_SOURCE_OF_TRUTH", "(unset)"),
+        "allow_local_fallback": os.getenv("ALLOW_LOCAL_MAPPING_FALLBACK", "1"),
+        "files": {},
+    }
+
+    inputs_conn = os.getenv("AZURE_STORAGE_REPORTING_CONNECTION_STRING", "").strip()
+    inputs_container = os.getenv("REPORTING_INPUTS_BLOB_CONTAINER", "reporting-inputs").strip()
+    container_client = None
+    if inputs_conn and inputs_container and BlobServiceClient is not None:
+        try:
+            container_client = BlobServiceClient.from_connection_string(inputs_conn).get_container_client(inputs_container)
+        except Exception as exc:
+            result["blob_error"] = f"{type(exc).__name__}: {exc}"
+
+    project_root = BASE_DIR.parent
+    for filename, local_rel, blob_path in [
+        ("entity_mappings.csv", "data/inputs/mappings/entity_mappings.csv", "mappings/entity_mappings.csv"),
+        ("py25_regional_mappings.csv", "data/inputs/mappings/py25_regional_mappings.csv", "mappings/py25_regional_mappings.csv"),
+    ]:
+        entry: dict = {"blob": None, "local": None}
+        if container_client is not None:
+            try:
+                blob_client = container_client.get_blob_client(blob_path)
+                props = blob_client.get_blob_properties()
+                data = blob_client.download_blob().readall()
+                row_count = max(0, data.decode("utf-8", errors="replace").count("\n") - 1)
+                entry["blob"] = {
+                    "ok": True,
+                    "etag": getattr(props, "etag", None),
+                    "last_modified": props.last_modified.isoformat() if getattr(props, "last_modified", None) else None,
+                    "size_bytes": getattr(props, "size", None),
+                    "row_count": row_count,
+                }
+            except Exception as exc:
+                entry["blob"] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+        local_path = project_root / local_rel
+        if local_path.exists():
+            try:
+                with open(local_path, "rb") as fh:
+                    text = fh.read().decode("utf-8", errors="replace")
+                entry["local"] = {
+                    "ok": True,
+                    "row_count": max(0, text.count("\n") - 1),
+                    "size_bytes": local_path.stat().st_size,
+                    "mtime": datetime.utcfromtimestamp(local_path.stat().st_mtime).isoformat() + "Z",
+                }
+            except Exception as exc:
+                entry["local"] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+        else:
+            entry["local"] = {"ok": False, "error": "missing"}
+
+        if entry["blob"] and entry["blob"].get("ok"):
+            entry["effective_source"] = "blob"
+        elif entry["local"] and entry["local"].get("ok"):
+            entry["effective_source"] = "local"
+        else:
+            entry["effective_source"] = "missing"
+
+        result["files"][filename] = entry
+
+    return JSONResponse(result)
 
 @app.get("/download/{filename}")
 async def download_file(filename: str):

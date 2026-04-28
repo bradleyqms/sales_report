@@ -164,9 +164,27 @@ class CoreMarketReportGenerator(BaseReportGenerator):
                     entity_mappings_df['Sub Region'] = entity_mappings_df['Sub_Region']
                 else:
                     entity_mappings_df['Sub Region'] = pd.NA
-            entity_mappings = entity_mappings_df.set_index('Sales_Employee_Cleaned')['Sub Region'].dropna().to_dict()
+            entity_mappings_series = entity_mappings_df.set_index('Sales_Employee_Cleaned')['Sub Region']
+            blank_mapping_rows = entity_mappings_series[entity_mappings_series.isna() | (entity_mappings_series.astype(str).str.strip() == '')]
+            if len(blank_mapping_rows) > 0:
+                import logging as _logging
+                _logging.warning(
+                    "core_market_report: %d entity_mappings rows have blank Sub Region (will not be used for fill): %s",
+                    len(blank_mapping_rows),
+                    sorted(blank_mapping_rows.index.dropna().astype(str).unique().tolist())[:25],
+                )
+            entity_mappings = entity_mappings_series.dropna().to_dict()
             mask = self.prior_df['Sub_Region_Cleaned'] == ''
             self.prior_df.loc[mask, 'Sub_Region_Cleaned'] = self.prior_df.loc[mask, 'Sales_Employee_Cleaned'].map(entity_mappings).fillna('')
+            still_unmapped = self.prior_df.loc[self.prior_df['Sub_Region_Cleaned'] == '', 'Sales_Employee_Cleaned']
+            if len(still_unmapped) > 0:
+                import logging as _logging
+                unmapped_unique = sorted(still_unmapped.dropna().astype(str).unique().tolist())
+                _logging.warning(
+                    "core_market_report: %d prior_df rows remain UNMAPPED to Sub_Region after entity_mappings fallback. Unmapped employees (first 25): %s",
+                    int(len(still_unmapped)),
+                    unmapped_unique[:25],
+                )
         
         # Filter Budget for Current Month
         # Budget Date is DD/MM/YYYY
