@@ -1,0 +1,132 @@
+# Machine-readable companion to ENV_MATRIX.md.
+# Agents and CI scripts should read THIS file; humans read the .md.
+# Schema:
+#   variables:
+#     <NAME>:
+#       description: <one-line>
+#       hosts:
+#         web:   { required: bool, default: <value|null>, notes: <str> }
+#         func:  { required: bool, default: <value|null>, notes: <str> }
+#         local: { required: bool, default: <value|null>, notes: <str> }
+#       category: storage|mapping|sharepoint|auth|web
+
+variables:
+  AZURE_STORAGE_REPORTING_CONNECTION_STRING:
+    description: Connection string for stqmssaledatalakeprod storage account (reporting-inputs + reporting-outputs).
+    category: storage
+    hosts:
+      web:   { required: true,  default: null, notes: "Required so report subprocess can read mappings/* blob inputs." }
+      func:  { required: true,  default: null, notes: "Required by all timer + dispatcher functions." }
+      local: { required: false, default: null, notes: "Set in .env to mirror prod behavior." }
+
+  REPORTING_INPUTS_BLOB_CONTAINER:
+    description: Container holding curated mapping + raw extract copies.
+    category: storage
+    hosts:
+      web:   { required: true,  default: "reporting-inputs", notes: "" }
+      func:  { required: true,  default: "reporting-inputs", notes: "" }
+      local: { required: false, default: "reporting-inputs", notes: "" }
+
+  REPORTING_OUTPUTS_BLOB_CONTAINER:
+    description: Container holding generated report artefacts.
+    category: storage
+    hosts:
+      web:   { required: false, default: null, notes: "Web reads via REPORT_OUTPUT_BLOB_CONTAINER alias." }
+      func:  { required: true,  default: "reporting-outputs", notes: "" }
+      local: { required: false, default: "reporting-outputs", notes: "" }
+
+  REPORT_OUTPUT_BLOB_CONNECTION_STRING:
+    description: Web app's connection string to read finished outputs (legacy alias).
+    category: storage
+    hosts:
+      web:   { required: true,  default: null, notes: "Mirror of AZURE_STORAGE_REPORTING_CONNECTION_STRING." }
+      func:  { required: false, default: null, notes: "" }
+      local: { required: false, default: null, notes: "" }
+
+  REPORT_OUTPUT_BLOB_CONTAINER:
+    description: Web app's output container.
+    category: storage
+    hosts:
+      web:   { required: true,  default: "reporting-outputs", notes: "" }
+      func:  { required: false, default: null, notes: "" }
+      local: { required: false, default: null, notes: "" }
+
+  REPORT_OUTPUT_BLOB_PREFIX:
+    description: Optional prefix scoping the current cycle.
+    category: storage
+    hosts:
+      web:   { required: false, default: "", notes: "" }
+      func:  { required: false, default: null, notes: "" }
+      local: { required: false, default: null, notes: "" }
+
+  AzureWebJobsStorage:
+    description: Function runtime storage (queues/leases). Separate account.
+    category: storage
+    hosts:
+      web:   { required: false, default: null, notes: "" }
+      func:  { required: true,  default: null, notes: "" }
+      local: { required: false, default: null, notes: "" }
+
+  MAPPING_SYNC_SOURCE_OF_TRUTH:
+    description: Which source the consumer prefers when resolving mapping files.
+    category: mapping
+    hosts:
+      web:   { required: true,  default: "blob",       notes: "Must be 'blob' so web reads the curated copy synced by the function." }
+      func:  { required: true,  default: "sharepoint", notes: "Function pulls from SharePoint and republishes to blob." }
+      local: { required: false, default: "blob",       notes: "" }
+
+  ALLOW_LOCAL_MAPPING_FALLBACK:
+    description: Whether to silently fall back to a bundled local mapping file if blob/SP fetch fails.
+    category: mapping
+    hosts:
+      web:   { required: true,  default: "0", notes: "Must be '0' in prod so missing blob input raises loudly instead of producing stale outputs." }
+      func:  { required: true,  default: "0", notes: "Same rationale." }
+      local: { required: false, default: "1", notes: "Useful while developing offline." }
+
+  SHAREPOINT_SITE_URL:
+    description: SharePoint site URL containing the SAP Extracts library.
+    category: sharepoint
+    hosts:
+      web:   { required: false, default: null, notes: "Only needed if MAPPING_SYNC_SOURCE_OF_TRUTH=sharepoint." }
+      func:  { required: true,  default: null, notes: "" }
+      local: { required: true,  default: null, notes: "" }
+
+  SHAREPOINT_CLIENT_ID:
+    description: App registration client id for SharePoint access.
+    category: sharepoint
+    hosts:
+      web:   { required: false, default: null, notes: "" }
+      func:  { required: true,  default: null, notes: "" }
+      local: { required: true,  default: null, notes: "" }
+
+  SHAREPOINT_CLIENT_SECRET:
+    description: App registration client secret.
+    category: sharepoint
+    hosts:
+      web:   { required: false, default: null, notes: "" }
+      func:  { required: true,  default: null, notes: "" }
+      local: { required: true,  default: null, notes: "" }
+
+  AZURE_CLIENT_ID:
+    description: AAD client id for EasyAuth on the web app.
+    category: auth
+    hosts:
+      web:   { required: true,  default: null, notes: "" }
+      func:  { required: false, default: null, notes: "" }
+      local: { required: false, default: null, notes: "" }
+
+  AUTO_REFRESH_ENABLED:
+    description: Toggle the web app's auto-refresh of the status page.
+    category: web
+    hosts:
+      web:   { required: true,  default: "true", notes: "" }
+      func:  { required: false, default: null, notes: "" }
+      local: { required: false, default: "true", notes: "" }
+
+  METRICS_CACHE_TTL_SECONDS:
+    description: Cache window for the KPI tiles served by /metrics.
+    category: web
+    hosts:
+      web:   { required: false, default: "5", notes: "" }
+      func:  { required: false, default: null, notes: "" }
+      local: { required: false, default: "5", notes: "" }

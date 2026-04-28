@@ -292,7 +292,13 @@ def resolve_input_file(
                 logging.info("Using reporting-inputs blob fallback for %s", filename)
                 return dest
 
+    allow_local = os.getenv("ALLOW_LOCAL_MAPPING_FALLBACK", "1").strip().lower() in {"1", "true", "yes", "on"}
     if local_path.exists():
+        if not allow_local and blob_path is not None:
+            raise FileNotFoundError(
+                f"Refusing to use local fallback for {filename}: blob source was unavailable and "
+                "ALLOW_LOCAL_MAPPING_FALLBACK=0. Fix blob/SharePoint connectivity or explicitly enable local fallback."
+            )
         logging.info("Using local file: %s", local_path)
         return local_path
 
