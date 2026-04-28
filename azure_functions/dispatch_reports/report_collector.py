@@ -8,6 +8,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    from azure.storage.blob import BlobServiceClient as _BlobServiceClient
+except ImportError:  # pragma: no cover
+    _BlobServiceClient = None  # type: ignore[assignment,misc]
+
 from .config import (
     dispatch_report_mode,
     KEY_CSV_PATTERNS,
@@ -137,6 +142,58 @@ def refresh_reports(outputs_dir: Path) -> bool:
     if snippet:
         LOG.info("Report refresh output:\n%s", "\n".join(snippet))
     return True
+
+
+def download_outputs_from_blob(outputs_dir: Path) -> int:
+    """Hydrate *outputs_dir* from the ``reporting-outputs`` blob container.
+
+    This is the read-side of the Option B model:
+      - ``refresh_unified_v2_timer`` runs ``full_report_v2.py`` once per day
+        and uploads every artefact in its output directory to
+        ``reporting-outputs``.
+      - The dispatch functions (this caller) pull those artefacts down before
+        building the email so they never have to regenerate the report
+        themselves.
+
+    Returns the number of files downloaded.  Returns ``0`` when blob storage
+    is not configured (callers can decide whether to fall back to whatever is
+    already on disk or abort).  Failures on individual blobs are logged but
+    do not raise; a fatal connection error does raise.
+    """
+    if _BlobServiceClient is None:
+        LOG.warning("azure-storage-blob not installed; cannot hydrate outputs from blob")
+        return 0
+    conn = os.getenv("AZURE_STORAGE_REPORTING_CONNECTION_STRING", "").strip()
+    container = os.getenv("REPORTING_OUTPUTS_BLOB_CONTAINER", "reporting-outputs").strip()
+    if not conn or not container:
+        LOG.warning(
+            "Blob output hydration skipped: AZURE_STORAGE_REPORTING_CONNECTION_STRING or "
+            "REPORTING_OUTPUTS_BLOB_CONTAINER is not set"
+        )
+        return 0
+
+    service = _BlobServiceClient.from_connection_string(conn)
+    container_client = service.get_container_client(container)
+
+    outputs_dir.mkdir(parents=True, exist_ok=True)
+    downloaded = 0
+    for blob in container_client.list_blobs():
+        # Blob names mirror file names from full_report_v2.py (no nested
+        # partition path is used on upload).  Write back as flat files in
+        # outputs_dir so collect_html_files / collect_csv_attachments can
+        # find them via their existing rglob patterns.
+        dest = outputs_dir / blob.name
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            with open(dest, "wb") as fh:
+                container_client.download_blob(blob.name).readinto(fh)
+            downloaded += 1
+        except Exception as exc:  # pragma: no cover
+            LOG.warning("Failed to download blob %s: %s", blob.name, exc)
+    LOG.info(
+        "Hydrated %d file(s) from reporting-outputs blob into %s", downloaded, outputs_dir
+    )
+    return downloaded
 
 
 def find_files(outputs_dir: Path, pattern: str, limit: int) -> list[Path]:

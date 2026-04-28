@@ -16,15 +16,25 @@ LOG.setLevel(logging.INFO)
 
 
 def _in_refresh_window(now_utc: datetime) -> bool:
+    """Belt-and-braces guard against accidental out-of-hours runs.
+
+    The cron expression in ``V2_UNIFIED_REFRESH_SCHEDULE`` is the primary
+    schedule control.  This helper just refuses to do work on weekends or
+    well outside business hours, regardless of how the schedule is set.
+    Set ``V2_UNIFIED_REFRESH_DISABLE_WINDOW=true`` to bypass entirely.
+    """
+    if os.getenv("V2_UNIFIED_REFRESH_DISABLE_WINDOW", "false").strip().lower() in {
+        "1", "true", "yes", "on"
+    }:
+        return True
+
     tz_name = os.getenv("V2_UNIFIED_REFRESH_TIMEZONE", "Europe/Berlin")
     local_now = now_utc.astimezone(ZoneInfo(tz_name))
 
-    # Monday=0 ... Sunday=6; only business days and 09:15..17:15 local time.
+    # Monday=0 ... Sunday=6; business days and 06:00–20:00 local time.
     if local_now.weekday() > 4:
         return False
-    if local_now.minute != 15:
-        return False
-    if local_now.hour < 9 or local_now.hour > 17:
+    if local_now.hour < 6 or local_now.hour > 20:
         return False
     return True
 

@@ -36,7 +36,7 @@ from dispatch_reports.config import (
 from dispatch_reports.graph_client import send_via_graph
 from dispatch_reports.health_alerts import send_healthcheck_alert
 from dispatch_reports.html_builder import build_html_body
-from dispatch_reports.report_collector import find_files, refresh_reports, resolve_outputs_path, derive_report_date
+from dispatch_reports.report_collector import find_files, download_outputs_from_blob, refresh_reports, resolve_outputs_path, derive_report_date
 from dispatch_reports.send_audit import record_dispatch_status
 
 load_dotenv()
@@ -116,15 +116,20 @@ def main(mytimer: func.TimerRequest = None) -> None:
                 )
             return
 
+        # Option B: hydrate latest artefacts from the reporting-outputs blob
+        # (refresh_unified_v2_timer is responsible for producing them).
+        # CORE_MARKET_REFRESH_BEFORE_SEND=true keeps the legacy in-line
+        # regeneration path for emergency manual recovery only.
         refresh_before_send = os.getenv("CORE_MARKET_REFRESH_BEFORE_SEND", "false").strip().lower() in {
             "1", "true", "yes", "on"
         }
         if refresh_before_send:
+            LOG.warning("CORE_MARKET_REFRESH_BEFORE_SEND=true: regenerating reports inline (slow)")
             refreshed = refresh_reports(outputs_dir)
             if not refreshed:
                 raise RuntimeError("Report refresh failed; aborting core market dispatch")
         else:
-            LOG.info("CORE_MARKET_REFRESH_BEFORE_SEND disabled; sending from existing outputs")
+            download_outputs_from_blob(outputs_dir)
         report_date = derive_report_date(outputs_dir)
 
         # HTML → email body
