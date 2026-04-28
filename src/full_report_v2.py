@@ -1,12 +1,15 @@
 import argparse
 import calendar
 import datetime
+import hashlib
 import inspect
 import json
 import logging
 import os
+import shutil
 import tempfile
 import time
+import traceback
 from pathlib import Path
 from urllib import request
 
@@ -123,7 +126,7 @@ def _download_from_blob_inputs(container_client, blob_name: str, dest: Path) -> 
         return False
 
 
-def _upload_outputs_to_blob(output_dir: Path) -> int:
+def _upload_outputs_to_blob(output_dir: Path, blob_prefix: str | None = None, overwrite: bool = False) -> int:
     """Upload all files in *output_dir* to 'reporting-outputs'. Returns count of uploaded files."""
     if _BlobServiceClient is None:
         return 0
@@ -141,17 +144,62 @@ def _upload_outputs_to_blob(output_dir: Path) -> int:
     for path in output_dir.rglob("*"):
         if not path.is_file():
             continue
-        blob_name = path.name
+        relative_path = path.relative_to(output_dir).as_posix()
+        blob_name = f"{blob_prefix.strip('/')}/{relative_path}" if blob_prefix else relative_path
         try:
             with open(path, "rb") as data:
-                container_client.upload_blob(blob_name, data, overwrite=True)
+                container_client.upload_blob(blob_name, data, overwrite=overwrite)
             logging.info("Uploaded to reporting-outputs: %s", blob_name)
             uploaded += 1
         except Exception as exc:
-            logging.warning("Failed to upload %s to reporting-outputs blob: %s", path.name, exc)
+            logging.warning("Failed to upload %s to reporting-outputs blob: %s", blob_name, exc)
     if uploaded:
         logging.info("Blob output upload complete: %d file(s)", uploaded)
     return uploaded
+
+
+def _compute_file_sha256(file_path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(file_path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _snapshot_input_file(source_path: Path, snapshots_dir: Path, logical_name: str) -> dict:
+    snapshots_dir.mkdir(parents=True, exist_ok=True)
+    destination = snapshots_dir / f"{logical_name}{source_path.suffix}"
+    shutil.copy2(source_path, destination)
+    return {
+        "logical_name": logical_name,
+        "source_path": str(source_path),
+        "snapshot_path": str(destination),
+        "size_bytes": int(destination.stat().st_size),
+        "sha256": _compute_file_sha256(destination),
+    }
+
+
+def _build_blob_run_prefix(report_type: str, report_date: datetime.datetime, run_id: str) -> str:
+    return (
+        f"runs/report_type={report_type.upper()}"
+        f"/date={report_date.strftime('%Y-%m-%d')}"
+        f"/run_id={run_id}"
+    )
+
+
+def _write_json_artifact(path: Path, payload: dict) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, default=str)
+    return path
+
+
+def _collect_new_unmapped_file(output_dir: Path, baseline_names: set[str]) -> Path | None:
+    candidates = sorted(output_dir.glob("unmapped_entities_*.csv"), key=lambda p: p.stat().st_mtime)
+    for candidate in reversed(candidates):
+        if candidate.name not in baseline_names:
+            return candidate
+    return None
 
 
 def _build_sp_handler(project_root: Path):
@@ -489,16 +537,29 @@ def main(argv=None):
         "source": {},
         "output_root": str(output_root),
         "output_dir": str(output_dir),
+        "blob_archive_prefix": _build_blob_run_prefix(report_type, report_date, run_id),
         "validation": {"warnings": []},
         "counts": {
             "rows_in": 0,
             "rows_filtered": 0,
             "rows_mapped": 0,
         },
+        "artifacts": {
+            "inputs": [],
+            "unmapped": None,
+            "quality": {},
+        },
         "outputs": {},
         "status": "running",
         "started_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
+
+    inputs_snapshot_dir = output_dir / "inputs"
+    audit_dir = output_dir / "audit"
+    failures_dir = output_dir / "failures"
+    inputs_snapshot_dir.mkdir(parents=True, exist_ok=True)
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    failures_dir.mkdir(parents=True, exist_ok=True)
 
     print("=" * 80)
     print("UNIFIED QRY V2 REPORT GENERATION")
@@ -530,40 +591,9 @@ def main(argv=None):
         "path": str(unified_source),
         "name": unified_source.name,
     }
-
-    canonical_df = load_unified_qry_csv(
-        str(unified_source),
-        report_type=report_type,
-        report_date=report_date,
-        schema_mode=args.schema_mode,
-        schema_manifest_path=args.schema_manifest,
+    run_summary["artifacts"]["inputs"].append(
+        _snapshot_input_file(unified_source, inputs_snapshot_dir, "unified_source")
     )
-    run_summary["counts"]["rows_in"] = int(len(canonical_df))
-
-    try:
-        validation_warnings = run_ingestion_validations(
-            canonical_df,
-            report_type=report_type,
-            report_date=report_date,
-            strict=not args.relaxed_validation,
-            eom_policy=args.eom_completeness_policy,
-        )
-    except ValidationError as exc:
-        emit_alert(
-            "Unified validation failed",
-            context={
-                "report_type": report_type,
-                "strict": not args.relaxed_validation,
-                "error": str(exc),
-            },
-            webhook_url=args.alert_webhook_url,
-            log_path=args.alert_log_path,
-        )
-        raise
-
-    run_summary["validation"]["warnings"] = list(validation_warnings)
-    for warning in validation_warnings:
-        logging.warning("Validation warning: %s", warning)
 
     mapped_base = compose_output_name(
         prefix="qry_unified_mapped",
@@ -611,144 +641,285 @@ def main(argv=None):
         print(f"[DRY-RUN] combined:    {combined_base}.csv")
         return
 
-    _sp = _build_sp_handler(project_root)
-    _retries = max(1, args.download_retries)
-    _backoff = max(0.0, args.retry_backoff_seconds)
+    try:
+        canonical_df = load_unified_qry_csv(
+            str(unified_source),
+            report_type=report_type,
+            report_date=report_date,
+            schema_mode=args.schema_mode,
+            schema_manifest_path=args.schema_manifest,
+        )
+        run_summary["counts"]["rows_in"] = int(len(canonical_df))
 
-    mapping_path = resolve_mapping_file(
-        project_root,
-        args.mapping_file,
-        retries=_retries,
-        retry_backoff_seconds=_backoff,
-    )
-    py_mapping_path = resolve_input_file(
-        "py25_regional_mappings.csv",
-        project_root / "data/inputs/mappings/py25_regional_mappings.csv",
-        _sp, _retries, _backoff,
-        blob_path="mappings/py25_regional_mappings.csv",
-    )
-    mapping_df = pd.read_csv(mapping_path)
+        validation_warnings = run_ingestion_validations(
+            canonical_df,
+            report_type=report_type,
+            report_date=report_date,
+            strict=not args.relaxed_validation,
+            eom_policy=args.eom_completeness_policy,
+        )
+        run_summary["validation"]["warnings"] = list(validation_warnings)
+        for warning in validation_warnings:
+            logging.warning("Validation warning: %s", warning)
 
-    mapped_df = apply_mappings(canonical_df, mapping_df, output_dir=str(output_dir))
-    run_summary["counts"]["rows_mapped"] = int(len(mapped_df))
-    
-    # WORKAROUND: Fix Mweya mapping if it was assigned to wrong region
-    # This addresses a customer name matching issue in apply_mappings
-    if 'Customer Name' in mapped_df.columns:
-        mweya_mask = mapped_df['Customer Name'].str.contains('Mweya Luxury FZCO', case=False, na=False)
-        if mweya_mask.any():
-            mapped_df.loc[mweya_mask, 'Region'] = 'Distributor - Middle East'
-            mapped_df.loc[mweya_mask, 'Company_Group'] = 'Company 2'
-    
-    mapped_path = output_dir / f"{mapped_base}.csv"
-    mapped_df.to_csv(mapped_path, index=False)
+        _sp = _build_sp_handler(project_root)
+        _retries = max(1, args.download_retries)
+        _backoff = max(0.0, args.retry_backoff_seconds)
 
-    current_year = report_date.year
-    prior_year = report_date.year - 1
+        mapping_path = resolve_mapping_file(
+            project_root,
+            args.mapping_file,
+            retries=_retries,
+            retry_backoff_seconds=_backoff,
+        )
+        py_mapping_path = resolve_input_file(
+            "py25_regional_mappings.csv",
+            project_root / "data/inputs/mappings/py25_regional_mappings.csv",
+            _sp,
+            _retries,
+            _backoff,
+            blob_path="mappings/py25_regional_mappings.csv",
+        )
 
-    budget_path = resolve_input_file(
-        f"budget_{current_year}_processed.csv",
-        project_root / f"data/inputs/budget/budget_{current_year}_processed.csv",
-        _sp, _retries, _backoff,
-        blob_path=f"budgets/budget_{current_year}_processed.csv",
-    )
-    prior_path = resolve_input_file(
-        f"prior_sales_{prior_year}_processed.csv",
-        project_root / f"data/inputs/prior_years/prior_sales_{prior_year}_processed.csv",
-        _sp, _retries, _backoff,
-        blob_path=f"prior_year/prior_sales_{prior_year}_processed.csv",
-    )
-    gvl_budget_path = resolve_input_file(
-        f"budget_GVL_{current_year}.csv",
-        project_root / f"data/inputs/budget/budget_GVL_{current_year}.csv",
-        _sp, _retries, _backoff,
-        blob_path=f"budgets/budget_GVL_{current_year}.csv",
-    )
-    gvl_prior_path = resolve_input_file(
-        f"prior_sales_{prior_year}_gvl.csv",
-        project_root / f"data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv",
-        _sp, _retries, _backoff,
-        blob_path=f"prior_year/prior_sales_{prior_year}_gvl.csv",
-    )
-    usa_budget_path = resolve_input_file(
-        f"budget_USA_spa_{current_year}.csv",
-        project_root / f"data/inputs/budget/budget_USA_spa_{current_year}.csv",
-        _sp, _retries, _backoff,
-        blob_path=f"budgets/budget_USA_spa_{current_year}.csv",
-    )
-    usa_prior_path = resolve_input_file(
-        f"prior_sales_{prior_year}_usa.csv",
-        project_root / f"data/inputs/prior_years/prior_sales_{prior_year}_usa.csv",
-        _sp, _retries, _backoff,
-        blob_path=f"prior_year/prior_sales_{prior_year}_usa.csv",
-    )
+        current_year = report_date.year
+        prior_year = report_date.year - 1
+        budget_path = resolve_input_file(
+            f"budget_{current_year}_processed.csv",
+            project_root / f"data/inputs/budget/budget_{current_year}_processed.csv",
+            _sp,
+            _retries,
+            _backoff,
+            blob_path=f"budgets/budget_{current_year}_processed.csv",
+        )
+        prior_path = resolve_input_file(
+            f"prior_sales_{prior_year}_processed.csv",
+            project_root / f"data/inputs/prior_years/prior_sales_{prior_year}_processed.csv",
+            _sp,
+            _retries,
+            _backoff,
+            blob_path=f"prior_year/prior_sales_{prior_year}_processed.csv",
+        )
+        gvl_budget_path = resolve_input_file(
+            f"budget_GVL_{current_year}.csv",
+            project_root / f"data/inputs/budget/budget_GVL_{current_year}.csv",
+            _sp,
+            _retries,
+            _backoff,
+            blob_path=f"budgets/budget_GVL_{current_year}.csv",
+        )
+        gvl_prior_path = resolve_input_file(
+            f"prior_sales_{prior_year}_gvl.csv",
+            project_root / f"data/inputs/prior_years/prior_sales_{prior_year}_gvl.csv",
+            _sp,
+            _retries,
+            _backoff,
+            blob_path=f"prior_year/prior_sales_{prior_year}_gvl.csv",
+        )
+        usa_budget_path = resolve_input_file(
+            f"budget_USA_spa_{current_year}.csv",
+            project_root / f"data/inputs/budget/budget_USA_spa_{current_year}.csv",
+            _sp,
+            _retries,
+            _backoff,
+            blob_path=f"budgets/budget_USA_spa_{current_year}.csv",
+        )
+        usa_prior_path = resolve_input_file(
+            f"prior_sales_{prior_year}_usa.csv",
+            project_root / f"data/inputs/prior_years/prior_sales_{prior_year}_usa.csv",
+            _sp,
+            _retries,
+            _backoff,
+            blob_path=f"prior_year/prior_sales_{prior_year}_usa.csv",
+        )
 
-    receivables = ManagementReportGenerator(
-        str(project_root / "src/config/report_structure.json"),
-        str(mapped_path),
-        str(budget_path),
-        str(prior_path),
-    )
-    apply_report_date_anchor(receivables, report_date)
+        run_summary["artifacts"]["inputs"].extend(
+            [
+                _snapshot_input_file(mapping_path, inputs_snapshot_dir, "entity_mapping"),
+                _snapshot_input_file(py_mapping_path, inputs_snapshot_dir, "py25_regional_mapping"),
+                _snapshot_input_file(budget_path, inputs_snapshot_dir, f"budget_{current_year}_processed"),
+                _snapshot_input_file(prior_path, inputs_snapshot_dir, f"prior_sales_{prior_year}_processed"),
+                _snapshot_input_file(gvl_budget_path, inputs_snapshot_dir, f"budget_GVL_{current_year}"),
+                _snapshot_input_file(gvl_prior_path, inputs_snapshot_dir, f"prior_sales_{prior_year}_gvl"),
+                _snapshot_input_file(usa_budget_path, inputs_snapshot_dir, f"budget_USA_spa_{current_year}"),
+                _snapshot_input_file(usa_prior_path, inputs_snapshot_dir, f"prior_sales_{prior_year}_usa"),
+            ]
+        )
+        _write_json_artifact(audit_dir / "input_manifest.json", {"inputs": run_summary["artifacts"]["inputs"]})
 
-    usa_kwargs = {}
-    if "report_date" in inspect.signature(USASpaReportGenerator.__init__).parameters:
-        usa_kwargs["report_date"] = report_date
+        unmapped_before = {path.name for path in output_dir.glob("unmapped_entities_*.csv")}
+        mapping_df = pd.read_csv(mapping_path)
+        mapped_df = apply_mappings(canonical_df, mapping_df, output_dir=str(output_dir))
+        run_summary["counts"]["rows_mapped"] = int(len(mapped_df))
 
-    usa = USASpaReportGenerator(
-        str(project_root / "src/config/usa_spa_report_structure.json"),
-        str(mapped_path),
-        str(usa_budget_path),
-        str(usa_prior_path),
-        **usa_kwargs,
-    )
-    apply_report_date_anchor(usa, report_date)
+        # WORKAROUND: Fix Mweya mapping if it was assigned to wrong region
+        # This addresses a customer name matching issue in apply_mappings
+        if 'Customer Name' in mapped_df.columns:
+            mweya_mask = mapped_df['Customer Name'].str.contains('Mweya Luxury FZCO', case=False, na=False)
+            if mweya_mask.any():
+                mapped_df.loc[mweya_mask, 'Region'] = 'Distributor - Middle East'
+                mapped_df.loc[mweya_mask, 'Company_Group'] = 'Company 2'
 
-    core_kwargs = {}
-    if "report_date" in inspect.signature(CoreMarketReportGenerator.__init__).parameters:
-        core_kwargs["report_date"] = report_date
+        mapped_path = output_dir / f"{mapped_base}.csv"
+        mapped_df.to_csv(mapped_path, index=False)
 
-    core = CoreMarketReportGenerator(
-        str(project_root / "src/config/core_market_report_structure.json"),
-        str(mapped_path),
-        str(gvl_budget_path),
-        str(gvl_prior_path),
-        py_mapping_path=str(py_mapping_path),
-        entity_mapping_path=str(mapping_path),
-        **core_kwargs,
-    )
-    apply_report_date_anchor(core, report_date)
+        unmapped_file = _collect_new_unmapped_file(output_dir, unmapped_before)
+        unmapped_rows = 0
+        unmapped_value_at_risk = 0.0
+        if unmapped_file and unmapped_file.exists():
+            unmapped_df = pd.read_csv(unmapped_file)
+            unmapped_rows = int(len(unmapped_df))
+            if "total_ar_value_keur" in unmapped_df.columns:
+                numeric_var = pd.to_numeric(unmapped_df["total_ar_value_keur"], errors="coerce").fillna(0.0)
+                unmapped_value_at_risk = float(numeric_var.sum())
+            run_summary["artifacts"]["unmapped"] = {
+                "path": str(unmapped_file),
+                "rows": unmapped_rows,
+                "value_at_risk_keur": round(unmapped_value_at_risk, 2),
+            }
 
-    receivables_df = receivables.calculate_report()
-    usa_df = usa.calculate_report()
-    core_df = core.calculate_report()
+        quality_flags = []
+        quality_status = "green"
+        if validation_warnings:
+            quality_status = "amber"
+            quality_flags.append("validation_warnings")
+        if unmapped_rows > 0:
+            quality_status = "amber"
+            quality_flags.append("unmapped_entities_present")
 
-    receivables.render_report(receivables_df)
-    usa.render_report(usa_df)
-    core.render_report(core_df)
+        quality_payload = {
+            "status": quality_status,
+            "flags": quality_flags,
+            "validation_warning_count": len(validation_warnings),
+            "unmapped_rows": unmapped_rows,
+            "unmapped_value_at_risk_keur": round(unmapped_value_at_risk, 2),
+        }
+        run_summary["artifacts"]["quality"] = quality_payload
+        _write_json_artifact(audit_dir / "quality_status.json", quality_payload)
 
-    export_service = V2ExportService()
+        receivables = ManagementReportGenerator(
+            str(project_root / "src/config/report_structure.json"),
+            str(mapped_path),
+            str(budget_path),
+            str(prior_path),
+        )
+        apply_report_date_anchor(receivables, report_date)
 
-    export_service.export_once(usa, usa_df, output_dir / f"{usa_base}.csv")
-    export_service.export_once(core, core_df, output_dir / f"{core_base}.csv")
+        usa_kwargs = {}
+        if "report_date" in inspect.signature(USASpaReportGenerator.__init__).parameters:
+            usa_kwargs["report_date"] = report_date
 
-    combined_df = build_combined_dataframe(receivables_df, usa_df, core_df)
-    export_service.export_once(receivables, combined_df, output_dir / f"{combined_base}.csv")
+        usa = USASpaReportGenerator(
+            str(project_root / "src/config/usa_spa_report_structure.json"),
+            str(mapped_path),
+            str(usa_budget_path),
+            str(usa_prior_path),
+            **usa_kwargs,
+        )
+        apply_report_date_anchor(usa, report_date)
 
-    run_summary["status"] = "success"
-    run_summary["finished_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    summary_path = write_run_summary(run_summary, output_dir=output_dir, summary_path_arg=args.summary_path)
+        core_kwargs = {}
+        if "report_date" in inspect.signature(CoreMarketReportGenerator.__init__).parameters:
+            core_kwargs["report_date"] = report_date
 
-    uploaded = _upload_outputs_to_blob(output_dir)
-    if uploaded:
-        print(f"[OK] blob_upload: {uploaded} file(s) → reporting-outputs")
+        core = CoreMarketReportGenerator(
+            str(project_root / "src/config/core_market_report_structure.json"),
+            str(mapped_path),
+            str(gvl_budget_path),
+            str(gvl_prior_path),
+            py_mapping_path=str(py_mapping_path),
+            entity_mapping_path=str(mapping_path),
+            **core_kwargs,
+        )
+        apply_report_date_anchor(core, report_date)
 
-    print("\n[OK] V2 run complete")
-    print(f"[OK] mapped_data: {mapped_path.name}")
-    print(f"[OK] usa_export:  {usa_base}")
-    print(f"[OK] core_export: {core_base}")
-    print(f"[OK] combined:    {combined_base}")
-    print(f"[OK] run_summary: {summary_path.name}")
+        receivables_df = receivables.calculate_report()
+        usa_df = usa.calculate_report()
+        core_df = core.calculate_report()
+
+        receivables.render_report(receivables_df)
+        usa.render_report(usa_df)
+        core.render_report(core_df)
+
+        export_service = V2ExportService()
+        export_service.export_once(usa, usa_df, output_dir / f"{usa_base}.csv")
+        export_service.export_once(core, core_df, output_dir / f"{core_base}.csv")
+
+        combined_df = build_combined_dataframe(receivables_df, usa_df, core_df)
+        export_service.export_once(receivables, combined_df, output_dir / f"{combined_base}.csv")
+
+        run_summary["status"] = "success"
+        run_summary["finished_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        summary_path = write_run_summary(run_summary, output_dir=output_dir, summary_path_arg=args.summary_path)
+
+        uploaded = _upload_outputs_to_blob(
+            output_dir,
+            blob_prefix=run_summary["blob_archive_prefix"],
+            overwrite=False,
+        )
+        if uploaded:
+            print(f"[OK] blob_upload: {uploaded} file(s) -> reporting-outputs/{run_summary['blob_archive_prefix']}")
+
+        print("\n[OK] V2 run complete")
+        print(f"[OK] mapped_data: {mapped_path.name}")
+        print(f"[OK] usa_export:  {usa_base}")
+        print(f"[OK] core_export: {core_base}")
+        print(f"[OK] combined:    {combined_base}")
+        print(f"[OK] run_summary: {summary_path.name}")
+    except ValidationError as exc:
+        run_summary["status"] = "failed"
+        run_summary["finished_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        run_summary["error"] = {"type": "ValidationError", "message": str(exc)}
+        _write_json_artifact(
+            failures_dir / "validation_error.json",
+            {
+                "error_type": "ValidationError",
+                "message": str(exc),
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            },
+        )
+        write_run_summary(run_summary, output_dir=output_dir, summary_path_arg=args.summary_path)
+        _upload_outputs_to_blob(output_dir, blob_prefix=run_summary["blob_archive_prefix"], overwrite=False)
+        emit_alert(
+            "Unified validation failed",
+            context={
+                "report_type": report_type,
+                "strict": not args.relaxed_validation,
+                "error": str(exc),
+                "run_id": run_id,
+            },
+            webhook_url=args.alert_webhook_url,
+            log_path=args.alert_log_path,
+        )
+        raise
+    except Exception as exc:
+        run_summary["status"] = "failed"
+        run_summary["finished_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        run_summary["error"] = {
+            "type": exc.__class__.__name__,
+            "message": str(exc),
+        }
+        _write_json_artifact(
+            failures_dir / "processing_error.json",
+            {
+                "error_type": exc.__class__.__name__,
+                "message": str(exc),
+                "traceback": traceback.format_exc(),
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            },
+        )
+        write_run_summary(run_summary, output_dir=output_dir, summary_path_arg=args.summary_path)
+        _upload_outputs_to_blob(output_dir, blob_prefix=run_summary["blob_archive_prefix"], overwrite=False)
+        emit_alert(
+            "Unified report run failed",
+            context={
+                "report_type": report_type,
+                "error": str(exc),
+                "run_id": run_id,
+            },
+            webhook_url=args.alert_webhook_url,
+            log_path=args.alert_log_path,
+        )
+        raise
 
 
 if __name__ == "__main__":

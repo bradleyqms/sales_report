@@ -102,7 +102,28 @@ class CoreMarketReportGenerator(BaseReportGenerator):
             self.df['is_neukd'] = self.df['Sales Employee Name'].fillna('').str.lower().str.contains('neukd')
         else:
             self.df['is_neukd'] = False
-        
+
+        # Populate 'Sub Region' on current-year sales using py_regional_mappings.
+        # entity_mappings.csv has never had a Sub Region column; Sales_Employee_Cleaned
+        # is assigned by apply_mappings() from entity_mappings, so we use it here to
+        # look up Sub_Region from py25_regional_mappings for GmbH/AG rows.
+        _py_map_path = Path(self._py_mapping_path) if self._py_mapping_path else Path(__file__).parent.parent / 'data/inputs/mappings/py25_regional_mappings.csv'
+        if Path(_py_map_path).exists() and 'Sales_Employee_Cleaned' in self.df.columns:
+            _py_df = pd.read_csv(_py_map_path)
+            _py_lookup = _py_df.set_index('Sales_Employee_Cleaned')['Sub_Region'].to_dict()
+            if 'Sub Region' not in self.df.columns:
+                self.df['Sub Region'] = pd.Series(dtype=object, index=self.df.index)
+            elif self.df['Sub Region'].dtype != object:
+                self.df['Sub Region'] = self.df['Sub Region'].astype(object)
+            _mapped_sub = self.df['Sales_Employee_Cleaned'].map(_py_lookup)
+            _has_match = _mapped_sub.notna()
+            # Convert to plain Python list to avoid ArrowStringArray/pyarrow dtype
+            # incompatibility when assigning via .loc into an object column.
+            _values = list(_mapped_sub[_has_match])
+            _idx = self.df.index[_has_match]
+            self.df.loc[_idx, 'Sub Region'] = _values
+            logging.info("Core market: assigned Sub Region to %d / %d current-sales rows via py_regional_mappings", int(_has_match.sum()), len(self.df))
+
         # Clean Sub_Region in budget and prior - handle both 'Sub Region' and 'Subchannel / Partner' columns
         # Clean Sub_Region in budget and prior - coalesce 'Sub Region' with 'Subchannel / Partner'
         # so that whichever column is populated in the source file is used.
@@ -138,6 +159,11 @@ class CoreMarketReportGenerator(BaseReportGenerator):
         entity_mapping_path = Path(self._entity_mapping_path) if self._entity_mapping_path else Path(__file__).parent.parent / 'data/inputs/mappings/entity_mappings.csv'
         if Path(entity_mapping_path).exists():
             entity_mappings_df = pd.read_csv(entity_mapping_path)
+            if 'Sub Region' not in entity_mappings_df.columns:
+                if 'Sub_Region' in entity_mappings_df.columns:
+                    entity_mappings_df['Sub Region'] = entity_mappings_df['Sub_Region']
+                else:
+                    entity_mappings_df['Sub Region'] = pd.NA
             entity_mappings = entity_mappings_df.set_index('Sales_Employee_Cleaned')['Sub Region'].dropna().to_dict()
             mask = self.prior_df['Sub_Region_Cleaned'] == ''
             self.prior_df.loc[mask, 'Sub_Region_Cleaned'] = self.prior_df.loc[mask, 'Sales_Employee_Cleaned'].map(entity_mappings).fillna('')

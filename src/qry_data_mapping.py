@@ -101,6 +101,14 @@ def apply_mappings(sales_df, mapping_df, output_dir=None):
     for col in mapping_df.select_dtypes(include=['object']).columns:
         mapping_df[col] = mapping_df[col].str.strip()
 
+    # Backward-compatibility for mapping schema variants.
+    # Some mapping extracts provide Sub_Region (underscore) or omit sub-region entirely.
+    if 'Sub Region' not in mapping_df.columns:
+        if 'Sub_Region' in mapping_df.columns:
+            mapping_df['Sub Region'] = mapping_df['Sub_Region']
+        else:
+            mapping_df['Sub Region'] = pd.NA
+
     # Apply mappings
     # No longer splitting into df_emp and df_cust; apply mappings to the entire df
 

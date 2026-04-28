@@ -37,6 +37,7 @@ from dispatch_reports.graph_client import send_via_graph
 from dispatch_reports.health_alerts import send_healthcheck_alert
 from dispatch_reports.html_builder import build_html_body
 from dispatch_reports.report_collector import find_files, refresh_reports, resolve_outputs_path, derive_report_date
+from dispatch_reports.send_audit import record_dispatch_status
 
 load_dotenv()
 
@@ -84,6 +85,13 @@ def _collect_core_market_pdf(outputs_dir: Path) -> list[Path]:
 # ---- Azure Functions entry point ----------------------------------------
 
 def main(mytimer: func.TimerRequest = None) -> None:
+    outputs_dir: Path | None = None
+    recipients: list[str] = []
+    subject = "QMS Core Market Sales Report"
+    body_type = "HTML"
+    html_files: list[Path] = []
+    attachments: list[Path] = []
+    report_date = None
     try:
         outputs_dir = resolve_outputs_path()
         _test_recip = os.getenv("TEST_CORE_MARKETS_RECIPIENTS", "").strip()
@@ -94,6 +102,18 @@ def main(mytimer: func.TimerRequest = None) -> None:
             recipients = parse_recipients(os.getenv("CORE_MARKET_DISPATCH_RECIPIENTS"))
         if not recipients:
             LOG.warning("No recipients configured (CORE_MARKET_DISPATCH_RECIPIENTS is empty)")
+            if outputs_dir is not None:
+                record_dispatch_status(
+                    outputs_dir=outputs_dir,
+                    stream="core_market",
+                    status="skipped",
+                    recipients=[],
+                    subject=subject,
+                    body_type=body_type,
+                    report_date=report_date,
+                    mode=dispatch_report_mode(),
+                    details={"reason": "no_recipients_configured"},
+                )
             return
 
         refresh_before_send = os.getenv("CORE_MARKET_REFRESH_BEFORE_SEND", "false").strip().lower() in {
@@ -111,6 +131,18 @@ def main(mytimer: func.TimerRequest = None) -> None:
         html_files = _collect_core_market_html(outputs_dir)
         if not html_files:
             LOG.warning("No core market HTML files found in %s", outputs_dir)
+            record_dispatch_status(
+                outputs_dir=outputs_dir,
+                stream="core_market",
+                status="skipped",
+                recipients=recipients,
+                subject=subject,
+                body_type=body_type,
+                report_date=report_date,
+                mode=dispatch_report_mode(),
+                html_files=[],
+                details={"reason": "no_html_files"},
+            )
             return
         LOG.info("Core market HTML files (%d): %s", len(html_files), [p.name for p in html_files])
 
@@ -144,7 +176,34 @@ def main(mytimer: func.TimerRequest = None) -> None:
 
         try:
             send_via_graph(recipients, attachments, body_content, subject, body_type)
+            location = record_dispatch_status(
+                outputs_dir=outputs_dir,
+                stream="core_market",
+                status="sent",
+                recipients=recipients,
+                subject=subject,
+                body_type=body_type,
+                report_date=report_date,
+                mode=dispatch_report_mode(),
+                html_files=html_files,
+                attachments=attachments,
+            )
+            LOG.info("Core market dispatch send-status stored: %s", location)
         except Exception as exc:  # pylint: disable=broad-except
+            location = record_dispatch_status(
+                outputs_dir=outputs_dir,
+                stream="core_market",
+                status="failed",
+                recipients=recipients,
+                subject=subject,
+                body_type=body_type,
+                report_date=report_date,
+                mode=dispatch_report_mode(),
+                html_files=html_files,
+                attachments=attachments,
+                error=str(exc),
+            )
+            LOG.info("Core market dispatch failure-status stored: %s", location)
             LOG.exception("Graph core market dispatch failed: %s", exc)
             raise
     except Exception as exc:  # pylint: disable=broad-except
