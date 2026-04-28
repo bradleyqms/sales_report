@@ -586,51 +586,69 @@ def extract_latest_segment_metrics():
     return _extract_segment_metrics_from_files(core_csv, usa_csv)
 
 
-def _recover_status_from_disk():
-    """On startup, scan data/outputs/ for the latest run and pre-populate report_status.
-    This keeps the UI functional across server restarts."""
+def _publish_to_static(file_path: Path) -> str:
     static_dir = BASE_DIR / "static"
+    static_dir.mkdir(parents=True, exist_ok=True)
+    destination = static_dir / file_path.name
+    shutil.copy(file_path, destination)
+    return f"/download/{file_path.name}"
 
-    def _publish_to_static(file_path: Path) -> str:
-        static_dir.mkdir(parents=True, exist_ok=True)
-        destination = static_dir / file_path.name
-        shutil.copy(file_path, destination)
-        return f"/download/{file_path.name}"
 
+def _artifact_patterns() -> dict[str, str]:
+    return {
+        "csv_url": "combined_management_report_*.csv",
+        "txt_url": "combined_management_report_*.txt",
+        "html_url": "combined_management_report_*.html",
+        "xlsx_url": "combined_management_report_*.xlsx",
+        "pdf_url": "combined_management_report_*.pdf",
+        "core_market_csv_url": "management_report_core_markets_*.csv",
+        "core_market_html_url": "management_report_core_markets_*.html",
+        "usa_spa_csv_url": "management_report_usa_spa_*.csv",
+        "usa_spa_html_url": "management_report_usa_spa_*.html",
+    }
+
+
+def _backfill_artifact_urls(overwrite: bool = False) -> str | None:
+    latest_timestamp = None
+    for status_key, pattern in _artifact_patterns().items():
+        if not overwrite and report_status.get(status_key):
+            continue
+        try:
+            latest_file = _latest_output_file(pattern)
+            if latest_file:
+                url = _publish_to_static(latest_file)
+                report_status[status_key] = url
+                logging.info(f"✅ Backfilled {status_key}: {url}")
+                if pattern == "combined_management_report_*.csv":
+                    ts_match = re.search(r'_(\d{8}_\d{6})\.csv$', latest_file.name)
+                    if ts_match:
+                        latest_timestamp = ts_match.group(1)
+            elif overwrite:
+                report_status[status_key] = ""
+                logging.info(f"⚠️ No file found for {status_key} ({pattern}), set to empty")
+        except Exception as e:
+            logging.error(f"❌ Error backfilling {status_key}: {e}", exc_info=True)
+            if overwrite:
+                report_status[status_key] = ""
+
+    if latest_timestamp:
+        report_status["last_run"] = latest_timestamp
+    return latest_timestamp
+
+
+def _recover_status_from_disk():
+    """On startup, scan latest artifacts and pre-populate report_status for UI continuity."""
     try:
-        latest_combined_csv = _latest_output_file("combined_management_report_*.csv")
-        if not latest_combined_csv:
+        timestamp = _backfill_artifact_urls(overwrite=True)
+        if not timestamp:
             return
 
-        # Extract timestamp from filename
-        ts_match = re.search(r'_(\d{8}_\d{6})\.csv$', latest_combined_csv.name)
-        if not ts_match:
-            return
-        timestamp = ts_match.group(1)
-        report_status["last_run"] = timestamp
-        logging.info(f"Recovered last_run from disk: {timestamp}")
-
-        latest_files = {
-            "csv_url": _latest_output_file("combined_management_report_*.csv"),
-            "txt_url": _latest_output_file("combined_management_report_*.txt"),
-            "html_url": _latest_output_file("combined_management_report_*.html"),
-            "xlsx_url": _latest_output_file("combined_management_report_*.xlsx"),
-            "pdf_url": _latest_output_file("combined_management_report_*.pdf"),
-            "core_market_csv_url": _latest_output_file("management_report_core_markets_*.csv"),
-            "core_market_html_url": _latest_output_file("management_report_core_markets_*.html"),
-            "usa_spa_csv_url": _latest_output_file("management_report_usa_spa_*.csv"),
-            "usa_spa_html_url": _latest_output_file("management_report_usa_spa_*.html"),
-        }
-
-        for status_key, latest_file in latest_files.items():
-            report_status[status_key] = _publish_to_static(latest_file) if latest_file else ""
-
-        # Recover segment metrics from disk
+        # Recover segment metrics from disk/blob-backed latest files
         seg = extract_latest_segment_metrics()
         report_status["metrics"]["segments"]["Core Markets"] = seg["core_markets"]
-        report_status["metrics"]["segments"]["US"]           = seg["usa_spa"]
+        report_status["metrics"]["segments"]["US"] = seg["usa_spa"]
         report_status["metrics"]["timestamp"] = timestamp
-        logging.info(f"Recovered segment metrics from disk: {seg}")
+        logging.info(f"Recovered report artifacts and segment metrics: {timestamp}, {seg}")
     except Exception as e:
         logging.warning(f"_recover_status_from_disk failed: {e}")
 
@@ -742,12 +760,25 @@ async def stream_logs():
 
 @app.get("/status")
 async def get_status():
+    # Keep critical artifact links available even if the app is currently bootstrapping/running.
+    # This prevents KPI-only states where tables disappear due to blank URLs.
+    if (
+        not report_status.get("core_market_csv_url")
+        or not report_status.get("usa_spa_csv_url")
+        or not report_status.get("csv_url")
+    ):
+        try:
+            _backfill_artifact_urls(overwrite=False)
+        except Exception as exc:
+            logging.warning(f"status artifact backfill skipped: {exc}")
+
     if AUTO_REFRESH_ENABLED and not report_status["running"]:
         # Only recover persisted status when in-memory state is empty.
         # Avoid overwriting fresh in-memory run metadata on every poll.
         if not report_status.get("last_run"):
             _recover_status_from_disk()
         _trigger_auto_bootstrap_run_if_needed()
+
     report_status["auto_refresh_enabled"] = AUTO_REFRESH_ENABLED
     report_status["auto_refresh_run_on_empty"] = AUTO_REFRESH_RUN_ON_EMPTY
     report_status["next_auto_refresh_at"] = _next_auto_refresh_at.isoformat() + "Z" if _next_auto_refresh_at else None

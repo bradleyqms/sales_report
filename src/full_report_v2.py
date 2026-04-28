@@ -857,7 +857,7 @@ def main(argv=None):
             overwrite=False,
         )
         if uploaded:
-            print(f"[OK] blob_upload: {uploaded} file(s) → reporting-outputs/{run_summary['blob_archive_prefix']}")
+            print(f"[OK] blob_upload: {uploaded} file(s) -> reporting-outputs/{run_summary['blob_archive_prefix']}")
 
         print("\n[OK] V2 run complete")
         print(f"[OK] mapped_data: {mapped_path.name}")

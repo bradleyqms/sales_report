@@ -59,7 +59,17 @@ def resolve_outputs_path() -> Path:
     return candidate
 
 
-_DEFAULT_REFRESH_SCRIPT = Path(__file__).resolve().parents[1] / "src" / "full_report_v2.py"
+def _default_refresh_script() -> Path | None:
+    """Resolve the built-in refresh script path across local/Azure layouts."""
+    this_file = Path(__file__).resolve()
+    candidates = [
+        this_file.parents[1] / "src" / "full_report_v2.py",  # package-root layout
+        this_file.parents[2] / "src" / "full_report_v2.py",  # repo-root layout
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
 
 
 def build_refresh_command() -> list[str] | None:
@@ -72,13 +82,13 @@ def build_refresh_command() -> list[str] | None:
     """
     raw = os.getenv("REPORT_DISPATCH_REFRESH_COMMAND")
     if raw is None:
-        if not _DEFAULT_REFRESH_SCRIPT.exists():
+        default_script = _default_refresh_script()
+        if default_script is None:
             LOG.warning(
-                "Default refresh script %s is missing; skipping report refresh",
-                _DEFAULT_REFRESH_SCRIPT,
+                "Default refresh script is missing; tried package-root and repo-root src/full_report_v2.py",
             )
             return None
-        return [sys.executable, str(_DEFAULT_REFRESH_SCRIPT)]
+        return [sys.executable, str(default_script)]
     trimmed = raw.strip()
     if not trimmed:
         LOG.info("REPORT_DISPATCH_REFRESH_COMMAND is empty; skipping report refresh")
