@@ -123,6 +123,27 @@ def _download_from_blob_inputs(container_client, blob_name: str, dest: Path) -> 
         return False
 
 
+def _mirror_to_blob_inputs(local_path: Path, blob_name: str) -> bool:
+    """Best-effort: upload *local_path* to the reporting-inputs blob as *blob_name*.
+
+    Used as a self-populating fallback so that subsequent runs (or the dispatch
+    functions) can recover from SharePoint outages by reading the last known
+    good copy from blob.  Failures are logged but never raise — the caller
+    must already have a usable local file before invoking this helper.
+    """
+    container_client = _build_blob_inputs_client()
+    if container_client is None:
+        return False
+    try:
+        with open(local_path, "rb") as data:
+            container_client.upload_blob(blob_name, data, overwrite=True)
+        logging.info("Mirrored to reporting-inputs blob: %s", blob_name)
+        return True
+    except Exception as exc:
+        logging.warning("Failed to mirror %s to reporting-inputs blob: %s", blob_name, exc)
+        return False
+
+
 def _upload_outputs_to_blob(output_dir: Path) -> int:
     """Upload all files in *output_dir* to 'reporting-outputs'. Returns count of uploaded files."""
     if _BlobServiceClient is None:
@@ -183,16 +204,17 @@ def resolve_input_file(
 ) -> Path:
     """Return a local path for *filename*.
 
-    Priority: blob inputs (if configured and blob_path given) → SharePoint → local fallback.
-    """
-    if blob_path is not None:
-        blob_client = _build_blob_inputs_client()
-        if blob_client is not None:
-            temp_dir = Path(tempfile.mkdtemp(prefix="v2_blob_input_"))
-            dest = temp_dir / filename
-            if _download_from_blob_inputs(blob_client, blob_path, dest):
-                return dest
+    Source-of-truth priority (Option B model):
+      1. SharePoint  — authoritative source.  On success the file is mirrored
+         to the ``reporting-inputs`` blob so the next run can fall back to it.
+      2. ``reporting-inputs`` blob (if ``blob_path`` is given) — last known
+         good copy, used only when SharePoint is unavailable.
+      3. Local fallback (``local_path``) — bundled / dev convenience copy.
 
+    This guarantees SharePoint is always preferred when reachable, but the
+    pipeline never fails because of a transient SharePoint outage as long as
+    the blob has been seeded by a previous successful run.
+    """
     if sp_handler is not None:
         try:
             temp_dir = Path(tempfile.mkdtemp(prefix="v2_input_"))
@@ -205,11 +227,22 @@ def resolve_input_file(
                 base_backoff_seconds=retry_backoff_seconds,
             )
             logging.info("Downloaded from SharePoint: %s", filename)
+            if blob_path is not None:
+                _mirror_to_blob_inputs(dest, blob_path)
             return dest
         except Exception as exc:
             logging.warning(
-                "SharePoint download failed for %s: %s — trying local fallback", filename, exc
+                "SharePoint download failed for %s: %s — trying blob fallback", filename, exc
             )
+
+    if blob_path is not None:
+        blob_client = _build_blob_inputs_client()
+        if blob_client is not None:
+            temp_dir = Path(tempfile.mkdtemp(prefix="v2_blob_input_"))
+            dest = temp_dir / filename
+            if _download_from_blob_inputs(blob_client, blob_path, dest):
+                logging.info("Using reporting-inputs blob fallback for %s", filename)
+                return dest
 
     if local_path.exists():
         logging.info("Using local file: %s", local_path)
@@ -217,7 +250,7 @@ def resolve_input_file(
 
     raise FileNotFoundError(
         f"Required data file not found: {filename}. "
-        "Ensure it exists in reporting-inputs blob, SharePoint SAP Extracts, or locally in data/inputs/."
+        "Ensure it exists in SharePoint SAP Extracts, the reporting-inputs blob, or locally in data/inputs/."
     )
 
 
@@ -408,6 +441,7 @@ def resolve_unified_source_path(
         request_timeout = 30.0
 
     filename = resolve_unified_filename(report_type)
+    blob_name = f"unified/{filename}"
 
     if require_sharepoint and not all([site_url, client_id, client_secret]):
         raise RuntimeError(
@@ -428,14 +462,29 @@ def resolve_unified_source_path(
             request_timeout=request_timeout,
         )
         sp_path = f"/sites/DATAANDREPORTING/Shared Documents/SAP Extracts/{filename}"
-        download_unified_with_retry(
-            sp_handler,
-            sp_path,
-            str(local_path),
-            retries=retries,
-            base_backoff_seconds=retry_backoff_seconds,
-        )
-        return local_path
+        try:
+            download_unified_with_retry(
+                sp_handler,
+                sp_path,
+                str(local_path),
+                retries=retries,
+                base_backoff_seconds=retry_backoff_seconds,
+            )
+            # Mirror to reporting-inputs blob so future runs can fall back to
+            # this last-known-good copy if SharePoint is unavailable.
+            _mirror_to_blob_inputs(local_path, blob_name)
+            return local_path
+        except Exception as exc:
+            if require_sharepoint:
+                raise
+            logging.warning(
+                "SharePoint download failed for unified %s: %s — trying blob fallback",
+                filename, exc,
+            )
+            blob_client = _build_blob_inputs_client()
+            if blob_client is not None and _download_from_blob_inputs(blob_client, blob_name, local_path):
+                logging.info("Using reporting-inputs blob fallback for unified %s", filename)
+                return local_path
 
     fallback = project_root / "data" / "inputs" / filename
     if fallback.exists():

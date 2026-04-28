@@ -19,7 +19,7 @@ from .config import (
 from .graph_client import acquire_graph_token, send_via_graph
 from .health_alerts import send_healthcheck_alert
 from .html_builder import build_html_body
-from .report_collector import collect_csv_attachments, collect_html_files, refresh_reports, resolve_outputs_path, derive_report_date
+from .report_collector import collect_csv_attachments, collect_html_files, download_outputs_from_blob, refresh_reports, resolve_outputs_path, derive_report_date
 
 load_dotenv()
 
@@ -78,9 +78,21 @@ def main(mytimer: func.TimerRequest = None) -> None:
             LOG.warning("No recipients configured for report dispatch")
             return func.HttpResponse("No recipients configured", status_code=400) if req else None
 
-        refreshed = refresh_reports(outputs_dir)
-        if not refreshed:
-            raise RuntimeError("Report refresh failed; aborting dispatch")
+        # Option B: dispatch is a pure consumer.  refresh_unified_v2_timer
+        # has already run full_report_v2.py and uploaded the artefacts to
+        # the reporting-outputs blob; we just hydrate the local working
+        # directory from blob and send what we find.
+        # Set DISPATCH_REFRESH_BEFORE_SEND=true to keep the legacy in-line
+        # regeneration behaviour (slow; only intended for ad-hoc recovery).
+        legacy_refresh = os.getenv("DISPATCH_REFRESH_BEFORE_SEND", "false").strip().lower() in {
+            "1", "true", "yes", "on"
+        }
+        if legacy_refresh:
+            LOG.warning("DISPATCH_REFRESH_BEFORE_SEND=true: regenerating reports inline (slow)")
+            if not refresh_reports(outputs_dir):
+                raise RuntimeError("Report refresh failed; aborting dispatch")
+        else:
+            download_outputs_from_blob(outputs_dir)
         report_date = derive_report_date(outputs_dir)
 
         # HTML -> email body
