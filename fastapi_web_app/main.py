@@ -636,6 +636,28 @@ def _backfill_artifact_urls(overwrite: bool = False) -> str | None:
     return latest_timestamp
 
 
+def _compute_outputs_freshness() -> tuple[str | None, float | None]:
+    """Read run_summary.json and return (generated_at_utc, age_hours) or (None, None)."""
+    import json as _json
+    from datetime import datetime as _dt, timezone as _tz
+    try:
+        _outputs_dir = Path(os.getenv("REPORT_DISPATCH_OUTPUTS_PATH", "data/outputs"))
+        if not _outputs_dir.is_absolute():
+            _outputs_dir = (Path(__file__).resolve().parent / _outputs_dir).resolve()
+        _summary_file = _outputs_dir / "run_summary.json"
+        if not _summary_file.exists():
+            return None, None
+        _data = _json.loads(_summary_file.read_text(encoding="utf-8"))
+        _ts_str = _data.get("generated_at_utc") or _data.get("finished_at")
+        if not _ts_str:
+            return None, None
+        _ts = _dt.fromisoformat(_ts_str.rstrip("Z")).replace(tzinfo=_tz.utc)
+        _age = round((_dt.now(_tz.utc) - _ts).total_seconds() / 3600.0, 2)
+        return _ts_str, _age
+    except Exception:
+        return None, None
+
+
 def _recover_status_from_disk():
     """On startup, scan latest artifacts and pre-populate report_status for UI continuity."""
     try:
@@ -649,7 +671,15 @@ def _recover_status_from_disk():
         report_status["metrics"]["segments"]["Core Markets"] = seg["core_markets"]
         report_status["metrics"]["segments"]["US"] = seg["usa_spa"]
         report_status["metrics"]["timestamp"] = timestamp
-        logging.info("[DATA] startup: recovered last_run=%s segments=%s", timestamp, seg)
+
+        # Populate freshness fields at startup so /status is meaningful before first poll
+        _gen_at, _age = _compute_outputs_freshness()
+        report_status["outputs_generated_at_utc"] = _gen_at
+        report_status["outputs_age_hours"] = _age
+        logging.info(
+            "[DATA] startup: recovered last_run=%s outputs_generated_at_utc=%s outputs_age_hours=%s segments=%s",
+            timestamp, _gen_at, _age, seg,
+        )
         logging.info(f"Recovered report artifacts and segment metrics: {timestamp}, {seg}")
     except Exception as e:
         logging.warning(f"_recover_status_from_disk failed: {e}")
@@ -785,28 +815,10 @@ async def get_status():
     report_status["auto_refresh_run_on_empty"] = AUTO_REFRESH_RUN_ON_EMPTY
     report_status["next_auto_refresh_at"] = _next_auto_refresh_at.isoformat() + "Z" if _next_auto_refresh_at else None
 
-    # Compute output freshness from run_summary.json on disk
-    try:
-        import json as _json
-        from datetime import datetime as _dt, timezone as _tz
-        _outputs_dir = Path(os.getenv("REPORT_DISPATCH_OUTPUTS_PATH", "data/outputs"))
-        if not _outputs_dir.is_absolute():
-            _outputs_dir = (Path(__file__).resolve().parent / _outputs_dir).resolve()
-        _summary_file = _outputs_dir / "run_summary.json"
-        if _summary_file.exists():
-            _data = _json.loads(_summary_file.read_text(encoding="utf-8"))
-            _ts_str = _data.get("generated_at_utc") or _data.get("finished_at")
-            if _ts_str:
-                _ts = _dt.fromisoformat(_ts_str.rstrip("Z")).replace(tzinfo=_tz.utc)
-                report_status["outputs_age_hours"] = round(
-                    (_dt.now(_tz.utc) - _ts).total_seconds() / 3600.0, 2
-                )
-            else:
-                report_status["outputs_age_hours"] = None
-        else:
-            report_status["outputs_age_hours"] = None
-    except Exception:
-        report_status["outputs_age_hours"] = None
+    # Refresh output freshness on every /status poll
+    _gen_at, _age = _compute_outputs_freshness()
+    report_status["outputs_generated_at_utc"] = _gen_at
+    report_status["outputs_age_hours"] = _age
 
     return report_status
 
