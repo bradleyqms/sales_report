@@ -15,6 +15,12 @@ reports, stores them in Azure Blob, and dispatches them via email and a web UI.
 SharePoint → reporting-inputs blob → full_report_v2.py → reporting-outputs blob → web UI + dispatchers
 ```
 
+Operational hardening (PR29):
+- web responses carry `x-request-id` for traceability
+- `/healthz` exposes `outputs_age_hours`
+- deploy workflows run smoke tests before deploy and live checks after deploy
+- slot swap runs staging preflight and production postflight probes
+
 Full diagram and component table: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Where to look for what
@@ -46,6 +52,27 @@ Full diagram and component table: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 6. **Do not put secrets in this repo.** All connection strings live in App
    Service / Function App configuration.
 7. **Time zone is Europe/Berlin everywhere.** The scheduling code assumes it.
+8. **Do not reintroduce refresh-before-send.** Dispatchers must read blob
+   outputs from the scheduled generator; this is a deliberate reliability
+   design and protects latency/consistency.
+
+## Change workflow for agents (required)
+
+1. Read the contract docs before editing:
+   - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+   - [docs/ENV_MATRIX.md](docs/ENV_MATRIX.md)
+2. Implement code change.
+3. Update docs in the same PR if any runtime contract changed.
+4. Run tests in this order:
+   - fast checks (targeted module tests)
+   - deployment smoke: `pytest -m deployment`
+   - live staging checks when relevant: `pytest -m deployment_live`
+5. Verify health endpoints after deployment:
+   - `/healthz`
+   - `/healthz/mappings` when mapping pipeline touched
+
+If a change touches schedules, blob paths, env vars, or web health routes,
+assume it is a contract change and update docs immediately.
 
 ## Changing the contract (mappings, env vars, blob layout)
 
@@ -64,6 +91,12 @@ update the auth allow-list at the top of `fastapi_web_app/main.py`.
 # Web app health
 curl https://qms-sales-report.azurewebsites.net/healthz/mappings
 
+# Core liveness + freshness
+curl https://qms-sales-report.azurewebsites.net/healthz
+
 # Pre-flight before email send
 python check_dispatch_readiness.py
+
+# Local smoke suite
+python -m pytest -m deployment -v --tb=short
 ```

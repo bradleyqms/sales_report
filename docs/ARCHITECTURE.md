@@ -4,6 +4,10 @@
 > Option B simplification. Replaces ad-hoc tribal knowledge across past
 > hotfix branches.
 
+> PR29 note: this document includes the observability + release-hardening
+> updates (request-id tracing, /healthz freshness checks, deployment smoke,
+> post-deploy staging validation, and slot-swap preflight gates).
+
 ---
 
 ## 1. Components at a Glance
@@ -159,9 +163,8 @@ A function-app restart is required for schedule changes to take effect.
   `TEST_REPORT_DISPATCH_RECIPIENTS` for staging).
 * Subject: `QMS Management Sales Report DD.MM.YYYY` (or `EOM …` when
   `V2_UNIFIED_REFRESH_REPORT_TYPE=EOM`).
-* **Escape hatch:** `DISPATCH_REFRESH_BEFORE_SEND=true` re-enables the
-  legacy in-line `refresh_reports()` call. Slow; use only for ad-hoc
-  recovery when the timer has failed.
+* Includes invocation-level structured logs and health-alert visibility
+  so failed runs are traceable in App Insights / function logs.
 
 ### 4.3 `core_market_reports`
 
@@ -173,7 +176,6 @@ A function-app restart is required for schedule changes to take effect.
     `management_report_core_markets_*.html`)
   * PDF attachment from `CORE_MARKET_PDF_PATTERNS` unless
     `CORE_MARKET_SEND_PDF=false`
-  * Escape hatch: `CORE_MARKET_REFRESH_BEFORE_SEND=true`
 
 ### 4.4 `dispatch_usa_spa_reports`
 
@@ -181,9 +183,24 @@ A function-app restart is required for schedule changes to take effect.
 
 * Same shape, no PDF attachment (HTML-only inline body).
 * Recipients: `USA_SPA_DISPATCH_RECIPIENTS`
-* Escape hatch: `USA_SPA_REFRESH_BEFORE_SEND=true`
 
-### 4.5 FastAPI web app
+### 4.5 Health and traceability contracts
+
+**File:** [fastapi_web_app/main.py](../fastapi_web_app/main.py)
+
+* Every web response includes `x-request-id` (12-char hex) via request
+  middleware. Use this for log correlation.
+* `GET /healthz` returns a compact liveness + freshness contract:
+  * `status`
+  * `version`
+  * `running`
+  * `last_run`
+  * `outputs_age_hours`
+* Startup recovery populates `outputs_generated_at_utc` and
+  `outputs_age_hours` in `/status`, so dashboards expose freshness even
+  after process restart.
+
+### 4.6 FastAPI web app
 
 **File:** [fastapi_web_app/main.py](../fastapi_web_app/main.py)
 
@@ -288,12 +305,22 @@ To force SP-only mode (no fallback): keep
 | `TEST_CORE_MARKETS_RECIPIENTS` | _(empty)_ | Test override |
 | `TEST_USA_SPA_RECIPIENTS` | _(empty)_ | Test override |
 | `REPORT_DISPATCH_OUTPUTS_PATH` | _(empty)_ | Override outputs dir; falls back to `/tmp/outputs` on Consumption plan |
-| `DISPATCH_REFRESH_BEFORE_SEND` | `false` | **Legacy escape hatch** — re-enable in-line regen |
-| `CORE_MARKET_REFRESH_BEFORE_SEND` | `false` | Same escape hatch |
-| `USA_SPA_REFRESH_BEFORE_SEND` | `false` | Same escape hatch |
 | `CORE_MARKET_SEND_PDF` | `true` | Set `false` to skip PDF attachment |
 | `REPORT_DISPATCH_BODY` | _(default copy)_ | Plain-text intro |
 | `REPORT_DISPATCH_SUBJECT` | _(generated)_ | Override default subject |
+
+Refresh-before-send flags were intentionally removed from runtime behavior.
+Dispatchers now always hydrate from blob outputs produced by the scheduled
+generator flow.
+
+### 6.7 Observability and health alerts
+| Key | Default | Description |
+|---|---|---|
+| `LOG_LEVEL` | `INFO` | Global logging level for web and function processes |
+| `HEALTHCHECK_ALERTS_ENABLED` | `true` | Enables failure alerts from dispatch health handlers |
+| `HEALTHCHECK_ALERT_RECIPIENTS` | `bradley@qmsmedicosmetics.com` | Alert recipient override |
+| `HEALTHCHECK_APPINSIGHTS_URL` | _(empty)_ | Direct URL included in alert payloads |
+| `SOURCE_VERSION` | _(set by deploy)_ | Version label exposed by `/healthz` and logs |
 
 ### 6.6 Microsoft Graph (email send)
 | Key | Description |
@@ -312,10 +339,11 @@ To force SP-only mode (no fallback): keep
 | Email arrives with yesterday's date | Timer didn't run today (e.g. function app stopped) | Restart function app, then trigger `refresh_unified_v2_timer` manually via Azure Portal |
 | Email arrives with stale numbers | SP was down at timer time → blob fallback used | Verify SP, then trigger timer manually; the SP→blob mirror restores the cycle |
 | Dispatch sent with no attachments | `download_outputs_from_blob` returned 0 (blob empty) and outputs dir was empty | Check `AZURE_STORAGE_REPORTING_CONNECTION_STRING` and that the timer succeeded earlier |
-| 1-hour delay between cron tick and email | One of `*_REFRESH_BEFORE_SEND=true` is set somewhere | Unset the legacy flag in App Settings |
+| Staging deploy passes but slot swap fails preflight | `/healthz` or latest CI gate failed | Fix staging health or failing tests; rerun deploy workflow |
 | `V2_UNIFIED_REQUIRE_SHAREPOINT` errors | SP creds rotated / expired | Update `SHAREPOINT_CLIENT_SECRET`, restart timer |
 | Timer skips silently in logs | Outside `_in_refresh_window` (weekend/off-hours) | Expected — set `V2_UNIFIED_REFRESH_DISABLE_WINDOW=true` to bypass for ad-hoc runs |
 | Dispatch can't write to outputs dir | Cold-start on Consumption plan; wwwroot is read-only | Already handled — `resolve_outputs_path` falls back to `/tmp/outputs` |
+| Hard-to-trace web issue in logs | Missing request correlation when triaging | Capture `x-request-id` from response headers and filter logs by that value |
 
 ---
 
@@ -339,24 +367,18 @@ Same pattern, swap function name. Set
 `TEST_REPORT_DISPATCH_RECIPIENTS=you@qmsmedicosmetics.com` first if you
 don't want to email the whole list.
 
-### Force a regenerate-then-send (legacy path)
+### Validate deployed staging slot (live checks)
 
 ```powershell
-az functionapp config appsettings set `
-  --name qms-dispatch-reports `
-  --resource-group qms-dispatch-reports_group `
-  --settings DISPATCH_REFRESH_BEFORE_SEND=true
-# trigger dispatch_reports
-# remember to reset:
-az functionapp config appsettings set `
-  --name qms-dispatch-reports `
-  --resource-group qms-dispatch-reports_group `
-  --settings DISPATCH_REFRESH_BEFORE_SEND=false
+cd sales_report_v2_independent
+$env:STAGING_URL = "https://qms-sales-report-staging.azurewebsites.net"
+$env:AZURE_STORAGE_REPORTING_CONNECTION_STRING = "<storage-conn-string>"
+python -m pytest tests/test_staging_postdeploy.py -m deployment_live -v --tb=short
 ```
 
 ---
 
-## 9. Change Log — Option B Migration
+## 9. Change Log — Option B + PR29 Hardening
 
 What this commit changed (vs. the previous main branch):
 
@@ -372,18 +394,28 @@ What this commit changed (vs. the previous main branch):
      from `reporting-outputs` into the local outputs dir.
 3. **`azure_functions/dispatch_reports/__init__.py`**
    * `refresh_reports(outputs_dir)` call replaced with
-     `download_outputs_from_blob(outputs_dir)`. Preserved behind
-     `DISPATCH_REFRESH_BEFORE_SEND=true` for emergencies.
+     `download_outputs_from_blob(outputs_dir)`.
    * **Eliminates the ~1-hour email delay.**
 4. **`azure_functions/core_market_reports/__init__.py`**
-   * Same replacement; flag is `CORE_MARKET_REFRESH_BEFORE_SEND`.
+  * Same replacement.
 5. **`azure_functions/dispatch_usa_spa_reports/__init__.py`**
-   * Same replacement; flag is `USA_SPA_REFRESH_BEFORE_SEND`.
+  * Same replacement.
 6. **`azure_functions/refresh_unified_v2_timer/__init__.py`**
    * Removed the hard-coded `minute == 15` constraint in
      `_in_refresh_window` (was incompatible with any other schedule).
    * Widened window to 06:00–20:00 Berlin Mon–Fri.
    * Added `V2_UNIFIED_REFRESH_DISABLE_WINDOW` bypass.
+
+### Additional PR29 hardening updates
+
+1. Added request-id middleware and `x-request-id` header propagation in
+  the web app.
+2. Added `/healthz` freshness contract used by preflight and postflight
+  workflows.
+3. Added pytest deployment smoke gates to both web and function deploy
+  workflows.
+4. Added post-deploy staging live suite (`tests/test_staging_postdeploy.py`).
+5. Added slot-swap preflight CI gate and staging `/healthz` probe.
 
 ### Required App-Setting updates after deploy
 
@@ -395,10 +427,7 @@ az functionapp config appsettings set `
     V2_UNIFIED_REFRESH_SCHEDULE="0 45 8 * * 1-5" `
     REPORT_DISPATCH_SCHEDULE="0 15 9 * * 1-5" `
     CORE_MARKET_DISPATCH_SCHEDULE="0 15 9 * * 1-5" `
-    USA_SPA_DISPATCH_SCHEDULE="0 0 16 * * 1-5" `
-    DISPATCH_REFRESH_BEFORE_SEND="false" `
-    CORE_MARKET_REFRESH_BEFORE_SEND="false" `
-    USA_SPA_REFRESH_BEFORE_SEND="false"
+    USA_SPA_DISPATCH_SCHEDULE="0 0 16 * * 1-5"
 # Then restart so the new cron schedules take effect:
 az functionapp restart `
   --name qms-dispatch-reports `

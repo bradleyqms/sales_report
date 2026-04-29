@@ -130,3 +130,43 @@ variables:
       web:   { required: false, default: "5", notes: "" }
       func:  { required: false, default: null, notes: "" }
       local: { required: false, default: "5", notes: "" }
+
+  LOG_LEVEL:
+    description: Global structured log verbosity level.
+    category: web
+    hosts:
+      web:   { required: false, default: "INFO", notes: "Used by web middleware and app logs." }
+      func:  { required: false, default: "INFO", notes: "Used by dispatch and timer function logs." }
+      local: { required: false, default: "INFO", notes: "Useful for local smoke and debug runs." }
+
+  HEALTHCHECK_ALERTS_ENABLED:
+    description: Enables dispatch failure alert emails from health alert handlers.
+    category: auth
+    hosts:
+      web:   { required: false, default: null, notes: "" }
+      func:  { required: false, default: "true", notes: "Set false to suppress alert emails temporarily." }
+      local: { required: false, default: "true", notes: "" }
+
+  HEALTHCHECK_ALERT_RECIPIENTS:
+    description: Optional override list for dispatch health alert recipients.
+    category: auth
+    hosts:
+      web:   { required: false, default: null, notes: "" }
+      func:  { required: false, default: null, notes: "Falls back to code default recipient if empty." }
+      local: { required: false, default: null, notes: "" }
+
+  HEALTHCHECK_APPINSIGHTS_URL:
+    description: Optional App Insights deep-link included in health alert payloads.
+    category: auth
+    hosts:
+      web:   { required: false, default: null, notes: "" }
+      func:  { required: false, default: null, notes: "" }
+      local: { required: false, default: null, notes: "" }
+
+  SOURCE_VERSION:
+    description: Deployment version stamp surfaced by /healthz and runtime logs.
+    category: web
+    hosts:
+      web:   { required: false, default: null, notes: "Populated by CI/CD version stamping." }
+      func:  { required: false, default: null, notes: "Can be injected in deploy workflows for traceability." }
+      local: { required: false, default: null, notes: "Optional local override." }
