@@ -699,23 +699,68 @@ def _backfill_artifact_urls(overwrite: bool = False) -> str | None:
 
 
 def _compute_outputs_freshness() -> tuple[str | None, float | None]:
-    """Read run_summary.json and return (generated_at_utc, age_hours) or (None, None)."""
+    """Return (generated_at_utc, age_hours) from local run_summary.json, with blob fallback.
+
+    Fallback order:
+      1. Local run_summary.json (authoritative after a report run).
+      2. run_summary.json downloaded from blob (staging slot / fresh deploy).
+      3. last_modified of the newest output blob (last resort timestamp).
+    Returns (None, None) only when all sources are unavailable.
+    """
     import json as _json
     from datetime import datetime as _dt, timezone as _tz
+
+    def _age_from_ts(ts_str: str) -> tuple[str, float]:
+        _ts = _dt.fromisoformat(ts_str.rstrip("Z")).replace(tzinfo=_tz.utc)
+        return ts_str, round((_dt.now(_tz.utc) - _ts).total_seconds() / 3600.0, 2)
+
+    # 1. Local file
     try:
         _outputs_dir = _resolve_outputs_dir()
         _summary_file = _outputs_dir / "run_summary.json"
-        if not _summary_file.exists():
-            return None, None
-        _data = _json.loads(_summary_file.read_text(encoding="utf-8"))
-        _ts_str = _data.get("generated_at_utc") or _data.get("finished_at")
-        if not _ts_str:
-            return None, None
-        _ts = _dt.fromisoformat(_ts_str.rstrip("Z")).replace(tzinfo=_tz.utc)
-        _age = round((_dt.now(_tz.utc) - _ts).total_seconds() / 3600.0, 2)
-        return _ts_str, _age
+        if _summary_file.exists():
+            _data = _json.loads(_summary_file.read_text(encoding="utf-8"))
+            _ts_str = _data.get("generated_at_utc") or _data.get("finished_at")
+            if _ts_str:
+                return _age_from_ts(_ts_str)
     except Exception:
+        pass
+
+    # 2. Blob fallback — only attempted when blob is configured
+    if not _blob_enabled():
         return None, None
+    try:
+        _client = _blob_container_client()
+        if _client is None:
+            return None, None
+
+        # 2a. Try run_summary.json in blob
+        _prefix = (BLOB_PREFIX + "/") if BLOB_PREFIX else ""
+        _summary_blob_name = f"{_prefix}run_summary.json"
+        try:
+            _raw = _client.get_blob_client(_summary_blob_name).download_blob(timeout=5).readall()
+            _data = _json.loads(_raw)
+            _ts_str = _data.get("generated_at_utc") or _data.get("finished_at")
+            if _ts_str:
+                return _age_from_ts(_ts_str)
+        except Exception:
+            pass
+
+        # 2b. Use last_modified of newest output blob as timestamp
+        import fnmatch as _fnmatch
+        _latest = None
+        for _blob in _client.list_blobs(name_starts_with=_prefix or None):
+            _base = _blob.name.rsplit("/", 1)[-1]
+            if _fnmatch.fnmatch(_base, "*.csv") or _fnmatch.fnmatch(_base, "*.xlsx"):
+                if _latest is None or _blob.last_modified > _latest.last_modified:
+                    _latest = _blob
+        if _latest is not None and _latest.last_modified:
+            _ts_str = _latest.last_modified.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            return _age_from_ts(_ts_str)
+    except Exception:
+        pass
+
+    return None, None
 
 
 def _recover_status_from_disk():
