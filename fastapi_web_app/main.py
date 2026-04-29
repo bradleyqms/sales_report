@@ -37,8 +37,24 @@ class _RequestIdFilter(logging.Filter):
         return True
 
 
+def _resolve_log_level(default: int = logging.INFO) -> int:
+    """Resolve LOG_LEVEL env var to a logging level int, tolerating bad input."""
+    raw = os.getenv("LOG_LEVEL", "")
+    if not raw:
+        return default
+    candidate = raw.strip().upper()
+    resolved = logging.getLevelName(candidate)
+    if isinstance(resolved, int):
+        return resolved
+    # Fallback: numeric string like "10"
+    try:
+        return int(candidate)
+    except ValueError:
+        return default
+
+
 logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO"),
+    level=_resolve_log_level(),
     format="%(asctime)s %(levelname)s [%(name)s] [req=%(request_id)s] %(message)s",
 )
 for _h in logging.getLogger().handlers:
