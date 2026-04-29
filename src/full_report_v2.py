@@ -646,9 +646,10 @@ def main(argv=None):
         "path": str(unified_source),
         "name": unified_source.name,
     }
-    run_summary["artifacts"]["inputs"].append(
-        _snapshot_input_file(unified_source, inputs_snapshot_dir, "unified_source")
-    )
+    if not args.dry_run:
+        run_summary["artifacts"]["inputs"].append(
+            _snapshot_input_file(unified_source, inputs_snapshot_dir, "unified_source")
+        )
 
     mapped_base = compose_output_name(
         prefix="qry_unified_mapped",

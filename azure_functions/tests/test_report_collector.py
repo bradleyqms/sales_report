@@ -147,3 +147,120 @@ class TestCollectCsvAttachments:
         result = collect_csv_attachments(tmp_path)
         # HTML-only patterns filtered out -> fallback to KEY_CSV_PATTERNS
         assert len(result) == 1
+
+
+# ---------------------------------------------------------------------------
+# _check_outputs_freshness
+# ---------------------------------------------------------------------------
+
+class TestCheckOutputsFreshness:
+    def test_returns_none_when_no_summary_file(self, tmp_path):
+        result = _mod._check_outputs_freshness(tmp_path)
+        assert result is None
+
+    def test_returns_age_in_hours_when_fresh(self, tmp_path):
+        import json
+        from datetime import datetime, timezone, timedelta
+        recent = datetime.now(timezone.utc) - timedelta(hours=2)
+        (tmp_path / "run_summary.json").write_text(
+            json.dumps({"generated_at_utc": recent.isoformat()}),
+            encoding="utf-8",
+        )
+        age = _mod._check_outputs_freshness(tmp_path, stale_threshold_hours=26.0)
+        assert age is not None
+        assert 1.5 < age < 3.0  # should be ~2 hours old
+
+    def test_returns_age_and_warns_when_stale(self, tmp_path):
+        import json
+        from datetime import datetime, timezone, timedelta
+        old_ts = datetime.now(timezone.utc) - timedelta(hours=30)
+        (tmp_path / "run_summary.json").write_text(
+            json.dumps({"generated_at_utc": old_ts.isoformat()}),
+            encoding="utf-8",
+        )
+        age = _mod._check_outputs_freshness(tmp_path, stale_threshold_hours=26.0)
+        assert age is not None
+        assert age > 26.0
+
+    def test_returns_none_when_no_date_field(self, tmp_path):
+        import json
+        (tmp_path / "run_summary.json").write_text(
+            json.dumps({"some_other_field": "value"}),
+            encoding="utf-8",
+        )
+        result = _mod._check_outputs_freshness(tmp_path)
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# derive_report_date
+# ---------------------------------------------------------------------------
+
+class TestDeriveReportDate:
+    def test_returns_datetime_when_no_csv_present(self, tmp_path):
+        import datetime as _dt
+        result = _mod.derive_report_date(tmp_path)
+        assert isinstance(result, _dt.datetime)
+
+    def test_reads_extract_date_column(self, tmp_path):
+        import csv, datetime as _dt
+        csv_path = tmp_path / "qry_unified_mapped_20260315_120000.csv"
+        with open(csv_path, "w", newline="") as fh:
+            writer = csv.DictWriter(fh, fieldnames=["Extract_Date", "Value"])
+            writer.writeheader()
+            writer.writerow({"Extract_Date": "2026-03-15 09:00:00", "Value": "100"})
+        result = _mod.derive_report_date(tmp_path)
+        assert isinstance(result, _dt.datetime)
+        assert result.year == 2026
+        assert result.month == 3
+        assert result.day == 15
+
+    def test_falls_back_to_load_timestamp_when_no_extract_date(self, tmp_path):
+        import csv, datetime as _dt
+        csv_path = tmp_path / "qry_unified_mapped_20260315_120000.csv"
+        with open(csv_path, "w", newline="") as fh:
+            writer = csv.DictWriter(fh, fieldnames=["Load_Timestamp", "Value"])
+            writer.writeheader()
+            writer.writerow({"Load_Timestamp": "2026-02-28 10:00:00", "Value": "50"})
+        result = _mod.derive_report_date(tmp_path)
+        assert isinstance(result, _dt.datetime)
+        assert result.month == 2
+
+
+# ---------------------------------------------------------------------------
+# build_refresh_command
+# ---------------------------------------------------------------------------
+
+class TestBuildRefreshCommand:
+    def test_empty_env_var_returns_none(self, monkeypatch):
+        monkeypatch.setenv("REPORT_DISPATCH_REFRESH_COMMAND", "")
+        result = _mod.build_refresh_command()
+        assert result is None
+
+    def test_explicit_command_returned_as_list(self, monkeypatch):
+        monkeypatch.setenv("REPORT_DISPATCH_REFRESH_COMMAND", "python generate.py --mode MTD")
+        result = _mod.build_refresh_command()
+        assert result == ["python", "generate.py", "--mode", "MTD"]
+
+    def test_unset_env_returns_none_or_list(self, monkeypatch):
+        monkeypatch.delenv("REPORT_DISPATCH_REFRESH_COMMAND", raising=False)
+        result = _mod.build_refresh_command()
+        # Either None (if default script missing) or a list (if found)
+        assert result is None or isinstance(result, list)
+
+
+# ---------------------------------------------------------------------------
+# resolve_outputs_path
+# ---------------------------------------------------------------------------
+
+class TestResolveOutputsPath:
+    def test_uses_env_var_when_set(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("REPORT_DISPATCH_OUTPUTS_PATH", str(tmp_path))
+        result = _mod.resolve_outputs_path()
+        assert result == tmp_path
+
+    def test_creates_directory_when_missing(self, tmp_path, monkeypatch):
+        target = tmp_path / "new_outputs"
+        monkeypatch.setenv("REPORT_DISPATCH_OUTPUTS_PATH", str(target))
+        result = _mod.resolve_outputs_path()
+        assert result.exists()
