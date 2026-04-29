@@ -128,18 +128,7 @@ def main(mytimer: func.TimerRequest = None) -> None:
 
         # Option B: hydrate latest artefacts from the reporting-outputs blob
         # (refresh_unified_v2_timer is responsible for producing them).
-        # CORE_MARKET_REFRESH_BEFORE_SEND=true keeps the legacy in-line
-        # regeneration path for emergency manual recovery only.
-        refresh_before_send = os.getenv("CORE_MARKET_REFRESH_BEFORE_SEND", "false").strip().lower() in {
-            "1", "true", "yes", "on"
-        }
-        if refresh_before_send:
-            LOG.warning("CORE_MARKET_REFRESH_BEFORE_SEND=true: regenerating reports inline (slow)")
-            refreshed = refresh_reports(outputs_dir)
-            if not refreshed:
-                raise RuntimeError("Report refresh failed; aborting core market dispatch")
-        else:
-            download_outputs_from_blob(outputs_dir)
+        download_outputs_from_blob(outputs_dir)
         LOG.info(
             "[DATA] core_market_reports outputs hydrated: file_count=%d",
             sum(1 for _f in outputs_dir.glob("*") if _f.is_file()) if outputs_dir and outputs_dir.exists() else 0,

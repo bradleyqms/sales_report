@@ -112,17 +112,7 @@ def main(mytimer: func.TimerRequest = None) -> None:
         # has already run full_report_v2.py and uploaded the artefacts to
         # the reporting-outputs blob; we just hydrate the local working
         # directory from blob and send what we find.
-        # Set DISPATCH_REFRESH_BEFORE_SEND=true to keep the legacy in-line
-        # regeneration behaviour (slow; only intended for ad-hoc recovery).
-        legacy_refresh = os.getenv("DISPATCH_REFRESH_BEFORE_SEND", "false").strip().lower() in {
-            "1", "true", "yes", "on"
-        }
-        if legacy_refresh:
-            LOG.warning("DISPATCH_REFRESH_BEFORE_SEND=true: regenerating reports inline (slow)")
-            if not refresh_reports(outputs_dir):
-                raise RuntimeError("Report refresh failed; aborting dispatch")
-        else:
-            download_outputs_from_blob(outputs_dir)
+        download_outputs_from_blob(outputs_dir)
         LOG.info(
             "[DATA] dispatch_reports outputs hydrated: file_count=%d",
             sum(1 for _f in outputs_dir.glob("*") if _f.is_file()) if outputs_dir and outputs_dir.exists() else 0,

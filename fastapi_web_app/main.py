@@ -784,6 +784,30 @@ async def get_status():
     report_status["auto_refresh_enabled"] = AUTO_REFRESH_ENABLED
     report_status["auto_refresh_run_on_empty"] = AUTO_REFRESH_RUN_ON_EMPTY
     report_status["next_auto_refresh_at"] = _next_auto_refresh_at.isoformat() + "Z" if _next_auto_refresh_at else None
+
+    # Compute output freshness from run_summary.json on disk
+    try:
+        import json as _json
+        from datetime import datetime as _dt, timezone as _tz
+        _outputs_dir = Path(os.getenv("REPORT_DISPATCH_OUTPUTS_PATH", "data/outputs"))
+        if not _outputs_dir.is_absolute():
+            _outputs_dir = (Path(__file__).resolve().parent / _outputs_dir).resolve()
+        _summary_file = _outputs_dir / "run_summary.json"
+        if _summary_file.exists():
+            _data = _json.loads(_summary_file.read_text(encoding="utf-8"))
+            _ts_str = _data.get("generated_at_utc") or _data.get("finished_at")
+            if _ts_str:
+                _ts = _dt.fromisoformat(_ts_str.rstrip("Z")).replace(tzinfo=_tz.utc)
+                report_status["outputs_age_hours"] = round(
+                    (_dt.now(_tz.utc) - _ts).total_seconds() / 3600.0, 2
+                )
+            else:
+                report_status["outputs_age_hours"] = None
+        else:
+            report_status["outputs_age_hours"] = None
+    except Exception:
+        report_status["outputs_age_hours"] = None
+
     return report_status
 
 @app.get("/metrics")
