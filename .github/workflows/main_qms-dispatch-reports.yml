@@ -29,6 +29,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Run tests
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov
+          pip install -r azure_functions/requirements.txt
+          python -m pytest --import-mode=importlib -q --tb=short
+        continue-on-error: false
+
       - name: Build deployment package
         shell: bash
         run: |
