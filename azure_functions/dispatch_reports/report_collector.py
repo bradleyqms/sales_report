@@ -191,8 +191,12 @@ def download_outputs_from_blob(outputs_dir: Path) -> int:
         except Exception as exc:  # pragma: no cover
             LOG.warning("Failed to download blob %s: %s", blob.name, exc)
     LOG.info(
-        "Hydrated %d file(s) from reporting-outputs blob into %s", downloaded, outputs_dir
+        "[DATA] download_outputs_from_blob: container=%s downloaded=%d outputs_dir=%s",
+        container, downloaded, outputs_dir,
     )
+    for _f in sorted(outputs_dir.glob("*")):
+        if _f.is_file():
+            LOG.info("[DATA] blob_file: %s  %d bytes", _f.name, _f.stat().st_size)
     return downloaded
 
 

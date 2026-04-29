@@ -641,6 +641,7 @@ def _recover_status_from_disk():
     try:
         timestamp = _backfill_artifact_urls(overwrite=True)
         if not timestamp:
+            logging.info("[DATA] startup: no prior run artifacts found on disk")
             return
 
         # Recover segment metrics from disk/blob-backed latest files
@@ -648,6 +649,7 @@ def _recover_status_from_disk():
         report_status["metrics"]["segments"]["Core Markets"] = seg["core_markets"]
         report_status["metrics"]["segments"]["US"] = seg["usa_spa"]
         report_status["metrics"]["timestamp"] = timestamp
+        logging.info("[DATA] startup: recovered last_run=%s segments=%s", timestamp, seg)
         logging.info(f"Recovered report artifacts and segment metrics: {timestamp}, {seg}")
     except Exception as e:
         logging.warning(f"_recover_status_from_disk failed: {e}")
@@ -888,6 +890,7 @@ async def download_file(filename: str):
 def execute_report():
     global report_status
 
+    logging.info("[DATA] execute_report: starting")
     report_status["running"] = True
     report_status["error"] = False
     report_status["output"] = ""
@@ -928,6 +931,7 @@ def execute_report():
         returncode = process.poll()
 
         if returncode == 0:
+            logging.info("[DATA] execute_report: script exited 0 — parsing outputs")
             # V2 script prints:  [OK] combined:    <combined_base>
             # Extract the base name, then pull the YYYYMMDD_HHMMSS timestamp from it.
             combined_match = re.search(
