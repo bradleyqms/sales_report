@@ -2,8 +2,10 @@ from fastapi import FastAPI, Request, Form, BackgroundTasks, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
 import subprocess
 import os
+import uuid
 import zipfile
 import re
 import base64
@@ -12,6 +14,7 @@ import csv
 import glob
 import logging
 import json
+from contextvars import ContextVar
 from pathlib import Path
 from datetime import datetime, timedelta
 import asyncio
@@ -24,7 +27,40 @@ try:
 except Exception:  # pragma: no cover
     BlobServiceClient = None
 
-logging.basicConfig(level=logging.INFO)
+# --- Structured logging setup ---
+_request_id_ctx: ContextVar[str] = ContextVar("request_id", default="-")
+
+
+class _RequestIdFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.request_id = _request_id_ctx.get()
+        return True
+
+
+def _resolve_log_level(default: int = logging.INFO) -> int:
+    """Resolve LOG_LEVEL env var to a logging level int, tolerating bad input."""
+    raw = os.getenv("LOG_LEVEL", "")
+    if not raw:
+        return default
+    candidate = raw.strip().upper()
+    resolved = logging.getLevelName(candidate)
+    if isinstance(resolved, int):
+        return resolved
+    # Fallback: numeric string like "10"
+    try:
+        return int(candidate)
+    except ValueError:
+        return default
+
+
+logging.basicConfig(
+    level=_resolve_log_level(),
+    format="%(asctime)s %(levelname)s [%(name)s] [req=%(request_id)s] %(message)s",
+)
+for _h in logging.getLogger().handlers:
+    _h.addFilter(_RequestIdFilter())
+
+log = logging.getLogger("salesreport.web")
 
 # Get the directory where main.py is located
 BASE_DIR = Path(__file__).resolve().parent
@@ -49,6 +85,32 @@ BLOB_CACHE_DIR = BASE_DIR / "static" / "blob_cache"
 METRICS_CACHE_TTL_SECONDS = float(os.getenv("METRICS_CACHE_TTL_SECONDS", "5"))
 
 app = FastAPI(title="Sales Report Generator")
+
+
+class _RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Attach a request-id to every request and log method/path/status/duration."""
+
+    async def dispatch(self, request: Request, call_next):
+        rid = request.headers.get("x-request-id") or uuid.uuid4().hex[:12]
+        token = _request_id_ctx.set(rid)
+        start = time.perf_counter()
+        try:
+            response = await call_next(request)
+            dur_ms = (time.perf_counter() - start) * 1000
+            log.info(
+                "%s %s -> %d in %.1fms",
+                request.method, request.url.path, response.status_code, dur_ms,
+            )
+            response.headers["x-request-id"] = rid
+            return response
+        except Exception:
+            log.exception("Unhandled error in %s %s", request.method, request.url.path)
+            raise
+        finally:
+            _request_id_ctx.reset(token)
+
+
+app.add_middleware(_RequestLoggingMiddleware)
 
 # Mount static files using absolute path
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
@@ -196,7 +258,7 @@ async def enforce_slot_email_access(request: Request, call_next):
     if (
         path.startswith("/.auth")
         or path.startswith("/static/")
-        or path in {"/version", "/health"}
+        or path in {"/version", "/health", "/healthz"}
     ):
         return await call_next(request)
 
@@ -636,11 +698,32 @@ def _backfill_artifact_urls(overwrite: bool = False) -> str | None:
     return latest_timestamp
 
 
+def _compute_outputs_freshness() -> tuple[str | None, float | None]:
+    """Read run_summary.json and return (generated_at_utc, age_hours) or (None, None)."""
+    import json as _json
+    from datetime import datetime as _dt, timezone as _tz
+    try:
+        _outputs_dir = _resolve_outputs_dir()
+        _summary_file = _outputs_dir / "run_summary.json"
+        if not _summary_file.exists():
+            return None, None
+        _data = _json.loads(_summary_file.read_text(encoding="utf-8"))
+        _ts_str = _data.get("generated_at_utc") or _data.get("finished_at")
+        if not _ts_str:
+            return None, None
+        _ts = _dt.fromisoformat(_ts_str.rstrip("Z")).replace(tzinfo=_tz.utc)
+        _age = round((_dt.now(_tz.utc) - _ts).total_seconds() / 3600.0, 2)
+        return _ts_str, _age
+    except Exception:
+        return None, None
+
+
 def _recover_status_from_disk():
     """On startup, scan latest artifacts and pre-populate report_status for UI continuity."""
     try:
         timestamp = _backfill_artifact_urls(overwrite=True)
         if not timestamp:
+            logging.info("[DATA] startup: no prior run artifacts found on disk")
             return
 
         # Recover segment metrics from disk/blob-backed latest files
@@ -648,6 +731,15 @@ def _recover_status_from_disk():
         report_status["metrics"]["segments"]["Core Markets"] = seg["core_markets"]
         report_status["metrics"]["segments"]["US"] = seg["usa_spa"]
         report_status["metrics"]["timestamp"] = timestamp
+
+        # Populate freshness fields at startup so /status is meaningful before first poll
+        _gen_at, _age = _compute_outputs_freshness()
+        report_status["outputs_generated_at_utc"] = _gen_at
+        report_status["outputs_age_hours"] = _age
+        logging.info(
+            "[DATA] startup: recovered last_run=%s outputs_generated_at_utc=%s outputs_age_hours=%s segments=%s",
+            timestamp, _gen_at, _age, seg,
+        )
         logging.info(f"Recovered report artifacts and segment metrics: {timestamp}, {seg}")
     except Exception as e:
         logging.warning(f"_recover_status_from_disk failed: {e}")
@@ -782,6 +874,12 @@ async def get_status():
     report_status["auto_refresh_enabled"] = AUTO_REFRESH_ENABLED
     report_status["auto_refresh_run_on_empty"] = AUTO_REFRESH_RUN_ON_EMPTY
     report_status["next_auto_refresh_at"] = _next_auto_refresh_at.isoformat() + "Z" if _next_auto_refresh_at else None
+
+    # Refresh output freshness on every /status poll
+    _gen_at, _age = _compute_outputs_freshness()
+    report_status["outputs_generated_at_utc"] = _gen_at
+    report_status["outputs_age_hours"] = _age
+
     return report_status
 
 @app.get("/metrics")
@@ -873,6 +971,20 @@ async def healthz_mappings():
 
     return JSONResponse(result)
 
+
+@app.get("/healthz")
+async def healthz():
+    """Lightweight liveness probe used by deployment preflight and slot-swap checks."""
+    _, age_hours = _compute_outputs_freshness()
+    return JSONResponse({
+        "status": "ok",
+        "version": os.getenv("SOURCE_VERSION", "unknown"),
+        "running": report_status.get("running", False),
+        "last_run": report_status.get("last_run"),
+        "outputs_age_hours": age_hours,
+    })
+
+
 @app.get("/download/{filename}")
 async def download_file(filename: str):
     file_path = BASE_DIR / "static" / filename
@@ -888,6 +1000,7 @@ async def download_file(filename: str):
 def execute_report():
     global report_status
 
+    logging.info("[DATA] execute_report: starting")
     report_status["running"] = True
     report_status["error"] = False
     report_status["output"] = ""
@@ -928,6 +1041,7 @@ def execute_report():
         returncode = process.poll()
 
         if returncode == 0:
+            logging.info("[DATA] execute_report: script exited 0 — parsing outputs")
             # V2 script prints:  [OK] combined:    <combined_base>
             # Extract the base name, then pull the YYYYMMDD_HHMMSS timestamp from it.
             combined_match = re.search(

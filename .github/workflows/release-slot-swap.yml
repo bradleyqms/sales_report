@@ -30,6 +30,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      actions: read
     steps:
       - name: Login to Azure
         uses: azure/login@v2
@@ -55,6 +56,32 @@ jobs:
             --slot "$STAGING_SLOT" \
             --query "{name:name,state:state,host:defaultHostName}" \
             -o table
+
+      - name: Probe staging /healthz
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::group::Web app staging /healthz"
+          curl -fsS --max-time 15 \
+            "https://${{ env.WEBAPP_NAME }}-staging.azurewebsites.net/healthz" \
+            | python3 -m json.tool
+          echo "::endgroup::"
+
+      - name: Confirm last CI test run passed
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          conclusion=$(gh run list \
+            --branch main \
+            --workflow azure-webapps-python.yml \
+            --limit 1 \
+            --json conclusion \
+            --jq '.[0].conclusion')
+          echo "Last webapp CI run conclusion: $conclusion"
+          [ "$conclusion" = "success" ] || \
+            (echo "::error::Last CI run did not succeed (got: $conclusion)"; exit 1)
 
       - name: Show promotion intent
         shell: bash
@@ -101,3 +128,15 @@ jobs:
             --resource-group "$FUNCTIONAPP_RESOURCE_GROUP" \
             --slot "$STAGING_SLOT" \
             --target-slot "$PRODUCTION_SLOT"
+
+      - name: Postflight - production /healthz probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Waiting 30s for production slot to warm up..."
+          sleep 30
+          echo "::group::Web app production /healthz"
+          curl -fsS --max-time 15 \
+            "https://${{ env.WEBAPP_NAME }}.azurewebsites.net/healthz" \
+            | python3 -m json.tool
+          echo "::endgroup::"

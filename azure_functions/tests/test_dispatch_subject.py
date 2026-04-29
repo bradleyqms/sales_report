@@ -81,7 +81,8 @@ def _make_dispatch_reports_package() -> types.ModuleType:
           find_files=lambda p, pat, n: [],
           refresh_reports=lambda p: True,
           resolve_outputs_path=lambda: Path("/tmp"),
-          derive_report_date=lambda p: _FIXED_DATE)
+          derive_report_date=lambda p: _FIXED_DATE,
+          download_outputs_from_blob=lambda p: 0)
 
     sys.modules["dispatch_reports"] = pkg
     return pkg

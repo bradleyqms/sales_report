@@ -62,6 +62,28 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
+    - name: Run tests
+      env:
+        PYTHONUNBUFFERED: "1"
+        LOG_LEVEL: "DEBUG"
+      run: |
+        source antenv/bin/activate
+        pip install pytest pytest-cov httpx anyio
+        python -m pytest \
+          --import-mode=importlib \
+          -vv --tb=long --maxfail=5 \
+          --log-cli-level=INFO \
+          --durations=10 \
+          --junitxml=pytest-report.xml
+      continue-on-error: false
+
+    - name: Upload pytest report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: pytest-report-webapp
+        path: pytest-report.xml
+
     - name: Stamp version.json
       run: |
         if [ "$GITHUB_REF_TYPE" = "tag" ]; then
@@ -99,3 +121,18 @@ jobs:
         slot-name: ${{ env.AZURE_WEBAPP_SLOT }}
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_STAGING }}
         package: release.zip
+
+    - name: Post-deploy staging validation
+      if: success()
+      env:
+        STAGING_URL: https://qms-sales-report-staging.azurewebsites.net
+        AZURE_STORAGE_REPORTING_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_REPORTING_CONNECTION_STRING }}
+        STALE_THRESHOLD_HOURS: "26"
+      run: |
+        echo "Waiting 60s for staging to warm up..."
+        sleep 60
+        source antenv/bin/activate
+        python -m pytest tests/test_staging_postdeploy.py \
+          -v --tb=short \
+          -m deployment_live \
+          --import-mode=importlib

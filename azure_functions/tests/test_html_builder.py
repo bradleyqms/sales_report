@@ -152,8 +152,8 @@ class TestProcessReportTable:
         rows = _DATA_ROW + _SUBTOTAL_ROW + _TOTAL_SALES_ROW
         html = _make_html(rows)
         _, _, tables, _ = process_report_table(html)
-        # Europe Total is class="total" -> should have blue background
-        assert "background:#d0e4ff" in tables[0]
+        # Europe Total is class="total" -> styled with grey subtotal background
+        assert "background:#f2f2f2" in tables[0]
 
     # --- New behaviour tests ---
 
@@ -261,7 +261,8 @@ class TestBuildHtmlBody:
         f.write_text(html, encoding="utf-8")
         _, body = build_html_body([f], "Intro")
         assert "QMS Medicosmetics" in body
-        assert "Management Sales Report" in body
+        # banner derives from <h2> title ("QRY Management Report" -> "Management Report")
+        assert "Management Report" in body
 
     def test_custom_banner_title(self, tmp_path):
         rows = _DATA_ROW + _TOTAL_SALES_ROW

@@ -29,6 +29,36 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Run tests
+        env:
+          PYTHONUNBUFFERED: "1"
+          LOG_LEVEL: "DEBUG"
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov
+          pip install -r azure_functions/requirements.txt
+          python -m pytest \
+            --import-mode=importlib \
+            -vv --tb=long --maxfail=5 \
+            --log-cli-level=INFO \
+            --durations=10 \
+            --junitxml=pytest-report.xml \
+            azure_functions/tests
+        continue-on-error: false
+
+      - name: Upload pytest report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-report-functions
+          path: pytest-report.xml
+
       - name: Build deployment package
         shell: bash
         run: |
@@ -42,6 +72,8 @@ jobs:
           cp -r azure_functions/dispatch_reports/         deploy_package/dispatch_reports/
           cp -r azure_functions/core_market_reports/      deploy_package/core_market_reports/
           cp -r azure_functions/dispatch_usa_spa_reports/  deploy_package/dispatch_usa_spa_reports/
+          cp -r azure_functions/mapping_inputs_sync/       deploy_package/mapping_inputs_sync/
+          cp -r azure_functions/refresh_unified_v2_timer/  deploy_package/refresh_unified_v2_timer/
 
           # src/ — full_report.py and all its imports
           cp -r src/ deploy_package/src/

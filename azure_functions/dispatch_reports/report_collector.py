@@ -144,6 +144,43 @@ def refresh_reports(outputs_dir: Path) -> bool:
     return True
 
 
+def _check_outputs_freshness(outputs_dir: Path, stale_threshold_hours: float = 26.0) -> float | None:
+    """Read run_summary.json from *outputs_dir* and log a [STALENESS] warning if stale.
+
+    Returns age in hours, or None if the summary file is absent or unreadable.
+    """
+    import json as _json
+    from datetime import datetime as _dt, timezone as _tz
+
+    summary_file = outputs_dir / "run_summary.json"
+    if not summary_file.exists():
+        LOG.info("[DATA] staleness_check: no run_summary.json found in %s", outputs_dir)
+        return None
+    try:
+        data = _json.loads(summary_file.read_text(encoding="utf-8"))
+        generated_at = data.get("generated_at_utc") or data.get("finished_at")
+        if not generated_at:
+            LOG.warning("[STALENESS] run_summary.json has no generated_at_utc field")
+            return None
+        ts = _dt.fromisoformat(generated_at.rstrip("Z")).replace(tzinfo=_tz.utc)
+        age_hours = (_dt.now(_tz.utc) - ts).total_seconds() / 3600.0
+        if age_hours > stale_threshold_hours:
+            LOG.warning(
+                "[STALENESS] outputs are %.1f hours old (threshold=%.1f h) — "
+                "generated_at_utc=%s — dispatch may contain stale data",
+                age_hours, stale_threshold_hours, generated_at,
+            )
+        else:
+            LOG.info(
+                "[DATA] staleness_check: outputs are %.1f hours old (ok, threshold=%.1f h)",
+                age_hours, stale_threshold_hours,
+            )
+        return age_hours
+    except Exception as exc:  # pragma: no cover
+        LOG.warning("[STALENESS] could not parse run_summary.json: %s", exc)
+        return None
+
+
 def download_outputs_from_blob(outputs_dir: Path) -> int:
     """Hydrate *outputs_dir* from the ``reporting-outputs`` blob container.
 
@@ -191,8 +228,13 @@ def download_outputs_from_blob(outputs_dir: Path) -> int:
         except Exception as exc:  # pragma: no cover
             LOG.warning("Failed to download blob %s: %s", blob.name, exc)
     LOG.info(
-        "Hydrated %d file(s) from reporting-outputs blob into %s", downloaded, outputs_dir
+        "[DATA] download_outputs_from_blob: container=%s downloaded=%d outputs_dir=%s",
+        container, downloaded, outputs_dir,
     )
+    for _f in sorted(outputs_dir.glob("*")):
+        if _f.is_file():
+            LOG.info("[DATA] blob_file: %s  %d bytes", _f.name, _f.stat().st_size)
+    _check_outputs_freshness(outputs_dir)
     return downloaded
 
 

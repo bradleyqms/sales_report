@@ -52,6 +52,12 @@ def send_healthcheck_alert(function_name: str, exc: Exception, invocation_id: st
         LOG.warning("No health-check recipients configured")
         return
 
+    recipient_source = "HEALTHCHECK_ALERT_RECIPIENTS" if os.getenv("HEALTHCHECK_ALERT_RECIPIENTS") else "default"
+    LOG.info(
+        "healthcheck alert recipients resolved: count=%d source=%s",
+        len(recipients), recipient_source,
+    )
+
     now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     tb = traceback.format_exc()
     environment_name = _resolve_environment_name()
@@ -106,7 +112,14 @@ def send_healthcheck_alert(function_name: str, exc: Exception, invocation_id: st
 """.strip()
 
     try:
+        LOG.info(
+            "healthcheck alert dispatching: function=%s env=%s commit=%s invocation=%s recipients=%d",
+            function_name, environment_name, commit_label, effective_invocation_id, len(recipients),
+        )
         send_via_graph(recipients, [], body, subject, "HTML")
-        LOG.info("Health-check alert sent to %s", recipients)
+        LOG.info(
+            "healthcheck alert sent: function=%s recipients=%d",
+            function_name, len(recipients),
+        )
     except Exception as alert_exc:  # pylint: disable=broad-except
-        LOG.exception("Failed to send health-check alert: %s", alert_exc)
+        LOG.exception("healthcheck alert delivery failed: function=%s err=%s", function_name, alert_exc)

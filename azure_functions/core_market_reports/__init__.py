@@ -36,7 +36,7 @@ from dispatch_reports.config import (
 from dispatch_reports.graph_client import send_via_graph
 from dispatch_reports.health_alerts import send_healthcheck_alert
 from dispatch_reports.html_builder import build_html_body
-from dispatch_reports.report_collector import find_files, download_outputs_from_blob, refresh_reports, resolve_outputs_path, derive_report_date
+from dispatch_reports.report_collector import find_files, download_outputs_from_blob, resolve_outputs_path, derive_report_date
 from dispatch_reports.send_audit import record_dispatch_status
 
 load_dotenv()
@@ -94,12 +94,21 @@ def main(mytimer: func.TimerRequest = None) -> None:
     report_date = None
     try:
         outputs_dir = resolve_outputs_path()
+        LOG.info(
+            "[DATA] core_market_reports starting: is_past_due=%s outputs_dir=%s",
+            getattr(mytimer, "past_due", False), outputs_dir,
+        )
         _test_recip = os.getenv("TEST_CORE_MARKETS_RECIPIENTS", "").strip()
         if _test_recip:
             LOG.info("TEST mode: overriding recipients with TEST_CORE_MARKETS_RECIPIENTS")
             recipients = parse_recipients(_test_recip)
         else:
             recipients = parse_recipients(os.getenv("CORE_MARKET_DISPATCH_RECIPIENTS"))
+        LOG.info(
+            "[DATA] core_market_reports recipients: mode=%s count=%d",
+            "TEST" if _test_recip else "PRODUCTION",
+            len(recipients),
+        )
         if not recipients:
             LOG.warning("No recipients configured (CORE_MARKET_DISPATCH_RECIPIENTS is empty)")
             if outputs_dir is not None:
@@ -118,18 +127,17 @@ def main(mytimer: func.TimerRequest = None) -> None:
 
         # Option B: hydrate latest artefacts from the reporting-outputs blob
         # (refresh_unified_v2_timer is responsible for producing them).
-        # CORE_MARKET_REFRESH_BEFORE_SEND=true keeps the legacy in-line
-        # regeneration path for emergency manual recovery only.
-        refresh_before_send = os.getenv("CORE_MARKET_REFRESH_BEFORE_SEND", "false").strip().lower() in {
-            "1", "true", "yes", "on"
-        }
-        if refresh_before_send:
-            LOG.warning("CORE_MARKET_REFRESH_BEFORE_SEND=true: regenerating reports inline (slow)")
-            refreshed = refresh_reports(outputs_dir)
-            if not refreshed:
-                raise RuntimeError("Report refresh failed; aborting core market dispatch")
-        else:
-            download_outputs_from_blob(outputs_dir)
+        _downloaded = download_outputs_from_blob(outputs_dir)
+        _local_file_count = (
+            sum(1 for path in outputs_dir.rglob("*") if path.is_file())
+            if outputs_dir and outputs_dir.exists()
+            else 0
+        )
+        LOG.info(
+            "[DATA] core_market_reports outputs hydrated: downloaded_count=%d local_file_count=%d",
+            _downloaded,
+            _local_file_count,
+        )
         report_date = derive_report_date(outputs_dir)
 
         # HTML → email body
@@ -149,7 +157,10 @@ def main(mytimer: func.TimerRequest = None) -> None:
                 details={"reason": "no_html_files"},
             )
             return
-        LOG.info("Core market HTML files (%d): %s", len(html_files), [p.name for p in html_files])
+        LOG.info(
+            "[DATA] core_market_reports html_files: count=%d names=%s",
+            len(html_files), [p.name for p in html_files]
+        )
 
         plain_intro = os.getenv(
             "CORE_MARKET_DISPATCH_BODY",
@@ -168,7 +179,10 @@ def main(mytimer: func.TimerRequest = None) -> None:
         if not attachments:
             LOG.warning("No core market PDF files found in %s — sending without attachment", outputs_dir)
         else:
-            LOG.info("Core market PDF attachments (%d): %s", len(attachments), [p.name for p in attachments])
+            LOG.info(
+                "[DATA] core_market_reports pdf_attachments: count=%d names=%s",
+                len(attachments), [p.name for p in attachments]
+            )
 
         _report_mode = dispatch_report_mode()
         _date_str = report_date.strftime('%d.%m.%Y') if report_date else report_date_str()
@@ -181,6 +195,10 @@ def main(mytimer: func.TimerRequest = None) -> None:
 
         try:
             send_via_graph(recipients, attachments, body_content, subject, body_type)
+            LOG.info(
+                "[DATA] core_market_reports email sent: recipients=%d subject=%r attachments=%d",
+                len(recipients), subject, len(attachments),
+            )
             location = record_dispatch_status(
                 outputs_dir=outputs_dir,
                 stream="core_market",
