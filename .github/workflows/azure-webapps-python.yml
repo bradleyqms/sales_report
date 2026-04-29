@@ -68,7 +68,7 @@ jobs:
         LOG_LEVEL: "DEBUG"
       run: |
         source antenv/bin/activate
-        pip install pytest pytest-cov
+        pip install pytest pytest-cov httpx anyio
         python -m pytest \
           --import-mode=importlib \
           -vv --tb=long --maxfail=5 \

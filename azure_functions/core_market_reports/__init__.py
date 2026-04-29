@@ -36,7 +36,7 @@ from dispatch_reports.config import (
 from dispatch_reports.graph_client import send_via_graph
 from dispatch_reports.health_alerts import send_healthcheck_alert
 from dispatch_reports.html_builder import build_html_body
-from dispatch_reports.report_collector import find_files, download_outputs_from_blob, refresh_reports, resolve_outputs_path, derive_report_date
+from dispatch_reports.report_collector import find_files, download_outputs_from_blob, resolve_outputs_path, derive_report_date
 from dispatch_reports.send_audit import record_dispatch_status
 
 load_dotenv()
@@ -127,10 +127,16 @@ def main(mytimer: func.TimerRequest = None) -> None:
 
         # Option B: hydrate latest artefacts from the reporting-outputs blob
         # (refresh_unified_v2_timer is responsible for producing them).
-        download_outputs_from_blob(outputs_dir)
+        _downloaded = download_outputs_from_blob(outputs_dir)
+        _local_file_count = (
+            sum(1 for path in outputs_dir.rglob("*") if path.is_file())
+            if outputs_dir and outputs_dir.exists()
+            else 0
+        )
         LOG.info(
-            "[DATA] core_market_reports outputs hydrated: file_count=%d",
-            sum(1 for _f in outputs_dir.glob("*") if _f.is_file()) if outputs_dir and outputs_dir.exists() else 0,
+            "[DATA] core_market_reports outputs hydrated: downloaded_count=%d local_file_count=%d",
+            _downloaded,
+            _local_file_count,
         )
         report_date = derive_report_date(outputs_dir)
 

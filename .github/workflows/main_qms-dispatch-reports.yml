@@ -48,7 +48,8 @@ jobs:
             -vv --tb=long --maxfail=5 \
             --log-cli-level=INFO \
             --durations=10 \
-            --junitxml=pytest-report.xml
+            --junitxml=pytest-report.xml \
+            azure_functions/tests
         continue-on-error: false
 
       - name: Upload pytest report

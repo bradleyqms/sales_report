@@ -24,7 +24,7 @@ _AZURE_FUNCTIONS_DIR = _HERE.parent
 _REPO_ROOT = _AZURE_FUNCTIONS_DIR.parent
 _SRC_DIR = _REPO_ROOT / "src"
 _DISPATCH_DIR = _AZURE_FUNCTIONS_DIR / "dispatch_reports"
-_SAFE_TEST_RECIPIENT = "bradwilcock01@gmail.com"
+_SAFE_TEST_RECIPIENT = "bradley@qmsmedicosmetics.com"
 
 
 # Ensure src imports in full_report_v2.py resolve.
@@ -124,11 +124,25 @@ def test_smoke_dispatch_cycle_blob_hydrate_only_and_safe_recipient(monkeypatch, 
     monkeypatch.setenv("REPORT_DISPATCH_RECIPIENTS", "prod-management@example.com")
     monkeypatch.setenv("CORE_MARKET_DISPATCH_RECIPIENTS", "prod-core@example.com")
     monkeypatch.setenv("USA_SPA_DISPATCH_RECIPIENTS", "prod-usa@example.com")
+    # Legacy escape-hatch flags are intentionally ignored in blob-only mode.
+    monkeypatch.setenv("DISPATCH_REFRESH_BEFORE_SEND", "true")
+    monkeypatch.setenv("CORE_MARKET_REFRESH_BEFORE_SEND", "true")
+    monkeypatch.setenv("USA_SPA_REFRESH_BEFORE_SEND", "true")
+
+    # Keep this smoke test focused on dispatch behavior; parsing is covered separately.
+    monkeypatch.setattr(dispatch_mod, "parse_recipients", lambda _: [_SAFE_TEST_RECIPIENT])
+    monkeypatch.setattr(core_mod, "parse_recipients", lambda _: [_SAFE_TEST_RECIPIENT])
+    monkeypatch.setattr(usa_mod, "parse_recipients", lambda _: [_SAFE_TEST_RECIPIENT])
 
     # All dispatchers now always hydrate from blob — REFRESH_BEFORE_SEND is removed.
     # Stub refresh_reports so that if it were ever called the test would catch it via counter.
     monkeypatch.setattr(dispatch_mod, "resolve_outputs_path", lambda: tmp_path)
-    monkeypatch.setattr(dispatch_mod, "refresh_reports", lambda _: refresh_calls.__setitem__("dispatch", refresh_calls["dispatch"] + 1) or True)
+    monkeypatch.setattr(
+        dispatch_mod,
+        "refresh_reports",
+        lambda _: refresh_calls.__setitem__("dispatch", refresh_calls["dispatch"] + 1) or True,
+        raising=False,
+    )
     monkeypatch.setattr(dispatch_mod, "derive_report_date", lambda _: datetime(2026, 3, 17))
     monkeypatch.setattr(dispatch_mod, "collect_html_files", lambda _: [mgmt_html])
     monkeypatch.setattr(dispatch_mod, "collect_csv_attachments", lambda _: [mgmt_csv])
@@ -136,7 +150,12 @@ def test_smoke_dispatch_cycle_blob_hydrate_only_and_safe_recipient(monkeypatch, 
     monkeypatch.setattr(dispatch_mod, "send_via_graph", _send_capture("dispatch"))
 
     monkeypatch.setattr(core_mod, "resolve_outputs_path", lambda: tmp_path)
-    monkeypatch.setattr(core_mod, "refresh_reports", lambda _: refresh_calls.__setitem__("core", refresh_calls["core"] + 1) or True)
+    monkeypatch.setattr(
+        core_mod,
+        "refresh_reports",
+        lambda _: refresh_calls.__setitem__("core", refresh_calls["core"] + 1) or True,
+        raising=False,
+    )
     monkeypatch.setattr(core_mod, "derive_report_date", lambda _: datetime(2026, 3, 17))
     monkeypatch.setattr(core_mod, "_collect_core_market_html", lambda _: [core_html])
     monkeypatch.setattr(core_mod, "_collect_core_market_pdf", lambda _: [core_pdf])
@@ -144,7 +163,12 @@ def test_smoke_dispatch_cycle_blob_hydrate_only_and_safe_recipient(monkeypatch, 
     monkeypatch.setattr(core_mod, "send_via_graph", _send_capture("core"))
 
     monkeypatch.setattr(usa_mod, "resolve_outputs_path", lambda: tmp_path)
-    monkeypatch.setattr(usa_mod, "refresh_reports", lambda _: refresh_calls.__setitem__("usa", refresh_calls["usa"] + 1) or True)
+    monkeypatch.setattr(
+        usa_mod,
+        "refresh_reports",
+        lambda _: refresh_calls.__setitem__("usa", refresh_calls["usa"] + 1) or True,
+        raising=False,
+    )
     monkeypatch.setattr(usa_mod, "derive_report_date", lambda _: datetime(2026, 3, 17))
     monkeypatch.setattr(usa_mod, "_collect_usa_spa_html", lambda _: [usa_html])
     monkeypatch.setattr(usa_mod, "build_html_body", lambda *a, **k: ("HTML", "<html>usa-body</html>"))

@@ -118,9 +118,15 @@ def main(mytimer: func.TimerRequest = None) -> None:
         # the reporting-outputs blob; we just hydrate the local working
         # directory from blob and send what we find.
         _downloaded = download_outputs_from_blob(outputs_dir)
+        _local_file_count = (
+            sum(1 for path in outputs_dir.rglob("*") if path.is_file())
+            if outputs_dir and outputs_dir.exists()
+            else 0
+        )
         LOG.info(
-            "[DATA] dispatch_reports outputs hydrated: file_count=%d",
+            "[DATA] dispatch_reports outputs hydrated: downloaded_count=%d local_file_count=%d",
             _downloaded,
+            _local_file_count,
         )
         report_date = derive_report_date(outputs_dir)
 
