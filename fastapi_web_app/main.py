@@ -2,8 +2,10 @@ from fastapi import FastAPI, Request, Form, BackgroundTasks, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
 import subprocess
 import os
+import uuid
 import zipfile
 import re
 import base64
@@ -12,6 +14,7 @@ import csv
 import glob
 import logging
 import json
+from contextvars import ContextVar
 from pathlib import Path
 from datetime import datetime, timedelta
 import asyncio
@@ -24,7 +27,24 @@ try:
 except Exception:  # pragma: no cover
     BlobServiceClient = None
 
-logging.basicConfig(level=logging.INFO)
+# --- Structured logging setup ---
+_request_id_ctx: ContextVar[str] = ContextVar("request_id", default="-")
+
+
+class _RequestIdFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.request_id = _request_id_ctx.get()
+        return True
+
+
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)s [%(name)s] [req=%(request_id)s] %(message)s",
+)
+for _h in logging.getLogger().handlers:
+    _h.addFilter(_RequestIdFilter())
+
+log = logging.getLogger("salesreport.web")
 
 # Get the directory where main.py is located
 BASE_DIR = Path(__file__).resolve().parent
@@ -49,6 +69,32 @@ BLOB_CACHE_DIR = BASE_DIR / "static" / "blob_cache"
 METRICS_CACHE_TTL_SECONDS = float(os.getenv("METRICS_CACHE_TTL_SECONDS", "5"))
 
 app = FastAPI(title="Sales Report Generator")
+
+
+class _RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Attach a request-id to every request and log method/path/status/duration."""
+
+    async def dispatch(self, request: Request, call_next):
+        rid = request.headers.get("x-request-id") or uuid.uuid4().hex[:12]
+        token = _request_id_ctx.set(rid)
+        start = time.perf_counter()
+        try:
+            response = await call_next(request)
+            dur_ms = (time.perf_counter() - start) * 1000
+            log.info(
+                "%s %s -> %d in %.1fms",
+                request.method, request.url.path, response.status_code, dur_ms,
+            )
+            response.headers["x-request-id"] = rid
+            return response
+        except Exception:
+            log.exception("Unhandled error in %s %s", request.method, request.url.path)
+            raise
+        finally:
+            _request_id_ctx.reset(token)
+
+
+app.add_middleware(_RequestLoggingMiddleware)
 
 # Mount static files using absolute path
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
@@ -196,7 +242,7 @@ async def enforce_slot_email_access(request: Request, call_next):
     if (
         path.startswith("/.auth")
         or path.startswith("/static/")
-        or path in {"/version", "/health"}
+        or path in {"/version", "/health", "/healthz"}
     ):
         return await call_next(request)
 
@@ -908,6 +954,20 @@ async def healthz_mappings():
         result["files"][filename] = entry
 
     return JSONResponse(result)
+
+
+@app.get("/healthz")
+async def healthz():
+    """Lightweight liveness probe used by deployment preflight and slot-swap checks."""
+    _, age_hours = _compute_outputs_freshness()
+    return JSONResponse({
+        "status": "ok",
+        "version": os.getenv("SOURCE_VERSION", "unknown"),
+        "running": report_status.get("running", False),
+        "last_run": report_status.get("last_run"),
+        "outputs_age_hours": age_hours,
+    })
+
 
 @app.get("/download/{filename}")
 async def download_file(filename: str):

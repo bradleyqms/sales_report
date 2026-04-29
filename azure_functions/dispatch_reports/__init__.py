@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -67,6 +68,11 @@ def _management_section_title(path: Path, _title: str, report_date: "datetime | 
 # ---- Azure Functions entry point ----------------------------------------
 
 def main(mytimer: func.TimerRequest = None) -> None:
+    invocation_id = (
+        os.getenv("FUNCTIONS_INVOCATION_ID")
+        or os.getenv("HEALTHCHECK_INVOCATION_ID")
+        or uuid.uuid4().hex[:12]
+    )
     outputs_dir: Path | None = None
     recipients: list[str] = []
     subject = "QMS Management Sales Report"
@@ -77,8 +83,8 @@ def main(mytimer: func.TimerRequest = None) -> None:
     try:
         outputs_dir = resolve_outputs_path()
         LOG.info(
-            "[DATA] dispatch_reports starting: is_past_due=%s outputs_dir=%s",
-            getattr(mytimer, "past_due", False), outputs_dir,
+            "[DATA] dispatch_reports starting: invocation_id=%s is_past_due=%s outputs_dir=%s",
+            invocation_id, getattr(mytimer, "past_due", False), outputs_dir,
         )
         _test_recip = os.getenv("TEST_REPORT_DISPATCH_RECIPIENTS", "").strip()
         if _test_recip:
@@ -200,5 +206,5 @@ def main(mytimer: func.TimerRequest = None) -> None:
             LOG.exception("Graph report dispatch failed: %s", exc)
             raise
     except Exception as exc:  # pylint: disable=broad-except
-        send_healthcheck_alert("dispatch_reports", exc)
+        send_healthcheck_alert("dispatch_reports", exc, invocation_id=invocation_id)
         raise

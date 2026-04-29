@@ -36,12 +36,27 @@ jobs:
           cache: 'pip'
 
       - name: Run tests
+        env:
+          PYTHONUNBUFFERED: "1"
+          LOG_LEVEL: "DEBUG"
         run: |
           python -m pip install --upgrade pip
           pip install pytest pytest-cov
           pip install -r azure_functions/requirements.txt
-          python -m pytest --import-mode=importlib -q --tb=short
+          python -m pytest \
+            --import-mode=importlib \
+            -vv --tb=long --maxfail=5 \
+            --log-cli-level=INFO \
+            --durations=10 \
+            --junitxml=pytest-report.xml
         continue-on-error: false
+
+      - name: Upload pytest report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-report-functions
+          path: pytest-report.xml
 
       - name: Build deployment package
         shell: bash
