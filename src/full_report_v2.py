@@ -10,6 +10,7 @@ import shutil
 import tempfile
 import time
 import traceback
+from contextlib import contextmanager
 from pathlib import Path
 from urllib import request
 
@@ -41,6 +42,25 @@ from v2_validation import ValidationError, run_ingestion_validations
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+
+@contextmanager
+def _phase(name: str):
+    """Log start/end/error of a named processing phase with wall-clock duration."""
+    t0 = time.perf_counter()
+    logging.info("phase.start name=%s", name)
+    try:
+        yield
+        logging.info(
+            "phase.end name=%s status=ok duration_ms=%.0f",
+            name, (time.perf_counter() - t0) * 1000,
+        )
+    except Exception as _phase_exc:
+        logging.exception(
+            "phase.end name=%s status=error err=%s duration_ms=%.0f",
+            name, _phase_exc, (time.perf_counter() - t0) * 1000,
+        )
+        raise
 
 
 def parse_args(argv=None):
@@ -698,14 +718,15 @@ def main(argv=None):
         return
 
     try:
-        canonical_df = load_unified_qry_csv(
-            str(unified_source),
-            report_type=report_type,
-            report_date=report_date,
-            schema_mode=args.schema_mode,
-            schema_manifest_path=args.schema_manifest,
-        )
-        run_summary["counts"]["rows_in"] = int(len(canonical_df))
+        with _phase("load_csv"):
+            canonical_df = load_unified_qry_csv(
+                str(unified_source),
+                report_type=report_type,
+                report_date=report_date,
+                schema_mode=args.schema_mode,
+                schema_manifest_path=args.schema_manifest,
+            )
+            run_summary["counts"]["rows_in"] = int(len(canonical_df))
 
         validation_warnings = run_ingestion_validations(
             canonical_df,
@@ -804,19 +825,20 @@ def main(argv=None):
 
         unmapped_before = {path.name for path in output_dir.glob("unmapped_entities_*.csv")}
         mapping_df = pd.read_csv(mapping_path)
-        mapped_df = apply_mappings(canonical_df, mapping_df, output_dir=str(output_dir))
-        run_summary["counts"]["rows_mapped"] = int(len(mapped_df))
+        with _phase("transform"):
+            mapped_df = apply_mappings(canonical_df, mapping_df, output_dir=str(output_dir))
+            run_summary["counts"]["rows_mapped"] = int(len(mapped_df))
 
-        # WORKAROUND: Fix Mweya mapping if it was assigned to wrong region
-        # This addresses a customer name matching issue in apply_mappings
-        if 'Customer Name' in mapped_df.columns:
-            mweya_mask = mapped_df['Customer Name'].str.contains('Mweya Luxury FZCO', case=False, na=False)
-            if mweya_mask.any():
-                mapped_df.loc[mweya_mask, 'Region'] = 'Distributor - Middle East'
-                mapped_df.loc[mweya_mask, 'Company_Group'] = 'Company 2'
+            # WORKAROUND: Fix Mweya mapping if it was assigned to wrong region
+            # This addresses a customer name matching issue in apply_mappings
+            if 'Customer Name' in mapped_df.columns:
+                mweya_mask = mapped_df['Customer Name'].str.contains('Mweya Luxury FZCO', case=False, na=False)
+                if mweya_mask.any():
+                    mapped_df.loc[mweya_mask, 'Region'] = 'Distributor - Middle East'
+                    mapped_df.loc[mweya_mask, 'Company_Group'] = 'Company 2'
 
-        mapped_path = output_dir / f"{mapped_base}.csv"
-        mapped_df.to_csv(mapped_path, index=False)
+            mapped_path = output_dir / f"{mapped_base}.csv"
+            mapped_df.to_csv(mapped_path, index=False)
 
         unmapped_file = _collect_new_unmapped_file(output_dir, unmapped_before)
         unmapped_rows = 0
@@ -832,6 +854,13 @@ def main(argv=None):
                 "rows": unmapped_rows,
                 "value_at_risk_keur": round(unmapped_value_at_risk, 2),
             }
+
+        logging.info(
+            "validation_summary: rows_in=%d rows_mapped=%d unmapped_rows=%d "
+            "unmapped_value_keur=%.2f validation_warnings=%d",
+            run_summary["counts"]["rows_in"], run_summary["counts"]["rows_mapped"],
+            unmapped_rows, unmapped_value_at_risk, len(validation_warnings),
+        )
 
         quality_flags = []
         quality_status = "green"
@@ -888,30 +917,33 @@ def main(argv=None):
         )
         apply_report_date_anchor(core, report_date)
 
-        receivables_df = receivables.calculate_report()
-        usa_df = usa.calculate_report()
-        core_df = core.calculate_report()
+        with _phase("generate_reports"):
+            receivables_df = receivables.calculate_report()
+            usa_df = usa.calculate_report()
+            core_df = core.calculate_report()
 
-        receivables.render_report(receivables_df)
-        usa.render_report(usa_df)
-        core.render_report(core_df)
+            receivables.render_report(receivables_df)
+            usa.render_report(usa_df)
+            core.render_report(core_df)
 
-        export_service = V2ExportService()
-        export_service.export_once(usa, usa_df, output_dir / f"{usa_base}.csv")
-        export_service.export_once(core, core_df, output_dir / f"{core_base}.csv")
+        with _phase("export"):
+            export_service = V2ExportService()
+            export_service.export_once(usa, usa_df, output_dir / f"{usa_base}.csv")
+            export_service.export_once(core, core_df, output_dir / f"{core_base}.csv")
 
-        combined_df = build_combined_dataframe(receivables_df, usa_df, core_df)
-        export_service.export_once(receivables, combined_df, output_dir / f"{combined_base}.csv")
+            combined_df = build_combined_dataframe(receivables_df, usa_df, core_df)
+            export_service.export_once(receivables, combined_df, output_dir / f"{combined_base}.csv")
 
         run_summary["status"] = "success"
         run_summary["finished_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
         summary_path = write_run_summary(run_summary, output_dir=output_dir, summary_path_arg=args.summary_path)
 
-        uploaded = _upload_outputs_to_blob(
-            output_dir,
-            blob_prefix=run_summary["blob_archive_prefix"],
-            overwrite=False,
-        )
+        with _phase("upload_outputs"):
+            uploaded = _upload_outputs_to_blob(
+                output_dir,
+                blob_prefix=run_summary["blob_archive_prefix"],
+                overwrite=False,
+            )
         if uploaded:
             print(f"[OK] blob_upload: {uploaded} file(s) -> reporting-outputs/{run_summary['blob_archive_prefix']}")
 
