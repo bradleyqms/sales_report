@@ -75,10 +75,9 @@ def main(mytimer: func.TimerRequest = None) -> None:
         else:
             recipients = parse_recipients(os.getenv("USA_SPA_DISPATCH_RECIPIENTS"))
         LOG.info(
-            "[DATA] dispatch_usa_spa recipients: mode=%s count=%d to=%s",
+            "[DATA] dispatch_usa_spa recipients: mode=%s count=%d",
             "TEST" if _test_recip else "PRODUCTION",
             len(recipients),
-            ";".join(recipients),
         )
         if not recipients:
             LOG.warning("No recipients configured (USA_SPA_DISPATCH_RECIPIENTS is empty)")

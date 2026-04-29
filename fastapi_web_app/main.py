@@ -641,9 +641,7 @@ def _compute_outputs_freshness() -> tuple[str | None, float | None]:
     import json as _json
     from datetime import datetime as _dt, timezone as _tz
     try:
-        _outputs_dir = Path(os.getenv("REPORT_DISPATCH_OUTPUTS_PATH", "data/outputs"))
-        if not _outputs_dir.is_absolute():
-            _outputs_dir = (Path(__file__).resolve().parent / _outputs_dir).resolve()
+        _outputs_dir = _resolve_outputs_dir()
         _summary_file = _outputs_dir / "run_summary.json"
         if not _summary_file.exists():
             return None, None

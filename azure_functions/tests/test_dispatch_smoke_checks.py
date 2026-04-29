@@ -1,8 +1,8 @@
 """Programmatic smoke checks for dispatch safety and strict SharePoint behavior.
 
 These tests validate three release-critical behaviors:
-1. A single dispatch cycle triggers exactly one refresh run (management only).
-2. Core/USA dispatch flows send from existing outputs when refresh-before-send is off.
+1. All three dispatchers hydrate from blob only — no inline refresh runs on any path.
+2. Core/USA/management dispatch flows send from existing blob-hydrated outputs.
 3. V2 strict mode fails fast when SharePoint credentials are missing.
 
 All dispatch sends are forced to a single safe test recipient.
@@ -91,7 +91,7 @@ def _load_full_report_v2_module() -> types.ModuleType:
 
 
 @pytest.mark.integration
-def test_smoke_dispatch_cycle_has_single_refresh_and_safe_recipient(monkeypatch, tmp_path):
+def test_smoke_dispatch_cycle_blob_hydrate_only_and_safe_recipient(monkeypatch, tmp_path):
     dispatch_mod, core_mod, usa_mod = _bootstrap_dispatch_modules()
 
     # Minimal files so attachment/path handling can resolve names if needed.
@@ -125,11 +125,8 @@ def test_smoke_dispatch_cycle_has_single_refresh_and_safe_recipient(monkeypatch,
     monkeypatch.setenv("CORE_MARKET_DISPATCH_RECIPIENTS", "prod-core@example.com")
     monkeypatch.setenv("USA_SPA_DISPATCH_RECIPIENTS", "prod-usa@example.com")
 
-    # Core/USA must send from existing outputs only (no refresh).
-    monkeypatch.setenv("CORE_MARKET_REFRESH_BEFORE_SEND", "false")
-    monkeypatch.setenv("USA_SPA_REFRESH_BEFORE_SEND", "false")
-
-    # Dispatch (management) always refreshes; count exactly once.
+    # All dispatchers now always hydrate from blob — REFRESH_BEFORE_SEND is removed.
+    # Stub refresh_reports so that if it were ever called the test would catch it via counter.
     monkeypatch.setattr(dispatch_mod, "resolve_outputs_path", lambda: tmp_path)
     monkeypatch.setattr(dispatch_mod, "refresh_reports", lambda _: refresh_calls.__setitem__("dispatch", refresh_calls["dispatch"] + 1) or True)
     monkeypatch.setattr(dispatch_mod, "derive_report_date", lambda _: datetime(2026, 3, 17))
@@ -157,7 +154,9 @@ def test_smoke_dispatch_cycle_has_single_refresh_and_safe_recipient(monkeypatch,
     core_mod.main(None)
     usa_mod.main(None)
 
-    assert refresh_calls == {"dispatch": 1, "core": 0, "usa": 0}
+    assert refresh_calls == {"dispatch": 0, "core": 0, "usa": 0}, (
+        "No dispatcher should call refresh_reports — all hydrate from blob only"
+    )
     assert len(sent_payloads) == 3
     assert {stream for stream, _, _ in sent_payloads} == {"dispatch", "core", "usa"}
 

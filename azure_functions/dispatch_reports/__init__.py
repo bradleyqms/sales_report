@@ -87,10 +87,9 @@ def main(mytimer: func.TimerRequest = None) -> None:
         else:
             recipients = parse_recipients(os.getenv("REPORT_DISPATCH_RECIPIENTS"))
         LOG.info(
-            "[DATA] dispatch_reports recipients: mode=%s count=%d to=%s",
+            "[DATA] dispatch_reports recipients: mode=%s count=%d",
             "TEST" if _test_recip else "PRODUCTION",
             len(recipients),
-            ";".join(recipients),
         )
         if not recipients:
             LOG.warning("No recipients configured for report dispatch")
@@ -112,10 +111,10 @@ def main(mytimer: func.TimerRequest = None) -> None:
         # has already run full_report_v2.py and uploaded the artefacts to
         # the reporting-outputs blob; we just hydrate the local working
         # directory from blob and send what we find.
-        download_outputs_from_blob(outputs_dir)
+        _downloaded = download_outputs_from_blob(outputs_dir)
         LOG.info(
             "[DATA] dispatch_reports outputs hydrated: file_count=%d",
-            sum(1 for _f in outputs_dir.glob("*") if _f.is_file()) if outputs_dir and outputs_dir.exists() else 0,
+            _downloaded,
         )
         report_date = derive_report_date(outputs_dir)
 

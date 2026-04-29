@@ -105,10 +105,9 @@ def main(mytimer: func.TimerRequest = None) -> None:
         else:
             recipients = parse_recipients(os.getenv("CORE_MARKET_DISPATCH_RECIPIENTS"))
         LOG.info(
-            "[DATA] core_market_reports recipients: mode=%s count=%d to=%s",
+            "[DATA] core_market_reports recipients: mode=%s count=%d",
             "TEST" if _test_recip else "PRODUCTION",
             len(recipients),
-            ";".join(recipients),
         )
         if not recipients:
             LOG.warning("No recipients configured (CORE_MARKET_DISPATCH_RECIPIENTS is empty)")
