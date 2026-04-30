@@ -291,6 +291,16 @@ def download_outputs_from_blob(outputs_dir: Path) -> int:
         # Blob names mirror file names from full_report_v2.py (no nested
         # partition path is required. We preserve nested run paths locally and
         # persist blob last_modified metadata for deterministic file selection.
+
+        # Skip zero-byte directory-marker blobs.  Azure Blob Storage emits
+        # these when the uploader created "virtual directories" (e.g. blobs
+        # named ``runs``, ``runs/report_type=MTD``, etc.).  If we write them
+        # to disk as files, every subsequent ``mkdir(parents=True)`` for a
+        # child path fails with [Errno 20] Not a directory, silently dropping
+        # all 949 run-path artefacts from the blob_index.
+        if not blob.size:
+            continue
+
         dest = outputs_dir / blob.name
         try:
             dest.parent.mkdir(parents=True, exist_ok=True)
