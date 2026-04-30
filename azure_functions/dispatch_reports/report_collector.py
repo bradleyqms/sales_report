@@ -6,6 +6,9 @@ import os
 import shlex
 import subprocess
 import sys
+import json
+import re
+from datetime import datetime, timezone
 from pathlib import Path
 
 try:
@@ -25,6 +28,78 @@ LOG = logging.getLogger(__name__)
 
 # Populated in __init__.py at import time
 _REPO_ROOT: Path | None = None
+_BLOB_INDEX_FILE = ".blob_index.json"
+
+
+def _env_flag(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _prefer_run_path() -> bool:
+    # Prefer nested runs/report_type=.../run_id=... artifacts over stale top-level legacy files.
+    return _env_flag("REPORT_DISPATCH_PREFER_RUN_PATH", True)
+
+
+def _blob_index_path(outputs_dir: Path) -> Path:
+    return outputs_dir / _BLOB_INDEX_FILE
+
+
+def _load_blob_index(outputs_dir: Path) -> dict[str, dict]:
+    index_path = _blob_index_path(outputs_dir)
+    if not index_path.exists():
+        return {}
+    try:
+        payload = json.loads(index_path.read_text(encoding="utf-8"))
+        entries = payload.get("entries")
+        if isinstance(entries, dict):
+            return entries
+    except Exception as exc:
+        LOG.warning("Could not parse blob index %s: %s", index_path, exc)
+    return {}
+
+
+def _store_blob_index(outputs_dir: Path, entries: dict[str, dict]) -> None:
+    payload = {
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "entries": entries,
+    }
+    try:
+        _blob_index_path(outputs_dir).write_text(json.dumps(payload), encoding="utf-8")
+    except Exception as exc:
+        LOG.warning("Could not write blob index for %s: %s", outputs_dir, exc)
+
+
+def _is_run_artifact(path: Path, outputs_dir: Path) -> bool:
+    try:
+        rel = path.relative_to(outputs_dir)
+    except ValueError:
+        return False
+    return "runs" in rel.parts and any(part.startswith("run_id=") for part in rel.parts)
+
+
+def _filename_timestamp_epoch(path: Path) -> float:
+    match = re.search(r"_(\d{8}_\d{6})(?:\.[^.]+)?$", path.name)
+    if not match:
+        return 0.0
+    try:
+        return datetime.strptime(match.group(1), "%Y%m%d_%H%M%S").replace(tzinfo=timezone.utc).timestamp()
+    except ValueError:
+        return 0.0
+
+
+def _blob_mtime_epoch(path: Path, outputs_dir: Path, blob_index: dict[str, dict]) -> float:
+    try:
+        rel_path = path.relative_to(outputs_dir).as_posix()
+    except ValueError:
+        rel_path = path.name
+    meta = blob_index.get(rel_path, {})
+    timestamp = meta.get("last_modified_epoch") if isinstance(meta, dict) else None
+    if isinstance(timestamp, (int, float)):
+        return float(timestamp)
+    return path.stat().st_mtime
 
 
 def _repo_root() -> Path:
@@ -149,25 +224,22 @@ def _check_outputs_freshness(outputs_dir: Path, stale_threshold_hours: float = 2
 
     Returns age in hours, or None if the summary file is absent or unreadable.
     """
-    import json as _json
-    from datetime import datetime as _dt, timezone as _tz
-
     summary_file = outputs_dir / "run_summary.json"
     if not summary_file.exists():
         LOG.info("[DATA] staleness_check: no run_summary.json found in %s", outputs_dir)
         return None
     try:
-        data = _json.loads(summary_file.read_text(encoding="utf-8"))
+        data = json.loads(summary_file.read_text(encoding="utf-8"))
         generated_at = data.get("generated_at_utc") or data.get("finished_at")
         if not generated_at:
             LOG.warning("[STALENESS] run_summary.json has no generated_at_utc field")
             return None
-        ts = _dt.fromisoformat(generated_at.rstrip("Z")).replace(tzinfo=_tz.utc)
-        age_hours = (_dt.now(_tz.utc) - ts).total_seconds() / 3600.0
+        ts = datetime.fromisoformat(generated_at.rstrip("Z")).replace(tzinfo=timezone.utc)
+        age_hours = (datetime.now(timezone.utc) - ts).total_seconds() / 3600.0
         if age_hours > stale_threshold_hours:
             LOG.warning(
-                "[STALENESS] outputs are %.1f hours old (threshold=%.1f h) — "
-                "generated_at_utc=%s — dispatch may contain stale data",
+                "[STALENESS] outputs are %.1f hours old (threshold=%.1f h) \u2014 "
+                "generated_at_utc=%s \u2014 dispatch may contain stale data",
                 age_hours, stale_threshold_hours, generated_at,
             )
         else:
@@ -214,26 +286,34 @@ def download_outputs_from_blob(outputs_dir: Path) -> int:
 
     outputs_dir.mkdir(parents=True, exist_ok=True)
     downloaded = 0
+    blob_index: dict[str, dict] = {}
     for blob in container_client.list_blobs():
         # Blob names mirror file names from full_report_v2.py (no nested
-        # partition path is used on upload).  Write back as flat files in
-        # outputs_dir so collect_html_files / collect_csv_attachments can
-        # find them via their existing rglob patterns.
+        # partition path is required. We preserve nested run paths locally and
+        # persist blob last_modified metadata for deterministic file selection.
         dest = outputs_dir / blob.name
         try:
             dest.parent.mkdir(parents=True, exist_ok=True)
             with open(dest, "wb") as fh:
                 container_client.download_blob(blob.name).readinto(fh)
             downloaded += 1
+            blob_index[blob.name] = {
+                "blob_name": blob.name,
+                "last_modified_epoch": (
+                    blob.last_modified.timestamp() if blob.last_modified else dest.stat().st_mtime
+                ),
+            }
         except Exception as exc:  # pragma: no cover
             LOG.warning("Failed to download blob %s: %s", blob.name, exc)
+    _store_blob_index(outputs_dir, blob_index)
+    run_blob_count = sum(1 for name in blob_index if name.startswith("runs/"))
     LOG.info(
-        "[DATA] download_outputs_from_blob: container=%s downloaded=%d outputs_dir=%s",
+        "[DATA] download_outputs_from_blob: container=%s downloaded=%d outputs_dir=%s "
+        "(run_paths=%d top_level=%d)",
         container, downloaded, outputs_dir,
+        run_blob_count,
+        max(0, downloaded - run_blob_count),
     )
-    for _f in sorted(outputs_dir.glob("*")):
-        if _f.is_file():
-            LOG.info("[DATA] blob_file: %s  %d bytes", _f.name, _f.stat().st_size)
     _check_outputs_freshness(outputs_dir)
     return downloaded
 
@@ -253,9 +333,24 @@ def find_files(outputs_dir: Path, pattern: str, limit: int) -> list[Path]:
             return 0 if is_eom_named else 1
         return 0 if not is_eom_named else 1
 
+    candidates = [p for p in outputs_dir.rglob(pattern) if p.is_file()]
+    if not candidates:
+        return []
+
+    run_candidates = [p for p in candidates if _is_run_artifact(p, outputs_dir)]
+    if _prefer_run_path() and run_candidates:
+        candidates = run_candidates
+
+    blob_index = _load_blob_index(outputs_dir)
     candidates = sorted(
-        outputs_dir.rglob(pattern),
-        key=lambda p: (_mode_rank(p), -p.stat().st_mtime),
+        candidates,
+        key=lambda p: (
+            _mode_rank(p),
+            0 if _is_run_artifact(p, outputs_dir) else 1,
+            -_blob_mtime_epoch(p, outputs_dir, blob_index),
+            -_filename_timestamp_epoch(p),
+            p.name,
+        ),
     )
     return candidates[:limit]
 
@@ -284,29 +379,26 @@ def derive_report_date(outputs_dir: Path):
         LOG.warning("pandas not available; falling back to datetime.now() for report_date")
         return _dt.datetime.now()
 
-    csvs = sorted(
-        outputs_dir.glob("qry_unified_mapped_*.csv"),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
+    csvs = find_files(outputs_dir, "qry_unified_mapped_*.csv", 5)
     if not csvs:
         LOG.warning("No unified CSV found in %s; falling back to datetime.now()", outputs_dir)
         return _dt.datetime.now()
 
-    try:
-        df = pd.read_csv(csvs[0])
-        if "Extract_Date" in df.columns:
-            ts = pd.to_datetime(df["Extract_Date"], errors="coerce").max()
-            if pd.notna(ts):
-                LOG.info("report_date derived from Extract_Date: %s", ts)
-                return ts.to_pydatetime()
-        if "Load_Timestamp" in df.columns:
-            LOG.warning("Extract_Date not found; falling back to Load_Timestamp for report_date")
-            ts = pd.to_datetime(df["Load_Timestamp"], errors="coerce").max()
-            if pd.notna(ts):
-                return ts.to_pydatetime()
-    except Exception as exc:  # pragma: no cover
-        LOG.warning("Could not derive report_date from %s: %s", csvs[0].name, exc)
+    for csv_path in csvs:
+        try:
+            df = pd.read_csv(csv_path)
+            if "Extract_Date" in df.columns:
+                ts = pd.to_datetime(df["Extract_Date"], errors="coerce").max()
+                if pd.notna(ts):
+                    LOG.info("report_date derived from Extract_Date: %s", ts)
+                    return ts.to_pydatetime()
+            if "Load_Timestamp" in df.columns:
+                LOG.warning("Extract_Date not found; falling back to Load_Timestamp for report_date")
+                ts = pd.to_datetime(df["Load_Timestamp"], errors="coerce").max()
+                if pd.notna(ts):
+                    return ts.to_pydatetime()
+        except Exception as exc:  # pragma: no cover
+            LOG.warning("Could not derive report_date from %s: %s", csv_path.name, exc)
 
     LOG.warning("No valid date column found in unified CSV; falling back to datetime.now()")
     return _dt.datetime.now()
