@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sys
 import time
+import json
 from pathlib import Path
 import importlib.util
 
@@ -88,6 +89,44 @@ class TestFindFiles:
         regular.write_text("x")
         result = find_files(tmp_path, "combined_management_report_*.csv", 1)
         assert result[0].name == regular.name
+
+    def test_prefers_run_path_artifacts_by_default(self, tmp_path):
+        top_level = tmp_path / "combined_management_report_2026_MTD_20260429_v2_20260429_093215.csv"
+        run_level = (
+            tmp_path
+            / "runs"
+            / "report_type=MTD"
+            / "date=2026-04-29"
+            / "run_id=v2_run_2026_MTD_20260429_function-timer_20260429_230825"
+            / "combined_management_report_2026_MTD_20260429_function-timer_20260429_230825.csv"
+        )
+        run_level.parent.mkdir(parents=True, exist_ok=True)
+        top_level.write_text("x")
+        time.sleep(0.05)
+        run_level.write_text("x")
+        top_level.touch()
+
+        result = find_files(tmp_path, "combined_management_report_*.csv", 1)
+        assert result[0] == run_level
+
+    def test_prefers_blob_last_modified_over_local_mtime(self, tmp_path):
+        older_local = tmp_path / "combined_management_report_2026_MTD_20260429_v2_20260429_093215.csv"
+        newer_local = tmp_path / "combined_management_report_2026_MTD_20260429_v2_20260429_230825.csv"
+        older_local.write_text("a")
+        time.sleep(0.05)
+        newer_local.write_text("b")
+
+        index_payload = {
+            "generated_at_utc": "2026-04-29T21:30:00Z",
+            "entries": {
+                older_local.relative_to(tmp_path).as_posix(): {"last_modified_epoch": 2000.0},
+                newer_local.relative_to(tmp_path).as_posix(): {"last_modified_epoch": 1000.0},
+            },
+        }
+        (tmp_path / _mod._BLOB_INDEX_FILE).write_text(json.dumps(index_payload), encoding="utf-8")
+
+        result = find_files(tmp_path, "combined_management_report_*.csv", 1)
+        assert result[0] == older_local
 
 
 class TestCollectHtmlFiles:
